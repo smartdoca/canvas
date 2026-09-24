@@ -1,0 +1,52 @@
+# Installed dependencies and package-manager caches (keep yarn.lock tracked)
+node_modules/
+.npm/
+.pnpm-store/
+.yarn-integrity
+.pnp.*
+.yarn/*
+!.yarn/patches/
+!.yarn/plugins/
+!.yarn/releases/
+!.yarn/sdks/
+!.yarn/versions/
+
+# Reproducible build output, npm archives and tool caches
+/dist/
+*.tgz
+*.tsbuildinfo
+.vite/
+.cache/
+.eslintcache
+.stylelintcache
+vite.config.*.timestamp-*
+vite.lib.config.*.timestamp-*
+
+# Generated test output only; keep tests, fixtures and example scripts tracked
+/test-results/
+/playwright-report/
+/playwright/.cache/
+/blob-report/
+/coverage/
+/.nyc_output/
+*.lcov
+
+# Logs and local scratch directories
+*.log
+/logs/
+/tmp/
+/temp/
+
+# Local secrets; commit only explicitly named example templates
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# OS metadata and local IDE state
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+*.swp
+*.swo
