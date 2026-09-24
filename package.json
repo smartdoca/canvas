@@ -1,0 +1,101 @@
+{
+  "name": "aidcanvas",
+  "version": "0.4.1",
+  "description": "A focused, local-first vector canvas editor built with React and LeaferJS",
+  "license": "UNLICENSED",
+  "keywords": [
+    "canvas",
+    "leaferjs",
+    "react",
+    "whiteboard",
+    "drawing"
+  ],
+  "packageManager": "yarn@1.22.22",
+  "engines": {
+    "node": ">=20",
+    "yarn": ">=1.22"
+  },
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "build:lib": "vite build --config vite.lib.config.ts && tsc -p tsconfig.lib.json",
+    "check": "yarn lint && yarn type-check",
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "prepack": "yarn run check && yarn build:lib",
+    "type-check": "tsc -p tsconfig.app.json --noEmit",
+    "test:model": "node --test tests/model.test.mjs",
+    "test:browser": "playwright test",
+    "bench:model": "node tests/performance/model.mjs",
+    "bench:browser": "node tests/performance/browser.mjs",
+    "bench:assets": "node tests/performance/assets.mjs",
+    "test": "yarn build:lib && yarn test:model && yarn test:browser",
+    "check:examples": "tsc -p tsconfig.examples.json --noEmit"
+  },
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/types/index.d.ts",
+  "files": [
+    "dist",
+    "docs",
+    "README.md",
+    "examples"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./model": {
+      "types": "./dist/types/model/index.d.ts",
+      "import": "./dist/model.js"
+    },
+    "./io": {
+      "types": "./dist/types/io/index.d.ts",
+      "import": "./dist/io.js"
+    },
+    "./style.css": "./dist/index.css",
+    "./package.json": "./package.json"
+  },
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "peerDependencies": {
+    "react": ">=18.2.0",
+    "react-dom": ">=18.2.0"
+  },
+  "dependencies": {
+    "@icon-park/react": "^1.4.2",
+    "@leafer-in/arrow": "2.1.0",
+    "@leafer-in/editor": "2.1.0",
+    "@leafer-in/export": "2.1.0",
+    "@leafer-in/resize": "2.1.0",
+    "@leafer-in/text-editor": "2.1.0",
+    "@leafer-in/view": "2.1.0",
+    "@leafer-in/viewport": "2.1.0",
+    "cropperjs": "^2.1.1",
+    "leafer-ui": "2.1.0",
+    "roughjs": "^4.6.6",
+    "yjs": "13.6.27"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^24.12.0",
+    "@types/react": "^18.0.0",
+    "@types/react-dom": "^18.0.0",
+    "@vitejs/plugin-react": "^6.0.1",
+    "eslint": "^9.39.4",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.4.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "sass": "^1.98.0",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.57.0",
+    "vite": "^8.0.1"
+  }
+}

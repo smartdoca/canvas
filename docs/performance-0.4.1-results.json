@@ -1,0 +1,234 @@
+{
+  "date": "2026-09-13",
+  "environment": "macOS Chrome 152, Node 24.15; 1400x900 browser viewport; times in milliseconds",
+  "modelBefore": [
+    {
+      "count": 100,
+      "initializeMs": 11.741667,
+      "checkpointMs": 0.6245830000000012,
+      "restoreMs": 2.075916999999997,
+      "checkpointBytes": 21780,
+      "getValueMs": 0.1039999999999992,
+      "patchMs": 0.9170409999999976,
+      "remoteMs": 2.3829999999999956,
+      "resolve100AnchorsMs": 21.218500000000006
+    },
+    {
+      "count": 1000,
+      "initializeMs": 21.256541,
+      "checkpointMs": 1.958167000000003,
+      "restoreMs": 14.983292000000006,
+      "checkpointBytes": 220453,
+      "getValueMs": 1.5915829999999005,
+      "patchMs": 8.256666999999993,
+      "remoteMs": 11.416582999999946,
+      "resolve100AnchorsMs": 277.27987500000006
+    },
+    {
+      "count": 5000,
+      "initializeMs": 86.97462500000006,
+      "checkpointMs": 13.385750000000144,
+      "restoreMs": 39.60175000000004,
+      "checkpointBytes": 1146476,
+      "getValueMs": 18.03399999999965,
+      "patchMs": 63.29558300000099,
+      "remoteMs": 54.49312500000087,
+      "resolve100AnchorsMs": 2404.0598330000003
+    },
+    {
+      "count": 10000,
+      "initializeMs": 176.2805419999986,
+      "checkpointMs": 14.62933300000077,
+      "restoreMs": 116.28033399999913,
+      "checkpointBytes": 2310134,
+      "getValueMs": 58.77387499999895,
+      "patchMs": 170.62012500000128,
+      "remoteMs": 117.95129099999758,
+      "resolve100AnchorsMs": 6949.063416000001
+    }
+  ],
+  "modelAfter": [
+    {
+      "count": 100,
+      "initializeMs": 11.588334000000003,
+      "checkpointMs": 0.7107499999999973,
+      "restoreMs": 1.7449169999999938,
+      "checkpointBytes": 21780,
+      "getValueMs": 0.20508399999999938,
+      "patchMs": 0.09970799999999969,
+      "remoteMs": 2.605916999999998,
+      "resolve100AnchorsMs": 0.05912500000000165
+    },
+    {
+      "count": 1000,
+      "initializeMs": 24.711792000000003,
+      "checkpointMs": 1.6772080000000074,
+      "restoreMs": 17.329750000000004,
+      "checkpointBytes": 220453,
+      "getValueMs": 1.5664170000000013,
+      "patchMs": 0.10291599999999335,
+      "remoteMs": 11.378332999999998,
+      "resolve100AnchorsMs": 0.06883300000001213
+    },
+    {
+      "count": 5000,
+      "initializeMs": 95.597917,
+      "checkpointMs": 7.757375000000025,
+      "restoreMs": 44.34575000000001,
+      "checkpointBytes": 1146476,
+      "getValueMs": 6.76887499999998,
+      "patchMs": 0.11204200000003084,
+      "remoteMs": 54.50341700000001,
+      "resolve100AnchorsMs": 0.08220800000003692
+    },
+    {
+      "count": 10000,
+      "initializeMs": 162.83974999999998,
+      "checkpointMs": 15.897624999999948,
+      "restoreMs": 82.154,
+      "checkpointBytes": 2310134,
+      "getValueMs": 15.452625000000012,
+      "patchMs": 0.12529200000005858,
+      "remoteMs": 105.16495900000018,
+      "resolve100AnchorsMs": 0.09716699999989942
+    }
+  ],
+  "browserBefore": [
+    {
+      "count": 100,
+      "initMs": 9.5,
+      "mountMs": 133.5,
+      "selectionMs": 37.10000002384186,
+      "nativeEditMs": 31.69999998807907,
+      "modelEditMs": 27,
+      "svgMs": 17.099999964237213,
+      "pngMs": 27.900000035762787,
+      "layerRows": 100,
+      "domNodes": 2749
+    },
+    {
+      "count": 1000,
+      "initMs": 30,
+      "mountMs": 392.69999998807907,
+      "selectionMs": 164.60000002384186,
+      "nativeEditMs": 163.39999997615814,
+      "modelEditMs": 168.80000001192093,
+      "svgMs": 696.1999999880791,
+      "pngMs": 713.3000000119209,
+      "layerRows": 1000,
+      "domNodes": 24349
+    },
+    {
+      "count": 5000,
+      "initMs": 101.40000003576279,
+      "mountMs": 1433,
+      "selectionMs": 334,
+      "nativeEditMs": 424.7999999523163,
+      "modelEditMs": 873.4000000357628,
+      "svgMs": 16537.69999998808,
+      "pngMs": 18402.100000023842,
+      "layerRows": 5000,
+      "domNodes": 120349
+    },
+    {
+      "count": 10000,
+      "initMs": 204.69999998807907,
+      "mountMs": 2705.900000035763,
+      "selectionMs": 644.4000000357628,
+      "nativeEditMs": 873.1999999880791,
+      "modelEditMs": 1069.699999988079,
+      "svgMs": 67973.40000003576,
+      "pngMs": 67024.59999996424,
+      "layerRows": 10000,
+      "domNodes": 240349
+    }
+  ],
+  "browserAfter": [
+    {
+      "count": 100,
+      "initMs": 9.300000011920929,
+      "mountMs": 131.5999999642372,
+      "selectionMs": 51.39999997615814,
+      "nativeEditMs": 28.5,
+      "modelEditMs": 22.899999976158142,
+      "svgMs": 9,
+      "pngMs": 18.30000001192093,
+      "layerRows": 100,
+      "domNodes": 2749
+    },
+    {
+      "count": 1000,
+      "initMs": 29.30000001192093,
+      "mountMs": 132.30000001192093,
+      "selectionMs": 38.299999952316284,
+      "nativeEditMs": 46.80000001192093,
+      "modelEditMs": 45.19999998807907,
+      "svgMs": 46.80000001192093,
+      "pngMs": 66.5,
+      "layerRows": 30,
+      "domNodes": 1069
+    },
+    {
+      "count": 5000,
+      "initMs": 100.60000002384186,
+      "mountMs": 293.60000002384186,
+      "selectionMs": 36.40000003576279,
+      "nativeEditMs": 103.80000001192093,
+      "modelEditMs": 121.59999996423721,
+      "svgMs": 202.69999998807907,
+      "pngMs": 279.30000001192093,
+      "layerRows": 30,
+      "domNodes": 1069
+    },
+    {
+      "count": 10000,
+      "initMs": 201.10000002384186,
+      "mountMs": 471.7999999523163,
+      "selectionMs": 36.80000001192093,
+      "nativeEditMs": 166.39999997615814,
+      "modelEditMs": 208.60000002384186,
+      "svgMs": 392.5999999642372,
+      "pngMs": 545.9000000357628,
+      "layerRows": 30,
+      "domNodes": 1069
+    }
+  ],
+  "assetsAfter": [
+    {
+      "kind": "png-parse-and-pixels",
+      "side": 1024,
+      "pixels": 1048576,
+      "fileBytes": 24692,
+      "parseMs": 1.600000023841858,
+      "ms": 5.399999976158142
+    },
+    {
+      "kind": "png-parse-and-pixels",
+      "side": 2048,
+      "pixels": 4194304,
+      "fileBytes": 88732,
+      "parseMs": 1.5,
+      "ms": 12.300000011920929
+    },
+    {
+      "kind": "png-parse-and-pixels",
+      "side": 4096,
+      "pixels": 16777216,
+      "fileBytes": 332295,
+      "parseMs": 1.100000023841858,
+      "ms": 39.10000002384186
+    },
+    {
+      "kind": "rough-svg",
+      "count": 100,
+      "ms": 50,
+      "bytes": 464857
+    },
+    {
+      "kind": "rough-svg",
+      "count": 500,
+      "ms": 657.3999999761581,
+      "bytes": 2324573
+    }
+  ]
+}

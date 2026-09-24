@@ -1,0 +1,38 @@
+export { default as CanvasEditor } from '../editor/runtime/CanvasEditor'
+export { createDocument, parseDocument, CANVAS_DOCUMENT_VERSION } from '../editor/core/document'
+export { dataUrlImageStorage } from './types'
+export * from '../io'
+export type {
+  CanvasAnchorDecoration,
+  CanvasAnchorClick,
+  CanvasRevealOptions,
+  CanvasRevealResult,
+  AddImageOptions,
+  CanvasChangeMeta,
+  CanvasEditorCapabilities,
+  CanvasEditorResources,
+  CanvasFindOptions,
+  CanvasImageResource,
+  CanvasLocalTransaction,
+  CanvasResourceUploadContext,
+  CanvasTextMatch,
+  CanvasCollaborationProvider,
+  CanvasCollaborationAck,
+  CanvasCollaborationUpdate,
+  CanvasConnectionStatus,
+  CanvasEditorProps,
+  CanvasEditorRef,
+  CanvasElement,
+  CanvasElementBounds,
+  CanvasElementExtension,
+  CanvasElementProperty,
+  CanvasElementPropertyControlProps,
+  CanvasImageStorageAdapter,
+  CanvasImageDownloadContext,
+  CanvasEditorLabels,
+  CanvasSaveStatus,
+  CanvasSelectionAction,
+  CanvasSelectionActionContext,
+  CanvasValue,
+  CustomShapeDefinition,
+} from './types'

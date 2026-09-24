@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": { "noEmit": true },
+  "include": ["examples/doca/DocaCanvas.tsx", "examples/io/**/*.ts", "examples/io/**/*.tsx"]
+}
