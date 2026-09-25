@@ -5,6 +5,8 @@ import { getStyleParamByKeyList } from '../../utils/styleLocalStorage'
 import type { AddMenuProps } from '../plugins'
 import { NAME, SPECIAL_SHAPES, STYLE_CONTROL_KEYS, type SpecialShapeType } from './const'
 import { applyCurrentRoughStyle, fitSpecialPath, updateCurrentRoughPreview } from '../../utils/roughStyle'
+import { useCanvasI18n } from '../../../../i18n/context'
+import type { MessageKey } from '../../../../i18n/en'
 
 function ShapeIcon({ path }: { path?: string }) {
   return <svg viewBox="0 0 100 100" aria-hidden="true"><path d={path || 'M12 52 C25 12 45 84 62 31 C73 2 91 37 86 70 C80 93 28 94 12 52 Z'} fill="none" stroke="currentColor" strokeWidth="7" strokeLinejoin="round" /></svg>
@@ -13,6 +15,7 @@ function ShapeIcon({ path }: { path?: string }) {
 export function AddMenu({ app, activeKey, onClick, onCreateComplete, customShapes = [] }: AddMenuProps) {
   const [shapeType, setShapeType] = useState<SpecialShapeType>('heart')
   const active = activeKey === NAME
+  const t = useCanvasI18n()
   const shapes = [...SPECIAL_SHAPES, ...customShapes]
   const selectedShape = shapes.find((item) => item.type === shapeType) || shapes[0]
 
@@ -72,11 +75,15 @@ export function AddMenu({ app, activeKey, onClick, onCreateComplete, customShape
   }, [active, app, onCreateComplete, selectedShape])
 
   return <div className="special-shape-tool">
-    <IconButton label="特殊图形" icon={<ShapeIcon path={selectedShape.path} />} active={active} onClick={(event) => { onClick(NAME); event.currentTarget.blur() }} />
-    <div className="special-shape-menu" role="menu" aria-label="特殊图形">
-      {shapes.map((item) => <button key={item.type} type="button" role="menuitem" data-tooltip={item.label} aria-label={item.label} className={shapeType === item.type ? 'is-selected' : ''} onClick={(event) => { setShapeType(item.type as SpecialShapeType); onClick(NAME); event.currentTarget.blur() }}>
+    <IconButton label={t('toolbar.specialShape')} icon={<ShapeIcon path={selectedShape.path} />} active={active} onClick={(event) => { onClick(NAME); event.currentTarget.blur() }} />
+    <div className="special-shape-menu" role="menu" aria-label={t('toolbar.specialShape')}>
+      {shapes.map((item) => {
+        const builtin = SPECIAL_SHAPES.some(shape => shape.type === item.type)
+        const label = builtin ? t(`shape.${item.type}` as MessageKey) : item.label
+        return <button key={item.type} type="button" role="menuitem" data-tooltip={label} aria-label={label} className={shapeType === item.type ? 'is-selected' : ''} onClick={(event) => { setShapeType(item.type as SpecialShapeType); onClick(NAME); event.currentTarget.blur() }}>
         <ShapeIcon path={item.path} />
-      </button>)}
+      </button>
+      })}
     </div>
   </div>
 }

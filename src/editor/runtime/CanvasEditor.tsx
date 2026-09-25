@@ -1,4 +1,4 @@
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import {
   App,
   ChildEvent,
@@ -54,16 +54,25 @@ import { elementBounds } from './utils/elementBounds'
 import { findItem } from './utils/findItem'
 import { createTextInputBridge } from './utils/textInputBridge'
 import { bakeSpecialShapeScale, fitSpecialPath, refreshRoughFill, updateRoughFill, updateRoughGeometry } from './utils/roughStyle'
-import { type AddImageOptions, type CanvasCollaborationAck, type CanvasCollaborationUpdate, type CanvasEditorLabels, type CanvasEditorProps, type CanvasEditorRef, type CanvasFindOptions, type CanvasRevealOptions, type CanvasRevealResult, type CanvasSaveStatus, type CanvasTextMatch, type CanvasValue } from '../../sdk/types'
+import { type AddImageOptions, type CanvasCollaborationAck, type CanvasCollaborationUpdate, type CanvasEditorProps, type CanvasEditorRef, type CanvasFindOptions, type CanvasRevealOptions, type CanvasRevealResult, type CanvasSaveStatus, type CanvasTextMatch, type CanvasValue } from '../../sdk/types'
+import { CanvasI18nProvider } from '../../i18n/context'
+import type { MessageKey } from '../../i18n/en'
+import { resolveLocale, translate, type TranslateParams } from '../../i18n/translate'
 
 const plugins: Plugins[] = [rectPlugin, squarePlugin, ellipsePlugin, circlePlugin, linePlugin, arrowPlugin, pathPlugin, textPlugin, polygonPlugin, starPlugin, framePlugin, imagePlugin, specialShapePlugin, eraserPlugin]
 
 type SaveState = 'saved' | 'saving' | 'dirty' | 'error'
 
-const DEFAULT_LABELS: CanvasEditorLabels = {
-  title: 'AidCanvas', save: '保存', import: '导入', export: '导出',
-  exportPng: '导出 PNG', exportSvg: '导出 SVG', exportJson: '导出可编辑文件', layers: '图层',
-}
+const LABEL_KEYS = {
+  title: 'header.title',
+  save: 'header.save',
+  import: 'header.import',
+  export: 'header.export',
+  exportPng: 'header.exportPng',
+  exportSvg: 'header.exportSvg',
+  exportJson: 'header.exportJson',
+  layers: 'header.layers',
+} as const
 
 const FRAME_TITLE_NAME = 'frame-title'
 
@@ -183,7 +192,6 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
   const [selectionPosition, setSelectionPosition] = useState<{ x: number; y: number } | null>(null)
   const [imageEditorTarget, setImageEditorTarget] = useState<IUI | null>(null)
   const [shapeEditorTarget, setShapeEditorTarget] = useState<IUI | null>(null)
-  const labels = { ...DEFAULT_LABELS, ...props.labels }
   const isReadOnly = props.mode === 'readonly' || props.readOnly === true
 
   useEffect(() => {
@@ -202,6 +210,21 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
     setToast(text)
     window.setTimeout(() => setToast(''), 1800)
   }, [])
+
+  const messages = useMemo(() => {
+    const legacy: Record<string, string> = {}
+    const labels = props.labels
+    if (labels) {
+      (Object.keys(LABEL_KEYS) as Array<keyof typeof LABEL_KEYS>).forEach((name) => {
+        const value = labels[name]
+        if (value) legacy[LABEL_KEYS[name]] = value
+      })
+    }
+    return { ...legacy, ...props.messages }
+  }, [props.labels, props.messages])
+  const t = useMemo(() => (key: MessageKey, params?: TranslateParams) => translate(props.locale, key, params, messages), [messages, props.locale])
+  const tRef = useRef(t)
+  tRef.current = t
 
   useEffect(() => {
     setExtensionValues(previous => {
@@ -614,7 +637,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
         void hydrateResources([...instance.tree.children] as IUI[])
         lastValueRef.current = JSON.stringify(instance.tree.toJSON())
       }
-      catch { window.setTimeout(() => notify('本地画布数据无法读取，已创建空白画布'), 0) }
+      catch { window.setTimeout(() => notify(tRef.current('status.localDataUnreadable')), 0) }
     }
     const lockImageRatios = (items: IUI[]) => items.forEach((item) => {
       if (item.tag === 'Image' || item.name === 'image') item.lockRatio = item.data?.imageSizeMode !== 'free'
@@ -1095,13 +1118,13 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
         commit()
         resolve(image.toJSON() as Record<string, unknown>)
       }
-      source.onerror = () => { notify('图片读取失败，请换一张图片重试'); resolve(null) }
+      source.onerror = () => { notify(tRef.current('status.imageReadFailed')); resolve(null) }
       source.crossOrigin = 'anonymous'
       source.src = url
       })
     } catch (error) {
       propsRef.current.onError?.(error)
-      notify(error instanceof Error ? error.message : '图片保存失败')
+      notify(error instanceof Error ? error.message : tRef.current('status.imageSaveFailed'))
       return null
     } finally { uploadControllersRef.current.delete(controller) }
   }, [commit, insertImageFile, managed, notify])
@@ -1134,7 +1157,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
       if (propsRef.current.onImageDownload) await propsRef.current.onImageDownload({ element: selectedImage.toJSON() as Record<string, unknown>, url, path: resourcePath, fileName, download })
       else await download()
     } catch (error) {
-      notify(error instanceof Error ? error.message : '图片下载失败')
+      notify(error instanceof Error ? error.message : tRef.current('status.imageDownloadFailed'))
       propsRef.current.onError?.(error)
     }
   }
@@ -1198,7 +1221,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
     scheduleSelectionPosition()
     commit()
     } catch (error) {
-      if (!controller.signal.aborted) { propsRef.current.onError?.(error); notify(error instanceof Error ? error.message : '图片编辑失败') }
+      if (!controller.signal.aborted) { propsRef.current.onError?.(error); notify(error instanceof Error ? error.message : tRef.current('status.imageEditFailed')) }
     } finally { uploadControllersRef.current.delete(controller) }
   }
   const getEditablePath = (item: IUI) => {
@@ -1454,25 +1477,26 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
 
   const displayedSaveState = props.saveStatus === 'clean' ? 'saved' : props.saveStatus || saveState
 
-  return <div data-aidcanvas="" tabIndex={0} onFocus={() => setFocused(true)} onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget)) setFocused(false) }} onPointerDown={e => { if (!(e.target as HTMLElement).closest('button,input,textarea,[contenteditable]')) e.currentTarget.focus() }} onDoubleClickCapture={e => { if (isReadOnly) e.stopPropagation() }} className={`canvas-app${isReadOnly ? ' is-readonly' : ''}${props.className ? ` ${props.className}` : ''}`} style={{ ...props.theme, ...props.style }}>
+  return <CanvasI18nProvider locale={props.locale} messages={messages}>
+  <div data-aidcanvas="" lang={resolveLocale(props.locale) === 'en' ? 'en' : 'zh-CN'} tabIndex={0} onFocus={() => setFocused(true)} onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget)) setFocused(false) }} onPointerDown={e => { if (!(e.target as HTMLElement).closest('button,input,textarea,[contenteditable]')) e.currentTarget.focus() }} onDoubleClickCapture={e => { if (isReadOnly) e.stopPropagation() }} className={`canvas-app${isReadOnly ? ' is-readonly' : ''}${props.className ? ` ${props.className}` : ''}`} style={{ ...props.theme, ...props.style }}>
     {toast && <div className="toast">{toast}</div>}
     {props.showHeader !== false && <header className="app-header">
-      <div className="brand"><span className="brand-title">{props.title ?? labels.title}</span><span className="save-status">{displayedSaveState === 'saving' ? '保存中…' : displayedSaveState === 'dirty' ? '未保存' : displayedSaveState === 'error' ? '保存失败' : '已保存'}</span></div>
+      <div className="brand"><span className="brand-title">{props.title ?? t('header.title')}</span><span className="save-status">{displayedSaveState === 'saving' ? t('status.saving') : displayedSaveState === 'dirty' ? t('status.dirty') : displayedSaveState === 'error' ? t('status.error') : t('status.saved')}</span></div>
       <div className="header-actions">
         {props.headerActions}
-        <ActionButton onClick={save}><Save /><span>{labels.save}</span></ActionButton>
-        {!isReadOnly && <ActionButton disabled={!props.onImportRequest} onClick={props.onImportRequest}><FolderOpen /><span>{labels.import}</span></ActionButton>}
+        <ActionButton onClick={save}><Save /><span>{t('header.save')}</span></ActionButton>
+        {!isReadOnly && <ActionButton disabled={!props.onImportRequest} onClick={props.onImportRequest}><FolderOpen /><span>{t('header.import')}</span></ActionButton>}
         <details className="file-menu">
-          <summary><ActionButton className="primary"><Download /><span>{labels.export}</span></ActionButton></summary>
+          <summary><ActionButton className="primary"><Download /><span>{t('header.export')}</span></ActionButton></summary>
           <div className="menu-popover">
-            <button className="menu-item" disabled={!props.onExportRequest} onClick={() => props.onExportRequest?.({ format: 'png' })}>{labels.exportPng}</button>
-            <button className="menu-item" disabled={!props.onExportRequest} onClick={() => props.onExportRequest?.({ format: 'svg' })}>{labels.exportSvg}</button>
+            <button className="menu-item" disabled={!props.onExportRequest} onClick={() => props.onExportRequest?.({ format: 'png' })}>{t('header.exportPng')}</button>
+            <button className="menu-item" disabled={!props.onExportRequest} onClick={() => props.onExportRequest?.({ format: 'svg' })}>{t('header.exportSvg')}</button>
           </div>
         </details>
       </div>
     </header>}
 
-    {topActions.length > 0 && <div className="host-action-bar" role="toolbar" aria-label="宿主操作">{topActions.map(renderHostAction)}</div>}
+    {topActions.length > 0 && <div className="host-action-bar" role="toolbar" aria-label={t('header.hostActions')}>{topActions.map(renderHostAction)}</div>}
 
     <div className="canvas-workspace">
       <main ref={stageRef} className={`canvas-stage${!isReadOnly && props.showToolbar !== false ? ' has-toolbar' : ''}`} data-active-tool={activeKey}>
@@ -1491,29 +1515,30 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
 
         {selectionPosition && activeKey === 'init' && (!isReadOnly || externalActions.length > 0) && <div ref={selectionActionsRef} className="selection-actions" style={{ left: selectionPosition.x, top: selectionPosition.y }}>
           {!isReadOnly && <>
-          <IconButton label="复制" icon={<Copy />} onClick={duplicate} />
-          {selectedImage && <IconButton label="编辑图片" icon={<EditTwo />} onClick={() => setImageEditorTarget(selectedImage)} />}
-          {selectedImage && <IconButton label="下载图片" icon={<Download />} onClick={() => void downloadSelectedImage()} />}
-          {selectedEditablePath && <IconButton label={selectedEditablePath.name === 'path' ? '编辑画笔' : '编辑图形'} icon={<EditTwo />} onClick={() => setShapeEditorTarget(selectedEditablePath)} />}
+          <IconButton label={t('selection.duplicate')} icon={<Copy />} onClick={duplicate} />
+          {selectedImage && <IconButton label={t('selection.editImage')} icon={<EditTwo />} onClick={() => setImageEditorTarget(selectedImage)} />}
+          {selectedImage && <IconButton label={t('selection.downloadImage')} icon={<Download />} onClick={() => void downloadSelectedImage()} />}
+          {selectedEditablePath && <IconButton label={selectedEditablePath.name === 'path' ? t('selection.editPencil') : t('selection.editShape')} icon={<EditTwo />} onClick={() => setShapeEditorTarget(selectedEditablePath)} />}
           {selected.some((item) => item instanceof Frame && item.name === 'frame')
-            ? <IconButton label="取消 Frame" icon={<OffScreenOne />} onClick={releaseSelectedFrames} />
-            : <IconButton label="创建 Frame" icon={<FullSelection />} onClick={createFrameFromSelection} />}
-          <IconButton label="删除" danger icon={<Delete />} onClick={removeSelection} />
+            ? <IconButton label={t('selection.releaseFrame')} icon={<OffScreenOne />} onClick={releaseSelectedFrames} />
+            : <IconButton label={t('selection.createFrame')} icon={<FullSelection />} onClick={createFrameFromSelection} />}
+          <IconButton label={t('selection.delete')} danger icon={<Delete />} onClick={removeSelection} />
           </>}
           {externalActions.map(renderHostAction)}
         </div>}
 
         {props.showZoomControls !== false && <div className="zoom-controls">
-          <IconButton label="缩小" icon={<ZoomOut />} onClick={() => zoom('out')} />
-          <button className="zoom-label" title="恢复到 100%" aria-label="恢复缩放到 100%" onClick={() => zoom('reset')}>{zoomPercent}%</button>
-          <IconButton label="放大" icon={<ZoomIn />} onClick={() => zoom('in')} />
+          <IconButton label={t('zoom.out')} icon={<ZoomOut />} onClick={() => zoom('out')} />
+          <button className="zoom-label" title={t('zoom.reset')} aria-label={t('zoom.reset')} onClick={() => zoom('reset')}>{zoomPercent}%</button>
+          <IconButton label={t('zoom.in')} icon={<ZoomIn />} onClick={() => zoom('in')} />
         </div>}
         <div ref={hostRef} className="canvas-host"><div ref={viewRef} className="canvas-view" /></div>
       </main>
     </div>
     {imageEditorTarget && <ImageEditorModal sourceUrl={getImageSource(imageEditorTarget)} onCancel={() => setImageEditorTarget(null)} onConfirm={applyImageEdit} />}
-    {shapeEditorTarget && <SpecialShapeEditorModal title={shapeEditorTarget.name === 'path' ? '编辑画笔路径' : '编辑自定义图形'} path={getEditablePath(shapeEditorTarget)} onCancel={() => setShapeEditorTarget(null)} onConfirm={applyPathEdit} />}
+    {shapeEditorTarget && <SpecialShapeEditorModal title={shapeEditorTarget.name === 'path' ? t('shapeEditor.pencilTitle') : t('shapeEditor.title')} path={getEditablePath(shapeEditorTarget)} onCancel={() => setShapeEditorTarget(null)} onConfirm={applyPathEdit} />}
   </div>
+  </CanvasI18nProvider>
 })
 
 export default CanvasContent

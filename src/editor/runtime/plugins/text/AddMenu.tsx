@@ -5,11 +5,13 @@ import { DragEvent, PointerEvent, Text as LeaferText } from "leafer-ui"
 import { useEffect } from "react"
 import { NAME, STYPE_CONTROLL_KEYS } from "./const"
 import { getStyleParamByKeyList } from "../../utils/styleLocalStorage"
+import { useCanvasI18n } from "../../../../i18n/context"
 
 const AddMenu: React.FC<AddMenuProps> = (props) => {
     const { app, activeKey, onCreateComplete, onClick } = props
 
     const isActive = activeKey === NAME
+    const t = useCanvasI18n()
 
     useEffect(() => {
         if (!app) {
@@ -40,7 +42,7 @@ const AddMenu: React.FC<AddMenuProps> = (props) => {
         }
     }, [app, isActive, onCreateComplete])
 
-    return <IconButton label="文本 (T)" icon={<TextIcon />} active={isActive} onClick={() => onClick(NAME)} />
+    return <IconButton label={t('toolbar.text')} icon={<TextIcon />} active={isActive} onClick={() => onClick(NAME)} />
 }
 
 export { AddMenu } 

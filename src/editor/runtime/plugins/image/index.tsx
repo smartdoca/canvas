@@ -25,7 +25,7 @@ export const imagePlugin: Plugins = {
   name: 'image',
   AddMenu: () => null,
   styleControlKeys: ['imageSizeMode', 'opacity'],
-  customStyleControlRenders: [{ key: 'imageSizeMode', title: '图片尺寸', order: 0, render: ImageSizeControl }],
+  customStyleControlRenders: [{ key: 'imageSizeMode', title: 'style.imageSize', order: 0, render: ImageSizeControl }],
   setStyleCustom: { imageSizeMode: setImageSizeMode },
   getStyleCustom: { imageSizeMode: (item) => String(item.data?.imageSizeMode || (item.lockRatio ? 'locked' : 'free')) },
 }

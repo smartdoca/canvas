@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import CanvasEditor from '../editor/runtime/CanvasEditor'
 import type { CanvasElementExtension } from '../sdk/types'
 
@@ -20,5 +21,9 @@ const badgeExtension: CanvasElementExtension = {
 }
 
 export function DemoApp() {
-  return <CanvasEditor elementExtensions={[badgeExtension]} />
+  const locale = new URLSearchParams(window.location.search).get('locale') || undefined
+  useEffect(() => {
+    document.documentElement.lang = !locale || locale === 'zh' ? 'zh-CN' : 'en'
+  }, [locale])
+  return <CanvasEditor locale={locale} elementExtensions={[badgeExtension]} />
 }

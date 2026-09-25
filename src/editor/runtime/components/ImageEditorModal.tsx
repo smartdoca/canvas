@@ -1,5 +1,7 @@
 import Cropper, { type CropperImage, type CropperSelection } from 'cropperjs'
 import { useEffect, useRef, useState } from 'react'
+import { useCanvasI18n } from '../../../i18n/context'
+import type { MessageKey } from '../../../i18n/en'
 
 type Ratio = 'free' | 'original' | '1:1' | '4:3' | '16:9' | 'custom'
 type OutputMode = 'replace' | 'new'
@@ -38,6 +40,9 @@ export default function ImageEditorModal({ sourceUrl, onCancel, onConfirm }: Pro
   const hostRef = useRef<HTMLDivElement>(null)
   const imageRef = useRef<HTMLImageElement>()
   const cropperRef = useRef<Cropper>()
+  const t = useCanvasI18n()
+  const tRef = useRef(t)
+  tRef.current = t
   const [ready, setReady] = useState(false)
   const [naturalRatio, setNaturalRatio] = useState(1)
   const [ratio, setRatio] = useState<Ratio>('original')
@@ -60,7 +65,7 @@ export default function ImageEditorModal({ sourceUrl, onCancel, onConfirm }: Pro
     let disposed = false
     let cropper: Cropper | undefined
     const image = new window.Image()
-    image.alt = '待编辑图片'
+    image.alt = tRef.current('imageEditor.pendingAlt')
     image.onload = () => {
       if (disposed) return
       const sourceRatio = image.naturalWidth / image.naturalHeight
@@ -168,34 +173,34 @@ export default function ImageEditorModal({ sourceUrl, onCancel, onConfirm }: Pro
   }
 
   return <div className="image-editor-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onCancel()}>
-    <section className="image-editor-modal" role="dialog" aria-modal="true" aria-label="编辑图片">
-      <header className="image-editor-header"><div><strong>编辑图片</strong><span>拖动图片或裁剪框，滚轮缩放图片，拖动八个控制点调整范围</span></div><button aria-label="关闭图片编辑" onClick={onCancel}>×</button></header>
+    <section className="image-editor-modal" role="dialog" aria-modal="true" aria-label={t('imageEditor.title')}>
+      <header className="image-editor-header"><div><strong>{t('imageEditor.title')}</strong><span>{t('imageEditor.hint')}</span></div><button aria-label={t('imageEditor.close')} onClick={onCancel}>×</button></header>
       <div className="image-editor-body">
         <div className="image-editor-preview">
-          <div ref={hostRef} className="cropper-host" aria-label="图片裁剪区域" />
-          {showOriginal && <img className="image-original-compare" src={sourceUrl} alt="原图对比" />}
+          <div ref={hostRef} className="cropper-host" aria-label={t('imageEditor.cropRegion')} />
+          {showOriginal && <img className="image-original-compare" src={sourceUrl} alt={t('imageEditor.compareAlt')} />}
         </div>
         <aside className="image-editor-tools">
-          <label>裁剪比例</label><div className="image-editor-options">{([['free', '自由'], ['original', '原始'], ['1:1', '1:1'], ['4:3', '4:3'], ['16:9', '16:9'], ['custom', '自定义']] as Array<[Ratio, string]>).map(([value, label]) => <button key={value} className={ratio === value ? 'is-active' : ''} onClick={() => chooseRatio(value)}>{label}</button>)}</div>
-          {ratio === 'custom' && <div className="custom-ratio-inputs"><input aria-label="自定义比例宽" type="number" min="1" value={customRatio.width} onChange={(event) => { const next = { ...customRatio, width: Math.max(1, Number(event.target.value) || 1) }; setCustomRatio(next); chooseRatio('custom', next) }} /><span>:</span><input aria-label="自定义比例高" type="number" min="1" value={customRatio.height} onChange={(event) => { const next = { ...customRatio, height: Math.max(1, Number(event.target.value) || 1) }; setCustomRatio(next); chooseRatio('custom', next) }} /></div>}
-          <label>方向</label><div className="image-editor-options"><button onClick={() => transformImage('flip-x')} className={flipX ? 'is-active' : ''}>水平翻转</button><button onClick={() => transformImage('flip-y')} className={flipY ? 'is-active' : ''}>垂直翻转</button><button onClick={() => transformImage('rotate')}>旋转 {rotation}°</button></div>
+          <label>{t('imageEditor.ratio')}</label><div className="image-editor-options">{(['free', 'original', '1:1', '4:3', '16:9', 'custom'] as Ratio[]).map((value) => <button key={value} className={ratio === value ? 'is-active' : ''} onClick={() => chooseRatio(value)}>{t(`imageEditor.ratio.${value === '1:1' ? 'square' : value === '4:3' ? 'landscape' : value === '16:9' ? 'widescreen' : value}` as MessageKey)}</button>)}</div>
+          {ratio === 'custom' && <div className="custom-ratio-inputs"><input aria-label={t('imageEditor.ratioWidth')} type="number" min="1" value={customRatio.width} onChange={(event) => { const next = { ...customRatio, width: Math.max(1, Number(event.target.value) || 1) }; setCustomRatio(next); chooseRatio('custom', next) }} /><span>:</span><input aria-label={t('imageEditor.ratioHeight')} type="number" min="1" value={customRatio.height} onChange={(event) => { const next = { ...customRatio, height: Math.max(1, Number(event.target.value) || 1) }; setCustomRatio(next); chooseRatio('custom', next) }} /></div>}
+          <label>{t('imageEditor.orientation')}</label><div className="image-editor-options"><button onClick={() => transformImage('flip-x')} className={flipX ? 'is-active' : ''}>{t('image.flipHorizontal')}</button><button onClick={() => transformImage('flip-y')} className={flipY ? 'is-active' : ''}>{t('image.flipVertical')}</button><button onClick={() => transformImage('rotate')}>{t('imageEditor.rotate', { degrees: rotation })}</button></div>
           <details className="image-editor-section">
-            <summary>图片调整<span>亮度、颜色与滤镜</span></summary>
+            <summary>{t('imageEditor.adjust')}<span>{t('imageEditor.adjustHint')}</span></summary>
             <div className="image-editor-section-content">
-              <label>快速预设</label><div className="image-editor-options"><button onClick={() => applyPreset('clear')}>自然</button><button onClick={() => applyPreset('vivid')}>鲜明</button><button onClick={() => applyPreset('mono')}>黑白</button><button onClick={() => applyPreset('vintage')}>复古</button></div>
-              {slider('亮度', 'brightness', 40, 160)}{slider('对比度', 'contrast', 40, 160)}{slider('饱和度', 'saturation', 0, 200)}{slider('色相', 'hue', -180, 180, '°')}{slider('模糊', 'blur', 0, 12, 'px')}{slider('灰度', 'grayscale', 0, 100)}{slider('怀旧', 'sepia', 0, 100)}{slider('反色', 'invert', 0, 100)}
+              <label>{t('imageEditor.preset')}</label><div className="image-editor-options"><button onClick={() => applyPreset('clear')}>{t('imageEditor.preset.natural')}</button><button onClick={() => applyPreset('vivid')}>{t('imageEditor.preset.vivid')}</button><button onClick={() => applyPreset('mono')}>{t('imageEditor.preset.mono')}</button><button onClick={() => applyPreset('vintage')}>{t('imageEditor.preset.vintage')}</button></div>
+              {slider(t('imageEditor.brightness'), 'brightness', 40, 160)}{slider(t('imageEditor.contrast'), 'contrast', 40, 160)}{slider(t('imageEditor.saturation'), 'saturation', 0, 200)}{slider(t('imageEditor.hue'), 'hue', -180, 180, '°')}{slider(t('imageEditor.blur'), 'blur', 0, 12, 'px')}{slider(t('imageEditor.grayscale'), 'grayscale', 0, 100)}{slider(t('imageEditor.sepia'), 'sepia', 0, 100)}{slider(t('imageEditor.invert'), 'invert', 0, 100)}
             </div>
           </details>
           <details className="image-editor-section">
-            <summary>输出设置<span>{outputFormat.replace('image/', '').toUpperCase()}</span></summary>
+            <summary>{t('imageEditor.output')}<span>{outputFormat.replace('image/', '').toUpperCase()}</span></summary>
             <div className="image-editor-section-content">
-              <label>图片格式</label><select className="image-format-select" value={outputFormat} onChange={(event) => setOutputFormat(event.target.value as OutputFormat)}><option value="image/png">PNG（透明背景）</option><option value="image/jpeg">JPEG</option><option value="image/webp">WebP</option></select>
-              {outputFormat !== 'image/png' && <><label>输出质量 <span>{outputQuality}%</span></label><input type="range" min="40" max="100" value={outputQuality} onChange={(event) => setOutputQuality(Number(event.target.value))} /></>}
+              <label>{t('imageEditor.format')}</label><select className="image-format-select" value={outputFormat} onChange={(event) => setOutputFormat(event.target.value as OutputFormat)}><option value="image/png">{t('imageEditor.formatPng')}</option><option value="image/jpeg">{t('imageEditor.formatJpeg')}</option><option value="image/webp">{t('imageEditor.formatWebp')}</option></select>
+              {outputFormat !== 'image/png' && <><label>{t('imageEditor.quality')} <span>{outputQuality}%</span></label><input type="range" min="40" max="100" value={outputQuality} onChange={(event) => setOutputQuality(Number(event.target.value))} /></>}
             </div>
           </details>
         </aside>
       </div>
-      <footer className="image-editor-footer"><button onClick={reset}>重置</button><button onPointerDown={() => setShowOriginal(true)} onPointerUp={() => setShowOriginal(false)} onPointerLeave={() => setShowOriginal(false)}>按住看原图</button><span /><button onClick={onCancel}>取消</button><button disabled={!ready || processing} onClick={() => void confirm('replace')}>{processing ? '处理中…' : '覆盖原图片'}</button><button className="primary" disabled={!ready || processing} onClick={() => void confirm('new')}>{processing ? '处理中…' : '生成新图片'}</button></footer>
+      <footer className="image-editor-footer"><button onClick={reset}>{t('imageEditor.reset')}</button><button onPointerDown={() => setShowOriginal(true)} onPointerUp={() => setShowOriginal(false)} onPointerLeave={() => setShowOriginal(false)}>{t('imageEditor.holdOriginal')}</button><span /><button onClick={onCancel}>{t('imageEditor.cancel')}</button><button disabled={!ready || processing} onClick={() => void confirm('replace')}>{processing ? t('imageEditor.processing') : t('imageEditor.replace')}</button><button className="primary" disabled={!ready || processing} onClick={() => void confirm('new')}>{processing ? t('imageEditor.processing') : t('imageEditor.create')}</button></footer>
     </section>
   </div>
 }

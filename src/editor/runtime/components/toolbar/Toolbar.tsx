@@ -6,6 +6,7 @@ import { IconButton } from '../../../ui/Controls'
 import type { ReactNode } from 'react'
 import type { CanvasElementExtension, CustomShapeDefinition } from '../../../../sdk/types'
 import { ExtensionTool } from './ExtensionTool'
+import { useCanvasI18n } from '../../../../i18n/context'
 
 interface ToolbarProps {
   app: App
@@ -48,6 +49,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
     setActiveKey('init')
     app.mode = 'normal'
   }, [app, setActiveKey])
+  const t = useCanvasI18n()
 
   const renderPlugin = useCallback((plugin: Plugins) => {
     const AddMenu = plugin.AddMenu
@@ -64,7 +66,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
     })),
     {
       key: 'image',
-      element: <IconButton label="图片 (I)" icon={<Picture />} onClick={() => onImageRequest ? onImageRequest() : imageInputRef.current?.click()} />,
+      element: <IconButton label={t('toolbar.image')} icon={<Picture />} onClick={() => onImageRequest ? onImageRequest() : imageInputRef.current?.click()} />,
     },
     ...['special-shape', 'eraser'].flatMap(name => {
       const plugin = pluginByName(name)
@@ -135,24 +137,24 @@ const Toolbar: React.FC<ToolbarProps> = ({
   return <div ref={toolbarRef} className="canvas-toolbar">
     <div ref={fixedRef} className="toolbar-fixed">
       {start}
-      <IconButton label="选择 (V / 1)" icon={<Mouse />} active={activeKey === 'init'} onClick={setInit} />
-      <IconButton label="手型工具 (H / Space)" icon={<HandDrag />} active={activeKey === 'hand'} onClick={() => { setActiveKey('hand'); app.mode = 'normal'; app.editor.select([]) }} />
+      <IconButton label={t('toolbar.select')} icon={<Mouse />} active={activeKey === 'init'} onClick={setInit} />
+      <IconButton label={t('toolbar.hand')} icon={<HandDrag />} active={activeKey === 'hand'} onClick={() => { setActiveKey('hand'); app.mode = 'normal'; app.editor.select([]) }} />
       <span className="toolbar-divider" />
-      <IconButton label="撤销 (⌘Z)" icon={<Undo />} disabled={!canUndo} onClick={onUndo} />
-      <IconButton label="重做 (⇧⌘Z)" icon={<Redo />} disabled={!canRedo} onClick={onRedo} />
+      <IconButton label={t('toolbar.undo')} icon={<Undo />} disabled={!canUndo} onClick={onUndo} />
+      <IconButton label={t('toolbar.redo')} icon={<Redo />} disabled={!canRedo} onClick={onRedo} />
       <span className="toolbar-divider" />
     </div>
     <div ref={toolsRef} className="toolbar-tools">
       {visibleTools.map(tool => <div key={tool.key} className="toolbar-tool" data-tool-key={tool.key}>{tool.element}</div>)}
       {overflowTools.length > 0 && <div className="toolbar-more" onMouseEnter={() => setMoreOpen(true)} onMouseLeave={() => setMoreOpen(false)}>
-        <IconButton label="更多工具" icon={<More />} active={overflowTools.some(tool => tool.name === activeKey)} onClick={() => setMoreOpen(true)} />
+        <IconButton label={t('toolbar.more')} icon={<More />} active={overflowTools.some(tool => tool.name === activeKey)} onClick={() => setMoreOpen(true)} />
         <div className={`toolbar-more-menu ${moreOpen ? 'is-open' : ''}`} onClick={() => setMoreOpen(false)}>
           {overflowTools.map(tool => <div key={tool.key} className="toolbar-tool">{tool.element}</div>)}
         </div>
       </div>}
     </div>
     {end && <div ref={endRef} className="toolbar-end">{end}</div>}
-    <input ref={imageInputRef} aria-label="选择图片文件" hidden type="file" accept="image/*" onChange={(event) => {
+    <input ref={imageInputRef} aria-label={t('toolbar.imageFile')} hidden type="file" accept="image/*" onChange={(event) => {
       const file = event.target.files?.[0]
       if (file) onImage(file)
       event.target.value = ''

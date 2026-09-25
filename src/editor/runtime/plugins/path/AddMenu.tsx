@@ -5,10 +5,12 @@ import { DragEvent, Path } from "leafer-ui"
 import { useEffect } from "react"
 import { NAME, STYPE_CONTROLL_KEYS } from "./const"
 import { getStyleParamByKeyList } from "../../utils/styleLocalStorage"
+import { useCanvasI18n } from "../../../../i18n/context"
 
 const AddMenu: React.FC<AddMenuProps> = (props) => {
     const { app, activeKey, onClick } = props
     const isActive = activeKey === NAME
+    const t = useCanvasI18n()
 
     useEffect(() => {
         if (!app) {
@@ -42,7 +44,7 @@ const AddMenu: React.FC<AddMenuProps> = (props) => {
         }
     }, [app, isActive])
 
-    return <IconButton label="铅笔 (P)" icon={<Write />} active={isActive} onClick={() => onClick(isActive ? 'init' : NAME)} />
+    return <IconButton label={t('toolbar.pencil')} icon={<Write />} active={isActive} onClick={() => onClick(isActive ? 'init' : NAME)} />
 }
 
 export { AddMenu }
