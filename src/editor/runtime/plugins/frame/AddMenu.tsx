@@ -4,11 +4,13 @@ import { useEffect } from 'react'
 import { IconButton } from '../../../ui/Controls'
 import type { AddMenuProps } from '../plugins'
 import { applyCurrentRoughStyle, updateCurrentRoughPreview } from '../../utils/roughStyle'
+import { useCanvasI18n } from '../../../../i18n/context'
 
 export const FRAME_NAME = 'frame'
 
 export function AddMenu({ app, activeKey, onClick, onCreateComplete }: AddMenuProps) {
   const active = activeKey === FRAME_NAME
+  const t = useCanvasI18n()
   useEffect(() => {
     if (!active) return
     app.mode = 'draw'
@@ -29,5 +31,5 @@ export function AddMenu({ app, activeKey, onClick, onCreateComplete }: AddMenuPr
     ]
     return () => app.off_(events)
   }, [active, app, onCreateComplete])
-  return <IconButton label="Frame (F)" icon={<FullSelection />} active={active} onClick={() => onClick(FRAME_NAME)} />
+  return <IconButton label={t('toolbar.frame')} icon={<FullSelection />} active={active} onClick={() => onClick(FRAME_NAME)} />
 }

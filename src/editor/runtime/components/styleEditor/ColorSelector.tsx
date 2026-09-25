@@ -1,14 +1,16 @@
 import type { FC } from 'react'
 import type { styleValue } from '../../plugins/plugins'
+import { useCanvasI18n } from '../../../../i18n/context'
 
 interface ColorSelectorProps { presets: string[]; value: styleValue; onChange: (value: styleValue) => void; disableClear?: boolean }
 
 const ColorSelector: FC<ColorSelectorProps> = ({ presets, value, onChange, disableClear }) => {
   const current = typeof value === 'string' ? value : undefined
+  const t = useCanvasI18n()
   return <div className="color-row">
-    {!disableClear && <button aria-label="无颜色" title="无颜色" data-tooltip="无颜色" className={`color-swatch is-clear ${current === undefined ? 'is-selected' : ''}`} onClick={() => onChange(undefined)} />}
+    {!disableClear && <button aria-label={t('color.none')} title={t('color.none')} data-tooltip={t('color.none')} className={`color-swatch is-clear ${current === undefined ? 'is-selected' : ''}`} onClick={() => onChange(undefined)} />}
     {presets.map((color) => <button key={color} aria-label={color} title={color} data-tooltip={color} className={`color-swatch ${current === color ? 'is-selected' : ''}`} style={{ background: color }} onClick={() => onChange(color)} />)}
-    <input aria-label="自定义颜色" title="自定义颜色" className="color-input" type="color" value={current || '#6257e8'} onChange={(event) => onChange(event.target.value)} />
+    <input aria-label={t('color.custom')} title={t('color.custom')} className="color-input" type="color" value={current || '#6257e8'} onChange={(event) => onChange(event.target.value)} />
   </div>
 }
 

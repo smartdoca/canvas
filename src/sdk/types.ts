@@ -214,6 +214,10 @@ export interface CanvasEditorProps {
   headerActions?: ReactNode
   toolbarStart?: ReactNode
   toolbarEnd?: ReactNode
+  /** `zh` or `en`. Omitted means Chinese. Unknown codes fall back to English. */
+  locale?: string
+  /** Replaces individual built-in message keys. Other keys stay on the locale catalog. */
+  messages?: Record<string, string>
   labels?: Partial<CanvasEditorLabels>
   style?: CSSProperties
   theme?: CSSProperties & Record<`--aidcanvas-${string}`, string | number>

@@ -1,22 +1,27 @@
 import type { FC } from "react";
 import type { styleValue } from "../plugins";
 import { RangeSlider } from "../../components/styleEditor/SingleSelector";
+import { useCanvasI18n } from "../../../../i18n/context";
+import type { MessageKey } from "../../../../i18n/en";
 
-const FONT_OPTIONS = [
-    ['系统默认', 'Inter, ui-sans-serif, system-ui, sans-serif'],
-    ['雅黑 / 苹方', '"PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", sans-serif'],
-    ['黑体', '"Hiragino Sans GB", "Heiti SC", STHeiti, SimHei, sans-serif'],
-    ['宋体', '"Songti SC", STSong, SimSun, serif'],
-    ['楷体', '"Kaiti SC", STKaiti, KaiTi, serif'],
-    ['Arial', 'Arial, sans-serif'],
-    ['Georgia', 'Georgia, serif'],
-    ['Times', '"Times New Roman", serif'],
-    ['等宽', 'ui-monospace, SFMono-Regular, Menlo, monospace'],
+const FONT_OPTIONS: Array<{ key?: MessageKey; label?: string; family: string }> = [
+    { key: 'font.system', family: 'Inter, ui-sans-serif, system-ui, sans-serif' },
+    { key: 'font.yahei', family: '"PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", sans-serif' },
+    { key: 'font.heiti', family: '"Hiragino Sans GB", "Heiti SC", STHeiti, SimHei, sans-serif' },
+    { key: 'font.songti', family: '"Songti SC", STSong, SimSun, serif' },
+    { key: 'font.kaiti', family: '"Kaiti SC", STKaiti, KaiTi, serif' },
+    { label: 'Arial', family: 'Arial, sans-serif' },
+    { label: 'Georgia', family: 'Georgia, serif' },
+    { label: 'Times', family: '"Times New Roman", serif' },
+    { key: 'font.mono', family: 'ui-monospace, SFMono-Regular, Menlo, monospace' },
 ]
 
-const FontFamilySelector: FC<{ value: styleValue, onChange: (value: styleValue) => void }> = ({ value, onChange }) => <select className="font-family-select" value={typeof value === 'string' ? value : FONT_OPTIONS[0][1]} onChange={(event) => onChange(event.target.value)}>
-    {FONT_OPTIONS.map(([label, family]) => <option key={family} value={family} style={{ fontFamily: family }}>{label}</option>)}
-</select>
+const FontFamilySelector: FC<{ value: styleValue, onChange: (value: styleValue) => void }> = ({ value, onChange }) => {
+    const t = useCanvasI18n()
+    return <select className="font-family-select" value={typeof value === 'string' ? value : FONT_OPTIONS[0].family} onChange={(event) => onChange(event.target.value)}>
+        {FONT_OPTIONS.map((option) => <option key={option.family} value={option.family} style={{ fontFamily: option.family }}>{option.key ? t(option.key) : option.label}</option>)}
+    </select>
+}
 
 const FontSizeSelector: FC<{ value: styleValue, onChange: (value: styleValue) => void }> = (props) => {
     const { value, onChange } = props

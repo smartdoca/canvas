@@ -6,9 +6,11 @@ import type { AddMenuProps } from '../plugins'
 import { getStyleParamByKeyList } from '../../utils/styleLocalStorage'
 import { NAME, STYPE_CONTROLL_KEYS } from './const'
 import { applyCurrentRoughStyle, updateCurrentRoughPreview } from '../../utils/roughStyle'
+import { useCanvasI18n } from '../../../../i18n/context'
 
 export function AddMenu({ app, activeKey, onClick, onCreateComplete }: AddMenuProps) {
   const active = activeKey === NAME
+  const t = useCanvasI18n()
   useEffect(() => {
     if (!active) return
     app.mode = 'draw'
@@ -34,5 +36,5 @@ export function AddMenu({ app, activeKey, onClick, onCreateComplete }: AddMenuPr
     ]
     return () => app.off_(events)
   }, [active, app, onCreateComplete])
-  return <IconButton label="直线 (L)" icon={<Minus />} active={active} onClick={() => onClick(NAME)} />
+  return <IconButton label={t('toolbar.line')} icon={<Minus />} active={active} onClick={() => onClick(NAME)} />
 }

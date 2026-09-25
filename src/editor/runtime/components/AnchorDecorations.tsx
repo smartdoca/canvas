@@ -3,6 +3,7 @@ import type { App } from 'leafer-ui'
 import type { CanvasModel } from '../../../model'
 import type { CanvasAnchorClick, CanvasAnchorDecoration, CanvasElementBounds } from '../../../sdk/types'
 import { elementBounds } from '../utils/elementBounds'
+import { useCanvasI18n } from '../../../i18n/context'
 
 export function AnchorDecorations({ app, model, anchors, activeId, onClick }: {
   app: App; model: CanvasModel; anchors: CanvasAnchorDecoration[]; activeId?: string | null; onClick?: (event: CanvasAnchorClick) => void
@@ -21,10 +22,11 @@ export function AnchorDecorations({ app, model, anchors, activeId, onClick }: {
     const timer = window.setInterval(update, 100)
     return () => window.clearInterval(timer)
   }, [app, model, anchors])
-  return <div className="anchor-decorations" aria-label="画布区域评论">
+  const t = useCanvasI18n()
+  return <div className="anchor-decorations" aria-label={t('anchor.region')}>
     {items.map(({ decoration, elementIds, boxes }) => <div key={decoration.anchorId} data-anchor-id={decoration.anchorId} data-active={activeId === decoration.anchorId}>
       {boxes.map(box => <div key={box.id} className="anchor-decoration-box" data-anchor-element={box.id} style={{ left: box.x, top: box.y, width: box.width, height: box.height }} />)}
-      <button type="button" className="anchor-decoration-marker" aria-label={decoration.label || `评论 ${decoration.anchorId}`} aria-pressed={activeId === decoration.anchorId}
+      <button type="button" className="anchor-decoration-marker" aria-label={decoration.label || t('anchor.comment', { id: decoration.anchorId })} aria-pressed={activeId === decoration.anchorId}
         style={{ left: boxes[0].x + boxes[0].width - 10, top: boxes[0].y - 10 }}
         onPointerDown={event => event.stopPropagation()}
         onClick={event => { event.stopPropagation(); onClick?.({ anchorId: decoration.anchorId, anchor: decoration.anchor, elementIds }) }}>

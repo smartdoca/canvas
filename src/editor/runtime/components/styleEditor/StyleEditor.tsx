@@ -7,6 +7,8 @@ import { BringForward, SendBackward, ToBottom, ToTop } from '@icon-park/react';
 import { IconButton } from '../../../ui/Controls';
 import { ROUGH_FILL_STYLE_KEY, ROUGH_STROKE_STYLE_KEY, ROUGH_STYLE_KEY, setRoughStyle, supportsRoughStyle, supportsRoughStyleName, updateRoughFill, updateRoughGeometry, updateRoughOption } from '../../utils/roughStyle';
 import type { CanvasElementExtension } from '../../../../sdk/types';
+import { useCanvasI18n } from '../../../../i18n/context';
+import type { MessageKey } from '../../../../i18n/en';
 
 interface StyleEditorProps {
   app: App;
@@ -21,6 +23,7 @@ interface StyleEditorProps {
 
 const StyleEditor: React.FC<StyleEditorProps> = (props: StyleEditorProps) => {
   const { plugins, activeKey, editorList, onLayerChange, elementExtensions = [], extensionValues = {}, onExtensionValueChange } = props;
+  const t = useCanvasI18n()
 
   const [styleParam, setStyleParam] = React.useState<{ [key: string]: styleValue }>({})
   const [isScrollable, setIsScrollable] = React.useState(false)
@@ -200,7 +203,7 @@ const StyleEditor: React.FC<StyleEditorProps> = (props: StyleEditorProps) => {
   const getStyleControlUI = (styleControlConfig: styleControlRender): JSX.Element => {
     return (
       <div key={styleControlConfig.key} className="style-control">
-        <div className="style-label">{styleControlConfig.title}</div>
+        <div className="style-label">{t(styleControlConfig.title as MessageKey)}</div>
         {styleControlConfig.render({
           value: styleParam[styleControlConfig.key],
           onChange: (value) => updateStyleParam(styleControlConfig.key, value)
@@ -290,12 +293,12 @@ const StyleEditor: React.FC<StyleEditorProps> = (props: StyleEditorProps) => {
     <div ref={panelRef} className={`floating-panel style-panel ${isScrollable ? 'is-scrollable' : ''}`}>
       {getAllStyleControls()}
       {editorList.length > 0 && <div className="style-control layer-order-section">
-        <div className="style-label">图层顺序</div>
+        <div className="style-label">{t('style.layerOrder')}</div>
         <div className="layer-order-controls">
-          <IconButton label="置于顶层" icon={<ToTop />} onClick={() => onLayerChange('top')} />
-          <IconButton label="上移一层" icon={<BringForward />} onClick={() => onLayerChange('up')} />
-          <IconButton label="下移一层" icon={<SendBackward />} onClick={() => onLayerChange('down')} />
-          <IconButton label="置于底层" icon={<ToBottom />} onClick={() => onLayerChange('bottom')} />
+          <IconButton label={t('style.layerTop')} icon={<ToTop />} onClick={() => onLayerChange('top')} />
+          <IconButton label={t('style.layerUp')} icon={<BringForward />} onClick={() => onLayerChange('up')} />
+          <IconButton label={t('style.layerDown')} icon={<SendBackward />} onClick={() => onLayerChange('down')} />
+          <IconButton label={t('style.layerBottom')} icon={<ToBottom />} onClick={() => onLayerChange('bottom')} />
         </div>
       </div>}
     </div>

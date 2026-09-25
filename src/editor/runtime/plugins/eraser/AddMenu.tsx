@@ -4,11 +4,13 @@ import { DragEvent, PointerEvent, type IUI } from 'leafer-ui'
 import { EditorEvent } from '@leafer-in/editor'
 import { useEffect } from 'react'
 import type { AddMenuProps } from '../plugins'
+import { useCanvasI18n } from '../../../../i18n/context'
 
 const NAME = 'eraser'
 
 export function AddMenu({ app, activeKey, onClick }: AddMenuProps) {
   const active = activeKey === NAME
+  const t = useCanvasI18n()
   useEffect(() => {
     if (!active) return
     // Keep normal hit-testing enabled so pointer events target actual elements.
@@ -38,5 +40,5 @@ export function AddMenu({ app, activeKey, onClick }: AddMenuProps) {
       app.editor.off_(selectionEvent)
     }
   }, [active, app])
-  return <IconButton label="橡皮擦 (E)" icon={<Erase />} active={active} danger onClick={() => onClick(active ? 'init' : NAME)} />
+  return <IconButton label={t('toolbar.eraser')} icon={<Erase />} active={active} danger onClick={() => onClick(active ? 'init' : NAME)} />
 }

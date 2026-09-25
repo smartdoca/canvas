@@ -11,15 +11,15 @@ const textPlugin: Plugins = {
     AddMenu: AddMenu,
     styleControlKeys: STYPE_CONTROLL_KEYS,
     customStyleControlRenders: [
-        { key: 'fontFamily', title: '字体', order: 4.5, render: FontFamilySelector },
+        { key: 'fontFamily', title: 'style.fontFamily', order: 4.5, render: FontFamilySelector },
         {
             key: 'fontSize',
-            title: '字体大小',
+            title: 'style.fontSize',
             order: 5,
             render: FontSizeSelector,
         },
-        { key: 'letterSpacing', title: '字间距', order: 8.5, render: LetterSpacingSelector },
-        { key: 'lineHeight', title: '行高', order: 8.6, render: LineHeightSelector },
+        { key: 'letterSpacing', title: 'style.letterSpacing', order: 8.5, render: LetterSpacingSelector },
+        { key: 'lineHeight', title: 'style.lineHeight', order: 8.6, render: LineHeightSelector },
     ],
     RegisterEvent: registerEvent,
     setStyleCustom: {
