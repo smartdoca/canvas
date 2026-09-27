@@ -60,11 +60,6 @@ export interface CanvasSelectionAction {
   onClick: (context: CanvasSelectionActionContext) => void | Promise<void>
 }
 
-export interface CanvasImageStorageAdapter {
-  /** Store an uploaded/edited image and return the URL persisted in canvas JSON. */
-  save: (file: Blob, context: { fileName: string; source: 'upload' | 'edit' | 'api' }) => Promise<string>
-}
-
 export interface CanvasResourceUploadContext {
   fileName: string
   source: 'upload' | 'edit' | 'api'
@@ -90,45 +85,10 @@ export interface CanvasEditorResources {
   readImage?: (path: string, context: CanvasIOOptions & { purpose: 'export' }) => Promise<Blob>
 }
 
-export type CanvasConnectionStatus = 'loading' | 'syncing' | 'ready' | 'disconnected' | 'error'
 export type CanvasSaveStatus = 'clean' | 'dirty' | 'saving' | 'error'
-
-export interface CanvasCollaborationUpdate {
-  id: string
-  protocolVersion: 1
-  codec: 'aidcanvas'
-  schemaVersion: number
-  epochId?: string
-  value: CanvasValue
-}
-
-export interface CanvasCollaborationAck {
-  id: string
-  epochId?: string
-  seq?: number
-}
-
-export interface CanvasCollaborationProvider {
-  /** Establish one session. Identity and epoch must come from the server. */
-  connect: (handlers: {
-    onRemoteValue: (value: CanvasValue, meta?: { epochId?: string; seq?: number }) => void
-    onStatusChange?: (status: CanvasConnectionStatus | 'connecting' | 'connected') => void
-    onAcknowledgement?: (ack: CanvasCollaborationAck) => void
-    onError?: (error: unknown) => void
-  }) => void | (() => void)
-  /** Returning an ACK enables strict durable-save state. Void remains supported for legacy providers. */
-  publish: (value: CanvasValue, update?: CanvasCollaborationUpdate) => void | CanvasCollaborationAck | Promise<void | CanvasCollaborationAck>
-}
 
 export interface CanvasChangeMeta {
   source: 'local' | 'api' | 'remote'
-}
-
-export interface CanvasLocalTransaction {
-  id: string
-  origin: 'local'
-  schemaVersion: number
-  value: CanvasValue
 }
 
 export interface CanvasTextMatch {
@@ -156,7 +116,7 @@ export interface CanvasEditorCapabilities {
   find: true
   replace: true
   resources: boolean
-  collaborationCodec: 'snapshot' | 'aidcanvas-yjs'
+  collaborationCodec: 'none' | 'aidcanvas-yjs'
   anchors: boolean
   presence: boolean
   anchorDecorations: boolean
@@ -189,26 +149,15 @@ export interface CanvasEditorProps {
   hostActions?: CanvasSelectionAction[]
   onImportRequest?: () => void
   onExportRequest?: (options: Pick<CanvasExportOptions, 'format'>) => void
-  imageStorage?: CanvasImageStorageAdapter
   resources?: CanvasEditorResources
-  /** Preferred shorthand for host-controlled image upload. Takes precedence over imageStorage. */
-  onImageUpload?: CanvasImageStorageAdapter['save']
   /** Called by the built-in image download action. The host owns the download when supplied. */
   onImageDownload?: (context: CanvasImageDownloadContext) => void | Promise<void>
-  collaboration?: CanvasCollaborationProvider
-  /** Recommended Doca integration: forward local transactions to the host-owned outbox. */
-  onLocalTransaction?: (transaction: CanvasLocalTransaction) => void
   /** Host-owned save state. When supplied it is the displayed source of truth. */
   saveStatus?: CanvasSaveStatus
   autoSave?: boolean
   storageKey?: string
-  readOnly?: boolean
   showHeader?: boolean
   showToolbar?: boolean
-  /** @deprecated Built-in layers UI was removed. Retained as a no-op for existing hosts. */
-  showLayers?: boolean
-  /** @deprecated Built-in layers UI was removed. Retained as a no-op for existing hosts. */
-  layersPosition?: 'left' | 'right'
   showZoomControls?: boolean
   title?: ReactNode
   headerActions?: ReactNode
@@ -218,27 +167,14 @@ export interface CanvasEditorProps {
   locale?: string
   /** Replaces individual built-in message keys. Other keys stay on the locale catalog. */
   messages?: Record<string, string>
-  labels?: Partial<CanvasEditorLabels>
   style?: CSSProperties
   theme?: CSSProperties & Record<`--aidcanvas-${string}`, string | number>
   onSelectionChange?: (selection: CanvasElement[]) => void
   onSaveStatusChange?: (status: CanvasSaveStatus) => void
   onSaveRequest?: (value: CanvasValue) => void | Promise<void>
-  onConnectionStatusChange?: (status: CanvasConnectionStatus) => void
   onError?: (error: unknown) => void
   onReady?: (handle: CanvasEditorRef) => void
   className?: string
-}
-
-export interface CanvasEditorLabels {
-  title: string
-  save: string
-  import: string
-  export: string
-  exportPng: string
-  exportSvg: string
-  exportJson: string
-  layers: string
 }
 
 export interface CanvasImageDownloadContext {
@@ -272,7 +208,6 @@ export interface CanvasEditorRef {
   resolveAnchor: (anchor: ElementAnchor) => { valid: boolean; partial: boolean; elementIds: string[] }
   getValue: () => CanvasValue
   setValue: (value: CanvasValue) => void
-  applyRemoteValue: (value: CanvasValue, meta?: { epochId?: string; seq?: number }) => void
   getSelection: () => CanvasElement[]
   select: (ids: string[]) => void
   updateSelection: (patch: CanvasElement) => void
@@ -280,23 +215,12 @@ export interface CanvasEditorRef {
   addElement: (element: IUIJSONData) => CanvasElement | null
   addCustomShape: (type: string, options?: { x?: number; y?: number; width?: number; height?: number }) => CanvasElement | null
   addExtensionElement: (type: string, bounds?: CanvasElementBounds) => CanvasElement | null
-  addImage: (source: File | Blob | string, options?: AddImageOptions) => Promise<CanvasElement | null>
+  addImage: (path: string, options?: AddImageOptions) => Promise<CanvasElement | null>
   insertImageFile: (file: Blob, options?: CanvasInsertOptions) => Promise<CanvasInsertResult>
   exportFile: (options: CanvasExportOptions) => Promise<CanvasExportResult>
-  /** Compatibility alias, now returns a typed file result and never triggers a download. */
-  exportImage: (type?: 'png' | 'svg', options?: Omit<CanvasExportOptions, 'format'>) => Promise<CanvasExportResult>
   find: (query: string, options?: CanvasFindOptions) => CanvasTextMatch[]
   reveal: (match: CanvasTextMatch) => boolean
   replace: (match: CanvasTextMatch, text: string) => boolean
   replaceAll: (query: string, text: string, options?: CanvasFindOptions) => number
   capabilities: CanvasEditorCapabilities
-}
-
-export const dataUrlImageStorage: CanvasImageStorageAdapter = {
-  save: (file) => new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result))
-    reader.onerror = () => reject(reader.error || new Error('图片读取失败'))
-    reader.readAsDataURL(file)
-  }),
 }

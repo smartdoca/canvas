@@ -71,8 +71,8 @@ function assertJson(v: unknown, depth = 0): void {
   Object.entries(v).forEach(([k, x]) => { if (forbidden.has(k)) throw new Error('UNSAFE_KEY'); assertJson(x, depth + 1) })
 }
 
-/** Legacy import only: generate IDs once on the authority, then distribute its checkpoint. */
-export function migrateCanvasValue(value: { version: number; scene: SceneNode; name?: string }): ModelValue {
+/** Prepare a current-schema value once on the authority, then distribute its checkpoint. */
+function prepareCanvasValue(value: { version: number; scene: SceneNode; name?: string }): ModelValue {
   if (value.version !== 1) throw new Error('UNSUPPORTED_DOCUMENT_VERSION')
   const scene = clone(value.scene)
   const ids = new Set<string>()
@@ -136,7 +136,7 @@ export class CanvasModel {
 
   static initialize(epochId: string, value: { version: number; scene: SceneNode; name?: string }): CanvasModel {
     if (!epochId) throw new Error('EPOCH_REQUIRED')
-    const normalized = migrateCanvasValue(value)
+    const normalized = prepareCanvasValue(value)
     const flat = flatten(normalized.scene)
     const doc = new Y.Doc()
     const elements = doc.getMap<Y.Map<unknown>>('elements')

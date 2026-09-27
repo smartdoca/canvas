@@ -92,7 +92,7 @@ test('native group/ungroup, model replaceAll/undo, stable IDs and selection surv
 })
 test('asset stable path, upload cancellation on readonly, permission-checked download failure', async ({ page }) => {
   await open(page)
-  await page.evaluate(() => { window.demo.resourceControls.hold = true; const c = document.createElement('canvas'); c.width = 40; c.height = 20; window.uploadPromise = new Promise(resolve => c.toBlob(resolve, 'image/png')).then(blob => window.demo.handle.addImage(blob)) })
+  await page.evaluate(() => { window.demo.resourceControls.hold = true; const c = document.createElement('canvas'); c.width = 40; c.height = 20; window.uploadPromise = new Promise(resolve => c.toBlob(resolve, 'image/png')).then(blob => window.demo.handle.insertImageFile(blob)).catch(() => null) })
   await expect.poll(() => page.evaluate(() => window.demo.resourceLog.filter(x => x.type === 'upload').length)).toBe(1)
   await page.evaluate(() => window.demo.setMode('readonly'))
   await expect(page.locator('.canvas-app')).toHaveClass(/is-readonly/)

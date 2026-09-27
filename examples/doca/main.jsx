@@ -96,7 +96,7 @@ function Host() {
   const [mode, setMode] = useState('edit'), [status, setStatus] = useState('clean'), [remote, setRemote] = useState([])
   const [online, setOnline] = useState(true)
   const [mounted, setMounted] = useState(true), [anchors, setAnchors] = useState([]), [activeAnchorId, setActiveAnchorId] = useState(null)
-  const [canComment, setCanComment] = useState(true), [layersPosition, setLayersPosition] = useState('right')
+  const [canComment, setCanComment] = useState(true)
   const [showToolbar, setShowToolbar] = useState(true)
   useEffect(() => { renderStatus = setStatus; renderPresence = setRemote; return () => { renderStatus = () => {}; renderPresence = () => {} } }, [])
   const changeConnection = next => {
@@ -123,7 +123,7 @@ function Host() {
     <span>{identity.name} · {status}（示例仅确认对端接收）</span>
   </nav><input ref={fileInput} aria-label="宿主选择图片" hidden type="file" accept=".png,.jpg,.jpeg,.webp,.svg" onChange={e => { if (e.target.files[0]) void insertFile(e.target.files[0]); e.target.value = '' }} /><aside aria-label="宿主评论卡片">{anchors.filter(a => !a.resolved).map(a => <button key={a.anchorId} aria-pressed={activeAnchorId === a.anchorId} onClick={() => { setActiveAnchorId(a.anchorId); editor.current?.revealAnchor(a.anchor) }}>{a.anchorId}</button>)}</aside><section onDragOver={e => { if (e.dataTransfer.types.includes('Files')) e.preventDefault() }} onDrop={e => { if (e.dataTransfer.files[0]) { e.preventDefault(); void insertFile(e.dataTransfer.files[0], editor.current.clientToScene({ x: e.clientX, y: e.clientY })) } }} onPaste={e => { if (e.clipboardData.files[0]) { e.preventDefault(); void insertFile(e.clipboardData.files[0]) } }}>{mounted && <CanvasEditor ref={editor} model={model} hostManaged mode={mode} sessionId={sessionId} remoteSelections={remote} resources={resources} onError={error => errors.push(String(error))}
     onImportRequest={() => fileInput.current.click()} onExportRequest={options => void exportFile(options)}
-    layersPosition={layersPosition} showToolbar={showToolbar}
+    showToolbar={showToolbar}
     selectionActions={[{ id: 'comment', label: '评论选中元素', icon: <span>♧</span>, allowInReadOnly: true, disabled: !canComment, tooltip: canComment ? '为选中元素添加评论' : '没有评论权限', onClick: ({ selection }) => { window.demo.actionSelection = selection; setAnchors(previous => [...previous, { anchorId: `comment-${previous.length + 1}`, anchor: model.captureAnchor(selection.map(x => x.id)) }]) } }]}
     hostActions={[{ id: 'comments', label: '打开评论', icon: <span>♧</span>, allowInReadOnly: true, disabled: !canComment, tooltip: '打开宿主评论抽屉', onClick: () => { window.demo.topActionClicks = (window.demo.topActionClicks || 0) + 1 } }]}
     anchors={anchors} activeAnchorId={activeAnchorId} onAnchorClick={event => { setActiveAnchorId(event.anchorId); window.demo.lastAnchorClick = event }}

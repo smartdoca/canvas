@@ -407,9 +407,7 @@ function preserveGeometry(item: IUI, mutate: () => void) {
 
 export function setRoughStyle(item: IUI, enabled: boolean) {
   if (!supportsRoughStyle(item)) return
-  // Path-based special shapes historically stored their size in scaleX/Y,
-  // which also scaled the stroke. Normalize legacy and freshly resized items
-  // before either direction of the style switch.
+  // Normalize resized path-based special shapes before either style switch.
   if (item.name === 'special-shape') bakeSpecialShapeScale(item)
   const attrs = item as unknown as Record<string, unknown>
   const data = { ...(item.data || {}) } as RoughData
