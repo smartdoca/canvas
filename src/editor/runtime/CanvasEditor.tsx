@@ -54,7 +54,7 @@ import { elementBounds } from './utils/elementBounds'
 import { findItem } from './utils/findItem'
 import { createTextInputBridge } from './utils/textInputBridge'
 import { bakeSpecialShapeScale, fitSpecialPath, refreshRoughFill, updateRoughFill, updateRoughGeometry } from './utils/roughStyle'
-import { type AddImageOptions, type CanvasCollaborationAck, type CanvasCollaborationUpdate, type CanvasEditorProps, type CanvasEditorRef, type CanvasFindOptions, type CanvasRevealOptions, type CanvasRevealResult, type CanvasSaveStatus, type CanvasTextMatch, type CanvasValue } from '../../sdk/types'
+import { type AddImageOptions, type CanvasEditorProps, type CanvasEditorRef, type CanvasFindOptions, type CanvasRevealOptions, type CanvasRevealResult, type CanvasSaveStatus, type CanvasTextMatch, type CanvasValue } from '../../sdk/types'
 import { CanvasI18nProvider } from '../../i18n/context'
 import type { MessageKey } from '../../i18n/en'
 import { resolveLocale, translate, type TranslateParams } from '../../i18n/translate'
@@ -62,17 +62,6 @@ import { resolveLocale, translate, type TranslateParams } from '../../i18n/trans
 const plugins: Plugins[] = [rectPlugin, squarePlugin, ellipsePlugin, circlePlugin, linePlugin, arrowPlugin, pathPlugin, textPlugin, polygonPlugin, starPlugin, framePlugin, imagePlugin, specialShapePlugin, eraserPlugin]
 
 type SaveState = 'saved' | 'saving' | 'dirty' | 'error'
-
-const LABEL_KEYS = {
-  title: 'header.title',
-  save: 'header.save',
-  import: 'header.import',
-  export: 'header.export',
-  exportPng: 'header.exportPng',
-  exportSvg: 'header.exportSvg',
-  exportJson: 'header.exportJson',
-  layers: 'header.layers',
-} as const
 
 const FRAME_TITLE_NAME = 'frame-title'
 
@@ -93,9 +82,7 @@ function addFrameTitle(frame: Frame) {
 
 function normalizeSelectableItems(items: IUI[]) {
   items.forEach((item) => {
-    // Older documents and imported Leafer JSON may omit editor interaction
-    // attributes. Leafer then restores them as false defaults, while every
-    // persisted scene item in this canvas is expected to remain selectable.
+    // Every persisted scene item in this canvas is selectable.
     item.editable = true
     item.hittable = true
     item.hitSelf = true
@@ -106,12 +93,6 @@ function normalizeSelectableItems(items: IUI[]) {
     }
     if (item.name === 'square' || item.name === 'circle') item.lockRatio = true
     if (item.tag === 'Image' || item.name === 'image') {
-      // Repair documents produced by the previous experimental ImagePaint
-      // editor. Image.url and fill are mutually exclusive in Leafer, so return
-      // the element to the stable URL-backed image model before it lays out.
-      const paint = item.fill && typeof item.fill === 'object' && !Array.isArray(item.fill) ? item.fill as unknown as { url?: string } : undefined
-      const url = String((item as unknown as { url?: string }).url || item.data?.sourceUrl || paint?.url || '')
-      if (url && !(item as unknown as { url?: string }).url) (item as unknown as { url: string }).url = url
       item.lockRatio = item.data?.imageSizeMode !== 'free'
     }
     if (item instanceof Frame && item.name === 'frame') {
@@ -164,10 +145,6 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
   const resourceMutationRef = useRef(false)
   const selectionActionsRef = useRef<HTMLDivElement>(null)
   const movedFrameItemsRef = useRef(new Set<IUI>())
-  const collaborationQueueRef = useRef<CanvasCollaborationUpdate[]>([])
-  const publishingRef = useRef(false)
-  const collaborationReadyRef = useRef(false)
-  const epochIdRef = useRef<string>()
   const editorHandleRef = useRef<CanvasEditorRef>()
   const uploadControllersRef = useRef(new Set<AbortController>())
   const propsRef = useRef(props)
@@ -192,7 +169,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
   const [selectionPosition, setSelectionPosition] = useState<{ x: number; y: number } | null>(null)
   const [imageEditorTarget, setImageEditorTarget] = useState<IUI | null>(null)
   const [shapeEditorTarget, setShapeEditorTarget] = useState<IUI | null>(null)
-  const isReadOnly = props.mode === 'readonly' || props.readOnly === true
+  const isReadOnly = props.mode === 'readonly'
 
   useEffect(() => {
     if (isReadOnly || !focused) { propsRef.current.onPresenceChange?.(null); return }
@@ -211,17 +188,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
     window.setTimeout(() => setToast(''), 1800)
   }, [])
 
-  const messages = useMemo(() => {
-    const legacy: Record<string, string> = {}
-    const labels = props.labels
-    if (labels) {
-      (Object.keys(LABEL_KEYS) as Array<keyof typeof LABEL_KEYS>).forEach((name) => {
-        const value = labels[name]
-        if (value) legacy[LABEL_KEYS[name]] = value
-      })
-    }
-    return { ...legacy, ...props.messages }
-  }, [props.labels, props.messages])
+  const messages = useMemo(() => ({ ...props.messages }), [props.messages])
   const t = useMemo(() => (key: MessageKey, params?: TranslateParams) => translate(props.locale, key, params, messages), [messages, props.locale])
   const tRef = useRef(t)
   tRef.current = t
@@ -320,7 +287,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
 
   const getValue = useCallback((): CanvasValue => createDocument(JSON.parse(snapshot())), [snapshot])
 
-  const managed = useCallback(() => Boolean(propsRef.current.hostManaged || propsRef.current.model || propsRef.current.onLocalTransaction), [])
+  const managed = useCallback(() => Boolean(propsRef.current.hostManaged || propsRef.current.model), [])
 
   const hydrateResources = useCallback(async (items: IUI[]) => {
     const resolver = propsRef.current.resources?.resolveUrl
@@ -345,56 +312,11 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
     await Promise.all(items.map(visit))
   }, [])
 
-  const acknowledge = useCallback((ack: CanvasCollaborationAck) => {
-    const head = collaborationQueueRef.current[0]
-    if (!head || head.id !== ack.id || (ack.epochId && head.epochId && ack.epochId !== head.epochId)) return false
-    collaborationQueueRef.current.shift()
-    updateSaveState(collaborationQueueRef.current.length ? 'saving' : 'saved')
-    return true
-  }, [updateSaveState])
-
-  const flushCollaboration = useCallback(async () => {
-    const provider = propsRef.current.collaboration
-    if (!provider || publishingRef.current || !collaborationReadyRef.current) return
-    publishingRef.current = true
-    updateSaveState('saving')
-    try {
-      while (collaborationQueueRef.current.length && collaborationReadyRef.current) {
-        const update = collaborationQueueRef.current[0]
-        const result = await provider.publish(update.value, update)
-        // Legacy providers have no durable ACK contract; completion of publish is
-        // treated as acknowledgement only for backward compatibility.
-        if (result) {
-          if (!acknowledge(result)) throw new Error(`协同 ACK 不匹配：${result.id}`)
-        } else acknowledge({ id: update.id, epochId: update.epochId })
-      }
-    } catch (error) {
-      updateSaveState('error')
-      propsRef.current.onError?.(error)
-    } finally {
-      publishingRef.current = false
-    }
-  }, [acknowledge, updateSaveState])
-
   const emitChange = useCallback((source: 'local' | 'api' | 'remote') => {
     const value = getValue()
     lastValueRef.current = JSON.stringify(value.scene)
     propsRef.current.onChange?.(value, { source })
-    if (source === 'local' && !propsRef.current.model && propsRef.current.onLocalTransaction) {
-      propsRef.current.onLocalTransaction({ id: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`, origin: 'local', schemaVersion: value.version, value })
-    } else if (source === 'local' && !managed() && propsRef.current.collaboration) {
-      collaborationQueueRef.current.push({
-        id: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`,
-        protocolVersion: 1,
-        codec: 'aidcanvas',
-        schemaVersion: value.version,
-        epochId: epochIdRef.current,
-        value,
-      })
-      updateSaveState('saving')
-      void flushCollaboration()
-    }
-  }, [flushCollaboration, getValue, managed, updateSaveState])
+  }, [getValue])
 
   const save = useCallback(() => {
     const current = appRef.current
@@ -405,8 +327,8 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
       return
     }
     updateSaveState('saving')
-    if (!propsRef.current.onLocalTransaction && propsRef.current.autoSave !== false && propsRef.current.value === undefined) localStorage.setItem(propsRef.current.storageKey || CANVAS_STORAGE_KEY, JSON.stringify(getValue()))
-    if (!propsRef.current.collaboration || collaborationQueueRef.current.length === 0) updateSaveState('saved')
+    if (propsRef.current.autoSave !== false && propsRef.current.value === undefined) localStorage.setItem(propsRef.current.storageKey || CANVAS_STORAGE_KEY, JSON.stringify(getValue()))
+    updateSaveState('saved')
   }, [getValue, managed, updateSaveState])
 
   const flushContent = useCallback(() => {
@@ -418,7 +340,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
     const current = snapshot()
     if (current === contentBaseRef.current) return
     const model = propsRef.current.model
-    if (propsRef.current.mode === 'readonly' || propsRef.current.readOnly) return
+    if (propsRef.current.mode === 'readonly') return
     if (model) {
       nativeModelWriteRef.current = true
       try {
@@ -442,7 +364,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
   }, [emitChange, managed, save, scheduleSelectionPosition, snapshot, updateSaveState])
 
   const commit = useCallback(() => {
-    if (restoringRef.current || resourceMutationRef.current || !appRef.current || propsRef.current.mode === 'readonly' || propsRef.current.readOnly) return
+    if (restoringRef.current || resourceMutationRef.current || !appRef.current || propsRef.current.mode === 'readonly') return
     window.clearTimeout(changeTimerRef.current)
     changeTimerRef.current = window.setTimeout(flushContent, 120)
   }, [flushContent])
@@ -528,7 +450,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
   }, [save, updateSaveState])
 
   const undo = useCallback(() => {
-    if (propsRef.current.mode === 'readonly' || propsRef.current.readOnly) return
+    if (propsRef.current.mode === 'readonly') return
     flushContent()
     if (propsRef.current.model) { propsRef.current.model.undo(); return }
     const previous = historyRef.current.undo()
@@ -536,7 +458,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
   }, [flushContent, restoreSnapshot])
 
   const redo = useCallback(() => {
-    if (propsRef.current.mode === 'readonly' || propsRef.current.readOnly) return
+    if (propsRef.current.mode === 'readonly') return
     if (propsRef.current.model) { propsRef.current.model.redo(); return }
     const next = historyRef.current.redo()
     if (next) restoreSnapshot(next)
@@ -574,7 +496,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
   }, [commit])
 
   const groupSelection = useCallback(() => {
-    if (propsRef.current.mode === 'readonly' || propsRef.current.readOnly) return
+    if (propsRef.current.mode === 'readonly') return
     const current = appRef.current
     const list = [...(current?.editor.list || [])]
     if (!current || list.length < 2) return
@@ -587,7 +509,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
   }, [commit, scheduleSelectionPosition])
 
   const ungroupSelection = useCallback(() => {
-    if (propsRef.current.mode === 'readonly' || propsRef.current.readOnly) return
+    if (propsRef.current.mode === 'readonly') return
     const current = appRef.current
     const groups = (current?.editor.list || []).filter((item): item is Group => item instanceof Group && item.name === 'group')
     if (!current || !groups.length) return
@@ -626,7 +548,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
       nativeModelWriteRef.current = true
       try { fn() } finally { nativeModelWriteRef.current = false }
     })
-    plugins.forEach((plugin) => plugin.RegisterEvent?.({ app: instance, canEdit: () => propsRef.current.mode !== 'readonly' && !propsRef.current.readOnly }))
+    plugins.forEach((plugin) => plugin.RegisterEvent?.({ app: instance, canEdit: () => propsRef.current.mode !== 'readonly' }))
 
     const initialValue = propsRef.current.model?.getValue() || propsRef.current.value || propsRef.current.defaultValue
     const stored = initialValue ? JSON.stringify(initialValue) : propsRef.current.autoSave === false || managed() ? null : localStorage.getItem(propsRef.current.storageKey || CANVAS_STORAGE_KEY)
@@ -697,7 +619,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
       window.setTimeout(reconcileFrameMembership, 0)
     })
     instance.on(KeyEvent.DOWN, (event: KeyEvent) => {
-      if (propsRef.current.mode === 'readonly' || propsRef.current.readOnly) return
+      if (propsRef.current.mode === 'readonly') return
       const editingText = Boolean(instance.editor.innerEditing)
       if (!editingText && (event.code === 'Delete' || event.code === 'Backspace')) {
         instance.editor.list.forEach((item) => item.remove())
@@ -756,50 +678,6 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
       openInner: isReadOnly ? false as never : 'double',
     }
   }, [app, isReadOnly])
-
-  useEffect(() => {
-    const provider = props.collaboration
-    if (!provider || managed()) return
-    propsRef.current.onConnectionStatusChange?.('loading')
-    const disconnect = provider.connect({
-      onRemoteValue: (value, meta) => {
-        const current = appRef.current
-        if (!current) return
-        if (meta?.epochId && epochIdRef.current && meta.epochId !== epochIdRef.current && collaborationQueueRef.current.length) {
-          const error = new Error('协同 epoch 已变化，未确认的本地修改已暂停发送')
-          collaborationReadyRef.current = false
-          propsRef.current.onConnectionStatusChange?.('error')
-          propsRef.current.onError?.(error)
-          return
-        }
-        if (meta?.epochId) epochIdRef.current = meta.epochId
-        const serialized = JSON.stringify(value.scene)
-        if (serialized === lastValueRef.current) return
-        restoringRef.current = true
-        current.editor.select([])
-        current.tree.reset(value.scene as never)
-        normalizeSelectableItems([...current.tree.children] as IUI[])
-        void hydrateResources([...current.tree.children] as IUI[])
-        historyRef.current.reset(JSON.stringify(current.tree.toJSON()))
-        setSelected([])
-        lastValueRef.current = serialized
-        propsRef.current.onChange?.(value, { source: 'remote' })
-        window.setTimeout(() => { restoringRef.current = false }, 0)
-      },
-      onAcknowledgement: acknowledge,
-      onError: error => propsRef.current.onError?.(error),
-      onStatusChange: status => {
-        const normalized = status === 'connected' ? 'ready' : status === 'connecting' ? 'loading' : status
-        collaborationReadyRef.current = normalized === 'ready'
-        propsRef.current.onConnectionStatusChange?.(normalized)
-        if (normalized === 'ready') void flushCollaboration()
-      },
-    })
-    return () => {
-      collaborationReadyRef.current = false
-      disconnect?.()
-    }
-  }, [acknowledge, flushCollaboration, hydrateResources, managed, props.collaboration])
 
   useEffect(() => {
     const host = hostRef.current
@@ -861,7 +739,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
         panRef.current.space = true
         stageRef.current?.classList.add('is-panning')
       }
-      if (propsRef.current.mode === 'readonly' || propsRef.current.readOnly) {
+      if (propsRef.current.mode === 'readonly') {
         if (modifier && key === 'c') { event.preventDefault(); copySelection() }
         if (modifier && key === 'a') { event.preventDefault(); appRef.current?.editor.select([...(appRef.current?.tree.children || [])]) }
         return
@@ -909,7 +787,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
     const onPaste = (event: ClipboardEvent) => {
       const target = event.target as HTMLElement | null
       if (event.defaultPrevented || event.clipboardData?.files.length || !target || !stageRef.current?.closest('.canvas-app')?.contains(target)) return
-      if (target.matches('input, textarea, [contenteditable="true"]') || appRef.current?.editor.innerEditing || propsRef.current.mode === 'readonly' || propsRef.current.readOnly) return
+      if (target.matches('input, textarea, [contenteditable="true"]') || appRef.current?.editor.innerEditing || propsRef.current.mode === 'readonly') return
       if (clipboardRef.current.length) { event.preventDefault(); pasteSelection() }
     }
     window.addEventListener('paste', onPaste)
@@ -946,7 +824,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
   }
 
   const removeSelection = useCallback(() => {
-    if (propsRef.current.mode === 'readonly' || propsRef.current.readOnly) return
+    if (propsRef.current.mode === 'readonly') return
     appRef.current?.editor.list.forEach((item) => item.remove())
     appRef.current?.editor.select([])
     commit()
@@ -1014,7 +892,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
   }
 
   const insertImageFile = useCallback(async (file: Blob, options: CanvasInsertOptions = {}): Promise<CanvasInsertResult> => {
-    if (propsRef.current.mode === 'readonly' || propsRef.current.readOnly) throw new CanvasIOError('READONLY')
+    if (propsRef.current.mode === 'readonly') throw new CanvasIOError('READONLY')
     const owner = appRef.current, model = propsRef.current.model, resources = propsRef.current.resources, stage = stageRef.current
     if (!owner || !stage) throw new CanvasIOError('EDITOR_NOT_READY')
     if (!resources?.uploadImage) throw new CanvasIOError('ASSET_UPLOADER_REQUIRED')
@@ -1034,7 +912,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
       await cancellable(Promise.resolve(resources.resolveUrl(resource.path, { signal: controller.signal })), controller.signal)
       progress(operation, 'upload', 1)
       if (owner !== appRef.current || model !== propsRef.current.model) throw new CanvasIOError('EDITOR_DISPOSED')
-      if (String(propsRef.current.mode) === 'readonly' || propsRef.current.readOnly || model?.readOnly) throw new CanvasIOError('READONLY')
+      if (String(propsRef.current.mode) === 'readonly' || model?.readOnly) throw new CanvasIOError('READONLY')
       const explicitSize = options.width !== undefined || options.height !== undefined
       const fit = Math.min((options.width ?? (explicitSize ? Infinity : Math.min(480, stage.clientWidth * 0.55))) / parsed.width, (options.height ?? (explicitSize ? Infinity : Math.min(360, stage.clientHeight * 0.55))) / parsed.height, explicitSize ? Infinity : 1)
       const width = parsed.width * fit, height = parsed.height * fit
@@ -1062,12 +940,8 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
     } finally { options.signal?.removeEventListener('abort', abort); uploadControllersRef.current.delete(controller) }
   }, [])
 
-  const addImageSource = useCallback(async (input: File | Blob | string, options: AddImageOptions = {}) => {
-    if (typeof input !== 'string') {
-      try { return (await insertImageFile(input, { ...options, filename: options.fileName })).element }
-      catch (error) { propsRef.current.onError?.(error); return null }
-    }
-    if (propsRef.current.mode === 'readonly' || propsRef.current.readOnly) return null
+  const addImageSource = useCallback(async (input: string, options: AddImageOptions = {}) => {
+    if (propsRef.current.mode === 'readonly') return null
     const owner = appRef.current, model = propsRef.current.model
     const controller = new AbortController()
     uploadControllersRef.current.add(controller)
@@ -1080,14 +954,14 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
         resourcePath = input
         url = await propsRef.current.resources.resolveUrl(input, { signal: controller.signal })
       } else url = input
-      if (controller.signal.aborted || owner !== appRef.current || model !== propsRef.current.model || String(propsRef.current.mode) === 'readonly' || propsRef.current.readOnly) return null
+      if (controller.signal.aborted || owner !== appRef.current || model !== propsRef.current.model || String(propsRef.current.mode) === 'readonly') return null
       return await new Promise<Record<string, unknown> | null>((resolve) => {
       const source = new window.Image()
       controller.signal.addEventListener('abort', () => { source.onload = null; source.onerror = null; resolve(null) }, { once: true })
       source.onload = () => {
         const current = appRef.current
         const stage = stageRef.current
-        if (!current || current !== owner || model !== propsRef.current.model || !stage || controller.signal.aborted || propsRef.current.mode === 'readonly' || propsRef.current.readOnly) { resolve(null); return }
+        if (!current || current !== owner || model !== propsRef.current.model || !stage || controller.signal.aborted || propsRef.current.mode === 'readonly') { resolve(null); return }
 
         const maxWidth = Math.min(480, stage.clientWidth * 0.55)
         const maxHeight = Math.min(360, stage.clientHeight * 0.55)
@@ -1127,7 +1001,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
       notify(error instanceof Error ? error.message : tRef.current('status.imageSaveFailed'))
       return null
     } finally { uploadControllersRef.current.delete(controller) }
-  }, [commit, insertImageFile, managed, notify])
+  }, [commit, managed, notify])
 
   const selectedImage = selected.length === 1 && (selected[0].tag === 'Image' || selected[0].name === 'image') ? selected[0] : null
   const selectedEditablePath = selected.length === 1 && ['special-shape', 'path'].includes(selected[0].name || '') ? selected[0] : null
@@ -1175,12 +1049,8 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
       const resource = await propsRef.current.resources.uploadImage(blob, { fileName: String(item.data?.fileName || '编辑后的图片.png'), source: 'edit', signal: controller.signal })
       resourcePath = resource.path
       outputUrl = await propsRef.current.resources.resolveUrl(resource.path, { signal: controller.signal })
-    } else {
-      if (managed()) throw new Error('Host-managed image editing requires resources.uploadImage')
-      const saveEditedImage = propsRef.current.onImageUpload || propsRef.current.imageStorage?.save
-      if (saveEditedImage) outputUrl = await saveEditedImage(blob, { fileName: String(item.data?.fileName || '编辑后的图片.png'), source: 'edit' })
-    }
-    if (controller.signal.aborted || item.destroyed || item.data?.resourcePath !== pathBefore || owner !== appRef.current || model !== propsRef.current.model || propsRef.current.mode === 'readonly' || propsRef.current.readOnly) return
+    } else if (managed()) throw new Error('Host-managed image editing requires resources.uploadImage')
+    if (controller.signal.aborted || item.destroyed || item.data?.resourcePath !== pathBefore || owner !== appRef.current || model !== propsRef.current.model || propsRef.current.mode === 'readonly') return
     const currentWidth = Number(item.width || 1)
     const currentHeight = Number(item.height || 1)
     const nextHeight = currentWidth * result.height / result.width
@@ -1248,7 +1118,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
   }
 
   const updateSelection = useCallback((patch: Record<string, unknown>) => {
-    if (propsRef.current.mode === 'readonly' || propsRef.current.readOnly) return
+    if (propsRef.current.mode === 'readonly') return
     appRef.current?.editor.list.forEach(item => {
       item.set(patch as never)
       if (item.data?.roughMode) {
@@ -1340,7 +1210,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
 
   const replace = useCallback((match: CanvasTextMatch, text: string) => {
     if (propsRef.current.model) { flushContent(); return propsRef.current.model.replace({ ...match, revision: Number(match.revision) }, text) }
-    if (propsRef.current.mode === 'readonly' || propsRef.current.readOnly || match.revision !== snapshot()) return false
+    if (propsRef.current.mode === 'readonly' || match.revision !== snapshot()) return false
     const item = findItem(appRef.current?.tree, match.elementId)
     if (!(item instanceof LeaferText)) return false
     const current = String(item.text || '')
@@ -1351,7 +1221,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
   }, [commit, flushContent, snapshot])
 
   const replaceAll = useCallback((query: string, text: string, options: CanvasFindOptions = {}) => {
-    if (propsRef.current.mode === 'readonly' || propsRef.current.readOnly) return 0
+    if (propsRef.current.mode === 'readonly') return 0
     if (propsRef.current.model) { flushContent(); return propsRef.current.model.replaceAll(query, text, options) }
     const matches = find(query, options)
     const groups = new Map<string, CanvasTextMatch[]>()
@@ -1388,28 +1258,13 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
     resolveAnchor: anchor => propsRef.current.model?.resolveAnchor(anchor) || { valid: false, partial: true, elementIds: [] },
     getValue,
     setValue: setValueFromApi,
-    applyRemoteValue: (value, meta) => {
-      if (propsRef.current.model) throw new Error('Use model.applyUpdate with Yjs bytes; snapshots cannot be applied to a collaborative model')
-      const current = appRef.current
-      if (!current) return
-      if (meta?.epochId) epochIdRef.current = meta.epochId
-      restoringRef.current = true
-      current.editor.select([])
-      current.tree.reset(value.scene as never)
-      normalizeSelectableItems([...current.tree.children] as IUI[])
-      void hydrateResources([...current.tree.children] as IUI[])
-      historyRef.current.reset(JSON.stringify(current.tree.toJSON()))
-      setSelected([]); lastValueRef.current = JSON.stringify(value.scene)
-      propsRef.current.onChange?.(value, { source: 'remote' })
-      window.setTimeout(() => { restoringRef.current = false }, 0)
-    },
     getSelection: () => (appRef.current?.editor.list || []).map(item => toPersistedCanvasScene(item.toJSON() as SceneNode)),
     select: (ids) => appRef.current?.editor.select(ids.map(id => findItem(appRef.current?.tree, id)).filter((item): item is IUI => Boolean(item))),
     updateSelection,
     removeSelection,
     addElement: (element) => {
       const current = appRef.current
-      if (!current || propsRef.current.mode === 'readonly' || propsRef.current.readOnly) return null
+      if (!current || propsRef.current.mode === 'readonly') return null
       current.tree.add(element)
       const created = current.tree.children[current.tree.children.length - 1]
       current.editor.select(created)
@@ -1419,7 +1274,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
     addCustomShape: (type, options = {}) => {
       const current = appRef.current
       const definition = [...SPECIAL_SHAPES, ...(propsRef.current.customShapes || [])].find(shape => shape.type === type)
-      if (!current || !definition || propsRef.current.mode === 'readonly' || propsRef.current.readOnly) return null
+      if (!current || !definition || propsRef.current.mode === 'readonly') return null
       const source = new Path({ path: definition.path })
       const sourceBounds = source.getBounds('box', 'inner')
       const width = options.width || 100, height = options.height || 100
@@ -1436,7 +1291,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
     addExtensionElement: (type, bounds = { x: 0, y: 0, width: 100, height: 100 }) => {
       const current = appRef.current
       const extension = propsRef.current.elementExtensions?.find(item => item.type === type)
-      if (!current || !extension || propsRef.current.mode === 'readonly' || propsRef.current.readOnly) return null
+      if (!current || !extension || propsRef.current.mode === 'readonly') return null
       current.tree.add(extension.create({ bounds, properties: extensionValuesRef.current[type] || {} }) as never)
       const created = current.tree.children[current.tree.children.length - 1]
       created.name = type; created.editable = true; current.editor.select(created); commit()
@@ -1445,12 +1300,11 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
     addImage: addImageSource,
     insertImageFile,
     exportFile,
-    exportImage: (type = 'png', options = {}) => exportFile({ ...options, format: type }),
     find,
     reveal,
     replace,
     replaceAll,
-    capabilities: { find: true, replace: true, resources: Boolean(propsRef.current.resources), collaborationCodec: propsRef.current.model ? 'aidcanvas-yjs' : 'snapshot', anchors: Boolean(propsRef.current.model), presence: true, anchorDecorations: Boolean(propsRef.current.model), revealElements: true, textRangeAnchors: false, characterPresence: false },
+    capabilities: { find: true, replace: true, resources: Boolean(propsRef.current.resources), collaborationCodec: propsRef.current.model ? 'aidcanvas-yjs' : 'none', anchors: Boolean(propsRef.current.model), presence: true, anchorDecorations: Boolean(propsRef.current.model), revealElements: true, textRangeAnchors: false, characterPresence: false },
     }
     editorHandleRef.current = handle
     return handle
@@ -1470,7 +1324,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
   const renderHostAction = (action: NonNullable<CanvasEditorProps['selectionActions']>[number]) => {
     const disabled = typeof action.disabled === 'function' ? action.disabled(selectionJSON) : action.disabled
     return <IconButton key={action.id} label={action.label} title={action.tooltip || action.label} data-tooltip={action.tooltip || action.label} disabled={disabled} icon={action.icon || <span>•</span>} onClick={() => {
-      if (disabled || (propsRef.current.mode === 'readonly' || propsRef.current.readOnly) && !action.allowInReadOnly) return
+      if (disabled || (propsRef.current.mode === 'readonly') && !action.allowInReadOnly) return
       Promise.resolve().then(() => action.onClick({ selection: selectionJSON, getValue, updateSelection, removeSelection })).catch(error => propsRef.current.onError?.(error))
     }} />
   }
@@ -1504,7 +1358,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
         {app && props.model && <AnchorDecorations app={app} model={props.model} anchors={props.anchors || []} activeId={props.activeAnchorId} onClick={props.onAnchorClick} />}
         {app && !isReadOnly && props.showToolbar !== false && <div className="toolbar-wrap"><Toolbar app={app} plugins={plugins} activeKey={activeKey} setActiveKey={setActiveKey}
           canUndo={historyState.canUndo} canRedo={historyState.canRedo}
-          onUndo={undo} onRedo={redo} onImageRequest={props.onImportRequest} onImage={(file) => { void addImageSource(file); return false }} customShapes={props.customShapes}
+          onUndo={undo} onRedo={redo} onImageRequest={props.onImportRequest} onImage={(file) => { void insertImageFile(file).catch(error => propsRef.current.onError?.(error)); return false }} customShapes={props.customShapes}
           elementExtensions={props.elementExtensions} extensionValues={extensionValues} start={props.toolbarStart} end={props.toolbarEnd} /></div>}
 
         {app && !isReadOnly && (selected.length > 0 || plugins.some((plugin) => plugin.name === activeKey && plugin.styleControlKeys.length > 0) || props.elementExtensions?.some(extension => extension.type === activeKey && extension.properties?.length)) && activeKey !== 'eraser' && <div className="property-wrap">

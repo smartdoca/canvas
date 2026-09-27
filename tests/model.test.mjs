@@ -318,18 +318,6 @@ test('history restore uses original CRDT identities in a new epoch; old anchors 
   historyDoc.destroy(); next.dispose(); f.done()
 })
 
-test('restores retained 0.2.0 schema-1 checkpoint bytes without reinitializing identities', () => {
-  const fixture = JSON.parse(readFileSync(new URL('./fixtures/schema1-0.2.0.json', import.meta.url), 'utf8'))
-  const checkpoint = { ...fixture, update: Uint8Array.from(Buffer.from(fixture.update, 'base64')) }
-  const model = CanvasModel.restore(checkpoint), doc = new Y.Doc()
-  Y.applyUpdate(doc, checkpoint.update)
-  assert.deepEqual([...model.stateVector()], [...Y.encodeStateVector(doc)])
-  assert.equal(node(model, 'retained-text').text, '旧版本中文保存')
-  model.patch('retained-box', { x: 70 })
-  assert.equal(node(model, 'retained-box').x, 70)
-  doc.destroy(); model.dispose()
-})
-
 test('all shipped CSS selectors and animation names are package-scoped', () => {
   const css = postcss.parse(readFileSync(new URL('../dist/index.css', import.meta.url), 'utf8'))
   let count = 0

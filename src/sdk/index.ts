@@ -1,6 +1,5 @@
 export { default as CanvasEditor } from '../editor/runtime/CanvasEditor'
 export { createDocument, parseDocument, CANVAS_DOCUMENT_VERSION } from '../editor/core/document'
-export { dataUrlImageStorage } from './types'
 export * from '../io'
 export type {
   CanvasAnchorDecoration,
@@ -13,13 +12,8 @@ export type {
   CanvasEditorResources,
   CanvasFindOptions,
   CanvasImageResource,
-  CanvasLocalTransaction,
   CanvasResourceUploadContext,
   CanvasTextMatch,
-  CanvasCollaborationProvider,
-  CanvasCollaborationAck,
-  CanvasCollaborationUpdate,
-  CanvasConnectionStatus,
   CanvasEditorProps,
   CanvasEditorRef,
   CanvasElement,
@@ -27,9 +21,7 @@ export type {
   CanvasElementExtension,
   CanvasElementProperty,
   CanvasElementPropertyControlProps,
-  CanvasImageStorageAdapter,
   CanvasImageDownloadContext,
-  CanvasEditorLabels,
   CanvasSaveStatus,
   CanvasSelectionAction,
   CanvasSelectionActionContext,

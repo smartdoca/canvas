@@ -1,6 +1,6 @@
-# 0.4：导入导出第一阶段
+# 导入导出
 
-本次交付图片素材导入与普通 PNG/SVG 导出。第二阶段的「带编辑数据 SVG 往返」**尚未实现**，不应据此开放恢复原生图层的产品入口。无独立 JSON 文件导入/下载 UI；模型初始化参数不是文件格式。
+当前接口支持图片素材导入与普通 PNG/SVG 导出。不支持带编辑数据的 SVG 往返，不应开放恢复原生图层的产品入口。无独立 JSON 文件导入/下载 UI；模型初始化参数不是文件格式。
 
 ## 正式接口
 
@@ -91,12 +91,10 @@ await exportCanvasFile({ scene }, {
 
 常见错误：`EMPTY_FILE`、`FILE_TOO_LARGE`、`FILE_EXTENSION_MISMATCH`、`FILE_MIME_MISMATCH`、`INVALID_SVG`、`SVG_DTD_FORBIDDEN`、`SVG_REFERENCE_CYCLE`、`SVG_TOO_COMPLEX`、`IMAGE_DECODE_FAILED`、`IMAGE_DIMENSIONS_EXCEEDED`、`READONLY`、`CANCELLED`、`ASSET_READER_REQUIRED`、`ASSET_READ_FAILED`、`EMPTY_CANVAS`、`EMPTY_SELECTION`、`SELECTION_NOT_FOUND`、`EMPTY_VISIBLE_CONTENT`、`EXPORT_SCALE_EXCEEDED`、`EXPORT_DIMENSIONS_EXCEEDED`、`PENDING_LOCAL_EDITS`。
 
-## 兼容性 / 第二阶段
+## 当前边界
 
-- `aidcanvas-yjs/schemaVersion=1`、checkpoint、epoch、锚点和旧 outbox 无改动；无需迁移或清空队列。
-- 新增 `insertImageFile`、`exportFile`、`clientToScene`、`aidcanvas/io`。`exportImage()` 保留 PNG 默认名，但现为 `Promise<CanvasExportResult>`，不再返回底层 unknown 或触发下载；只支持 png/svg，不支持 jpg 参数。宿主需按此升级。
-- 内置头部不再导入/下载独立 JSON；`onImportRequest` 和 `onExportRequest` 由宿主接管选择与下载 UI。旧 File/Blob `addImage` 路径委托正式校验/事务并要求 resources；`onImageUpload/imageStorage` 不再是文件导入后备。字符串 addImage 为旧稳定资源接口，不等于文件解析。旧图片编辑适配保持原合同。
-- `CANVAS_IO_CAPABILITIES.editableSvgRoundtrip === false`；`preserveEditData:true` 一律 `EDITABLE_SVG_UNSUPPORTED`。检测到 aidcanvas metadata 的导入也明确报错；只有宿主显式给出 `ignoreEditableData:true` 才清除源数据并返回 `EDITABLE_DATA_IGNORED`，不静默降级。
-- 下一阶段需另行交付格式版本、可移植资产映射、原生图层/连接关系恢复、范围裁剪和 ID/引用重映射，以及未知版本/资源缺失测试。本版不会恢复旧 epoch、用户凭据、评论、历史或未确认队列。
+- 使用 `insertImageFile`、`exportFile`、`clientToScene` 和 `aidcanvas/io`。导出返回 `Promise<CanvasExportResult>`，不触发下载；只支持 png/svg。
+- `CANVAS_IO_CAPABILITIES.editableSvgRoundtrip === false`；`preserveEditData:true` 一律返回 `EDITABLE_SVG_UNSUPPORTED`。检测到 aidcanvas metadata 的导入也明确报错；只有宿主显式给出 `ignoreEditableData:true` 才清除源数据并返回 `EDITABLE_DATA_IGNORED`。
+- 不恢复其他 epoch、用户凭据、评论、历史或未确认队列。
 
-测试证据和安装验收结果见 `TEST_RESULTS.md`；仓库实际浏览器用例位于 `tests/browser/io.spec.mjs`，会生成四种输入文件、PNG/SVG 输出和独立查看器截图。
+浏览器用例位于 `tests/browser/io.spec.mjs`，会生成四种输入文件、PNG/SVG 输出和独立查看器截图。
