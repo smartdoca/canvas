@@ -1,52 +1,67 @@
-# aidcanvas
+# @smartdoca/canvas
 
-基于 React、LeaferJS 和 Yjs 的矢量画布编辑器。
+[中文](README.zh-CN.md)
 
-## 基础使用
+Embeddable collaborative vector canvas for React and LeaferJS. The package owns the scene and editing commands. The host owns identity, image bytes, permissions, and the network.
+
+Licensed under [AGPL-3.0-only](LICENSE).
+
+## Install
+
+```sh
+npm install @smartdoca/canvas react react-dom
+```
 
 ```tsx
-import { CanvasEditor } from 'aidcanvas'
-import 'aidcanvas/style.css'
+import { CanvasEditor } from "@smartdoca/canvas";
+import { CanvasModel } from "@smartdoca/canvas/model";
+import "@smartdoca/canvas/style.css";
+
+const model = new CanvasModel();
 
 export function Canvas() {
-  return <CanvasEditor mode="edit" />
+  return <CanvasEditor model={model} hostManaged mode="edit" />;
 }
 ```
 
-`mode` 是唯一权限入口。宿主可通过 `toolbarStart`、`toolbarEnd`、`headerActions`、`hostActions` 和 `selectionActions` 扩展界面，通过 `messages` 覆盖稳定的国际化键。
+Keep one `CanvasModel` for the document session. Do not construct a new model when selection or readonly changes.
 
-## 协同使用
+## Props
 
-新文档由权威端创建 `CanvasModel`，客户端恢复 checkpoint 后将同一 model 注入编辑器：
+`CanvasEditor` accepts `CanvasEditorProps`.
 
-```ts
-import { CanvasModel } from 'aidcanvas/model'
+| Prop | Type | Role |
+|---|---|---|
+| `model` | `CanvasModel` | Bootstrapped scene from `@smartdoca/canvas/model`. It does not open a network. |
+| `hostManaged` | `boolean` | The host owns save and collaboration. |
+| `mode` | `"edit" \| "readonly"` | `readonly` stops editing. |
+| `value`, `defaultValue` | `CanvasValue` | Scene value when a model is not supplied. |
+| `onChange` | `(value, meta) => void` | `meta.source` is `local`, `api`, or `remote`. Only `local` should be saved. |
+| `sessionId` | `string` | This tab's session. |
+| `remoteSelections` | `SessionSelection[]` | Ephemeral remote selections. |
+| `onPresenceChange` | function | Local element selection for presence. It is not a content write. |
+| `anchors` | `CanvasAnchorDecoration[]` | Permanent element comments. Independent from selection and presence. |
+| `activeAnchorId` | `string \| null` | Highlighted anchor. |
+| `onAnchorClick` | function | An anchor decoration was activated. |
+| `resources` | `CanvasEditorResources` | `resolveUrl` is required when images are remote. `readImage` returns original bytes for export. |
+| `saveStatus` | `CanvasSaveStatus` | Host save state. When set, it is what the editor displays. |
+| `onSaveRequest` | function | Called when the package asks the host to save. |
+| `locale` | `string` | `zh` or `en`. Omitted means Chinese. Unknown codes use English. |
+| `messages` | `Record<string, string>` | Replaces individual message keys. |
+| `showHeader`, `showToolbar`, `showZoomControls` | `boolean` | Built-in chrome. |
+| `selectionActions`, `hostActions` | `CanvasSelectionAction[]` | Selection actions, and actions that stay available without a selection. |
+| `onReady` | `(handle) => void` | Receives `CanvasEditorRef`. |
+| `className`, `style`, `theme` | | Layout and `--aidcanvas-*` theme variables. |
 
-const model = CanvasModel.restore(checkpoint)
-```
+## Collaboration
 
-```tsx
-<CanvasEditor
-  model={model}
-  hostManaged
-  mode={canEdit ? 'edit' : 'readonly'}
-  sessionId={sessionId}
-/>
-```
+The codec name is `aidcanvas-yjs`.
 
-包只实现当前 `aidcanvas-yjs` schema。网络、认证、ACK、outbox、checkpoint、重连和业务评论由宿主负责。远端更新只通过 `model.applyUpdate` 进入，宿主监听 `model.onLocalUpdate` 持久化本地 update。详见 [协同接入](docs/COLLABORATION.md)。
+- Bootstrap `model` from the host baseline, then pass that same instance.
+- Persist `onChange` only when `meta.source` is `local`. Remote scene updates must not create another upload.
+- `mode="readonly"` does not publish edits or editing selections.
+- `onPresenceChange` reports element ids for this session. It is temporary and is not a comment anchor.
+- `anchors` are permanent element anchors. The handle methods `captureAnchor` and `resolveAnchor` create and check them.
+- `resources.readImage` must return bytes the host has already authorized. The exporter does not fetch URLs.
 
-## Handle
-
-`CanvasEditorRef` 提供当前接口：`getValue`、`setValue`、`getSelection`、`select`、`updateSelection`、`removeSelection`、`addElement`、`addCustomShape`、`addExtensionElement`、`addImage`、`insertImageFile`、`clientToScene`、`exportFile`、`undo`、`redo`、`flush`、`groupSelection`、`ungroupSelection`、`find`、`reveal`、`revealElements`、`revealAnchor`、`replace`、`replaceAll`、`captureAnchor`、`resolveAnchor` 和 `capabilities`。
-
-model 模式禁止整篇 `setValue`；内容变更必须成为可追踪的模型事务。图片持久化稳定资源路径，显示地址由 `resources` 在使用时解析。
-
-## 开发
-
-```bash
-yarn check
-yarn build:lib
-yarn test:model
-yarn check:examples
-```
+`@smartdoca/canvas/io` imports and exports PNG and SVG.
