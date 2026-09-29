@@ -4,7 +4,7 @@
 
 可嵌入的 React 矢量画板，基于 LeaferJS。包负责场景和编辑命令。宿主负责身份、图片字节、权限和网络。
 
-许可证为 [AGPL-3.0-only](LICENSE)。
+许可证为 [MIT](LICENSE)。
 
 ## 安装
 
