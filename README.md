@@ -4,7 +4,7 @@
 
 Embeddable collaborative vector canvas for React and LeaferJS. The package owns the scene and editing commands. The host owns identity, image bytes, permissions, and the network.
 
-Licensed under [AGPL-3.0-only](LICENSE).
+Licensed under [MIT](LICENSE).
 
 ## Install
 
