@@ -4,6 +4,7 @@ import { AddMenu } from "./AddMenu";
 import { NAME, STYPE_CONTROLL_KEYS } from "./const";
 import { registerEvent } from "./listener";
 import { FontFamilySelector, FontSizeSelector, LetterSpacingSelector, LineHeightSelector } from "./styleRender";
+import { getTextLineHeight } from "./style";
 
 const textPlugin: Plugins = {
     name: NAME,
@@ -23,11 +24,13 @@ const textPlugin: Plugins = {
     ],
     RegisterEvent: registerEvent,
     setStyleCustom: {
+        lineHeight: (i: IUI, value: styleValue) => i.set({ lineHeight: { type: 'percent', value: Number(value) } }),
         fontColor: (i: IUI, value: styleValue) => {
             i.set({ fill: value as string | undefined })
         }
     },
     getStyleCustom: {
+        lineHeight: getTextLineHeight,
         fontColor: (i: IUI): styleValue => {
             return i.fill as string | undefined
         }

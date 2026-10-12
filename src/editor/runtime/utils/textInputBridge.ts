@@ -45,6 +45,9 @@ export function createTextInputBridge(app: App, getModel: () => CanvasModel | un
     native?.editDom?.removeEventListener('compositionstart', startComposition)
     native?.editDom?.removeEventListener('compositionend', endComposition)
     native?.editDom?.removeEventListener('keydown', keydown, true)
+    if (native && document.activeElement === document.body) {
+      (app.view as HTMLElement).closest<HTMLElement>('.canvas-app')?.focus({ preventScroll: true })
+    }
     binding?.dispose(); binding = undefined; native = undefined; composing = false
   }
   // Leafer's global Enter handler must not insert a newline when confirming an IME candidate.
@@ -53,12 +56,16 @@ export function createTextInputBridge(app: App, getModel: () => CanvasModel | un
     close()
     const model = getModel()
     native = app.editor.innerEditor as unknown as NativeTextEditor
-    if (!model || !native?.editDom || native.editTarget?.tag !== 'Text') return
-    model.flush() // New native text nodes acquire their stable ID before binding.
-    binding = model.startTextSession(native.editTarget.id!)
+    // Enter editing with actual DOM focus, including standalone canvases.
+    native?.editDom?.focus({ preventScroll: true })
+    if (!native?.editDom || native.editTarget?.tag !== 'Text') return
     native.editDom.addEventListener('compositionstart', startComposition)
     native.editDom.addEventListener('compositionend', endComposition)
     native.editDom.addEventListener('keydown', keydown, true)
+    if (model) {
+      model.flush() // New native text nodes acquire their stable ID before binding.
+      binding = model.startTextSession(native.editTarget.id!)
+    }
   }
   const ids = app.editor.on_([[InnerEditorEvent.OPEN, open], [InnerEditorEvent.BEFORE_CLOSE, beforeClose], [InnerEditorEvent.CLOSE, close]])
   return {

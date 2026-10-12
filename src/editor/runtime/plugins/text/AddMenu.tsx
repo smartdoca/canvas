@@ -3,8 +3,8 @@ import { Text as TextIcon } from "@icon-park/react"
 import { IconButton } from "../../../ui/Controls"
 import { DragEvent, PointerEvent, Text as LeaferText } from "leafer-ui"
 import { useEffect } from "react"
-import { NAME, STYPE_CONTROLL_KEYS } from "./const"
-import { getStyleParamByKeyList } from "../../utils/styleLocalStorage"
+import { NAME } from "./const"
+import { getTextStyleParams } from "./style"
 import { useCanvasI18n } from "../../../../i18n/context"
 
 const AddMenu: React.FC<AddMenuProps> = (props) => {
@@ -23,11 +23,9 @@ const AddMenu: React.FC<AddMenuProps> = (props) => {
 
             const events = [
                 app.on_(PointerEvent.TAP, (e: DragEvent) => {
-                    const styleParams = getStyleParamByKeyList(STYPE_CONTROLL_KEYS)
-
+                    const styleParams = getTextStyleParams()
                     const { x, y } = e.getPagePoint()
-                    const fontColor = styleParams['fontColor']
-                    const text = new LeaferText({ name: NAME, x: x, y: y, editable: true, resizeFontSize: true, lockRatio: true, editConfig: { editSize: 'font-size', lockRatio: true }, fill: fontColor as string | undefined, ...styleParams })
+                    const text = new LeaferText({ name: NAME, x: x, y: y, editable: true, resizeFontSize: true, lockRatio: true, editConfig: { editSize: 'font-size', lockRatio: true }, ...styleParams })
                     app.tree.add(text)
                     app.editor.select(text)
                     app.editor.openInnerEditor(text, true)
