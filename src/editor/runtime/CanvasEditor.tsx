@@ -29,6 +29,7 @@ import { rectPlugin } from './plugins/rect'
 import { ellipsePlugin } from './plugins/ellipse'
 import { pathPlugin } from './plugins/path'
 import { textPlugin } from './plugins/text'
+import { normalizeTextStyle } from './plugins/text/style'
 import { linePlugin } from './plugins/line'
 import { arrowPlugin } from './plugins/arrow'
 import { polygonPlugin } from './plugins/polygon'
@@ -64,6 +65,8 @@ const plugins: Plugins[] = [rectPlugin, squarePlugin, ellipsePlugin, circlePlugi
 type SaveState = 'saved' | 'saving' | 'dirty' | 'error'
 
 const FRAME_TITLE_NAME = 'frame-title'
+const CANVAS_CLIPBOARD_TYPE = 'application/x-smartdoca-canvas'
+const CANVAS_CLIPBOARD_FORMAT = 'smartdoca-canvas-selection'
 
 function addFrameTitle(frame: Frame) {
   const existing = ([...frame.children] as IUI[]).find((item) => item.name === FRAME_TITLE_NAME)
@@ -86,10 +89,14 @@ function normalizeSelectableItems(items: IUI[]) {
     item.editable = true
     item.hittable = true
     item.hitSelf = true
-    if (item.name === 'text' && item instanceof LeaferText) {
-      item.resizeFontSize = true
-      item.lockRatio = true
-      item.editConfig = { ...(item.editConfig || {}), editSize: 'font-size', lockRatio: true }
+    if (item instanceof LeaferText) {
+      if (!item.name) item.name = 'text'
+      normalizeTextStyle(item)
+      if (item.name === 'text') {
+        item.resizeFontSize = true
+        item.lockRatio = true
+        item.editConfig = { ...(item.editConfig || {}), editSize: 'font-size', lockRatio: true }
+      }
     }
     if (item.name === 'square' || item.name === 'circle') item.lockRatio = true
     if (item.tag === 'Image' || item.name === 'image') {
@@ -479,21 +486,23 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
   }, [commit])
 
   const copySelection = useCallback(() => {
-    clipboardRef.current = (appRef.current?.editor.list || []).map((item) => item.toJSON() as Record<string, unknown>)
+    clipboardRef.current = (appRef.current?.editor.list || []).map((item) => toPersistedCanvasScene(item.toJSON() as SceneNode))
+    return clipboardRef.current
   }, [])
 
   const pasteSelection = useCallback(() => {
     const current = appRef.current
-    if (!current || !clipboardRef.current.length) return
+    if (!current || propsRef.current.mode === 'readonly' || !clipboardRef.current.length) return
     const copies = clipboardRef.current.map((source) => {
       const data = cloneForInsertion({ ...source, x: Number(source.x || 0) + 16, y: Number(source.y || 0) + 16 })
       current.tree.add(data)
       return current.tree.children[current.tree.children.length - 1]
     })
-    clipboardRef.current = copies.map((item) => item.toJSON() as Record<string, unknown>)
+    normalizeSelectableItems(copies)
+    void hydrateResources(copies)
     current.editor.select(copies)
     commit()
-  }, [commit])
+  }, [commit, hydrateResources])
 
   const groupSelection = useCallback(() => {
     if (propsRef.current.mode === 'readonly') return
@@ -728,21 +737,60 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
   }, [activeKey, app, applyZoomAt, scheduleSelectionPosition])
 
   useEffect(() => {
+    const encodeSelection = () => {
+      const elements = copySelection()
+      return elements.length ? JSON.stringify({ format: CANVAS_CLIPBOARD_FORMAT, version: 1, elements }) : undefined
+    }
+    const isCanvasEvent = (event: Event) => {
+      const target = event.target
+      return target instanceof Element && target.closest('.canvas-app') === stageRef.current?.closest('.canvas-app') &&
+        !target.closest('input, textarea, [contenteditable="true"]') && !appRef.current?.editor.innerEditing
+    }
+    const onCopy = (event: ClipboardEvent) => {
+      if (event.defaultPrevented || !event.clipboardData || !isCanvasEvent(event)) return false
+      const content = encodeSelection()
+      if (!content) return false
+      event.clipboardData.setData(CANVAS_CLIPBOARD_TYPE, content)
+      event.clipboardData.setData('text/plain', content)
+      event.preventDefault()
+      return true
+    }
+    const onCut = (event: ClipboardEvent) => {
+      if (propsRef.current.mode === 'readonly' || !onCopy(event)) return
+      appRef.current?.editor.list.forEach(item => item.remove())
+      appRef.current?.editor.select([])
+      commit()
+    }
     const onKeyDown = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null
-      if (!target || !target.closest('.canvas-app') || !stageRef.current?.closest('.canvas-app')?.contains(target)) return
-      if (target?.matches('input, textarea, [contenteditable="true"]') || appRef.current?.editor.innerEditing) return
+      if (!isCanvasEvent(event)) return
       const modifier = event.metaKey || event.ctrlKey
+      const nativeModifier = /Mac|iPhone|iPad/.test(navigator.platform) ? event.metaKey : event.ctrlKey
       const key = event.key.toLowerCase()
+      // Also support the alternate platform modifier (Ctrl on macOS, Cmd on
+      // Windows), for which the browser does not emit a native clipboard event.
+      if (modifier && !nativeModifier && key === 'c') {
+        const content = encodeSelection()
+        if (content) { event.preventDefault(); void navigator.clipboard?.writeText(content).catch(() => {}) }
+      }
       if (event.code === 'Space' && !event.repeat) {
         event.preventDefault()
         panRef.current.space = true
         stageRef.current?.classList.add('is-panning')
       }
       if (propsRef.current.mode === 'readonly') {
-        if (modifier && key === 'c') { event.preventDefault(); copySelection() }
         if (modifier && key === 'a') { event.preventDefault(); appRef.current?.editor.select([...(appRef.current?.tree.children || [])]) }
         return
+      }
+      if (modifier && !nativeModifier && key === 'v' && clipboardRef.current.length) { event.preventDefault(); pasteSelection() }
+      if (modifier && !nativeModifier && key === 'x') {
+        const content = encodeSelection()
+        if (content) {
+          event.preventDefault()
+          void navigator.clipboard?.writeText(content).catch(() => {})
+          appRef.current?.editor.list.forEach(item => item.remove())
+          appRef.current?.editor.select([])
+          commit()
+        }
       }
       if (modifier && key === 'z') {
         event.preventDefault()
@@ -752,12 +800,10 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
       if (modifier && key === 'd') { event.preventDefault(); duplicate() }
       if (modifier && key === 'g') { event.preventDefault(); if (event.shiftKey) ungroupSelection(); else groupSelection() }
       if (modifier && key === 's') { event.preventDefault(); save() }
-      if (modifier && key === 'c') { event.preventDefault(); copySelection() }
-      // Leave Cmd/Ctrl+V to the browser: the host must receive image ClipboardEvents.
-      if (modifier && key === 'x') {
-        event.preventDefault(); copySelection()
-        appRef.current?.editor.list.forEach((item) => item.remove())
-        appRef.current?.editor.select([]); commit()
+      // Native copy/cut/paste events carry the fragment and keep host image paste working.
+      if (!modifier && key === 'enter' && appRef.current?.editor.element instanceof LeaferText) {
+        event.preventDefault()
+        appRef.current.editor.openInnerEditor()
       }
       if (modifier && key === 'a') { event.preventDefault(); appRef.current?.editor.select([...(appRef.current?.tree.children || [])]) }
       if (!modifier && (key === 'v' || key === '1' || key === 'escape')) setActiveKey('init')
@@ -785,15 +831,24 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
       stageRef.current?.classList.remove('is-panning')
     }
     const onPaste = (event: ClipboardEvent) => {
-      const target = event.target as HTMLElement | null
-      if (event.defaultPrevented || event.clipboardData?.files.length || !target || !stageRef.current?.closest('.canvas-app')?.contains(target)) return
-      if (target.matches('input, textarea, [contenteditable="true"]') || appRef.current?.editor.innerEditing || propsRef.current.mode === 'readonly') return
-      if (clipboardRef.current.length) { event.preventDefault(); pasteSelection() }
+      if (event.defaultPrevented || event.clipboardData?.files.length || !isCanvasEvent(event) || propsRef.current.mode === 'readonly') return
+      const content = event.clipboardData?.getData(CANVAS_CLIPBOARD_TYPE) || event.clipboardData?.getData('text/plain')
+      if (!content) return
+      try {
+        const fragment = JSON.parse(content)
+        if (fragment.format !== CANVAS_CLIPBOARD_FORMAT || fragment.version !== 1 || !Array.isArray(fragment.elements) || !fragment.elements.length) return
+        if (!fragment.elements.every((item: Record<string, unknown>) => item && typeof item.tag === 'string')) return
+        clipboardRef.current = fragment.elements
+        event.preventDefault()
+        pasteSelection()
+      } catch { /* Other clipboard text belongs to the host or native text editor. */ }
     }
+    window.addEventListener('copy', onCopy)
+    window.addEventListener('cut', onCut)
     window.addEventListener('paste', onPaste)
     window.addEventListener('keydown', onKeyDown)
     window.addEventListener('keyup', onKeyUp)
-    return () => { window.removeEventListener('paste', onPaste); window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp) }
+    return () => { window.removeEventListener('copy', onCopy); window.removeEventListener('cut', onCut); window.removeEventListener('paste', onPaste); window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp) }
   }, [commit, copySelection, duplicate, groupSelection, pasteSelection, redo, save, undo, ungroupSelection])
 
   useEffect(() => {

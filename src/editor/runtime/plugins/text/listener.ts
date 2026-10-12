@@ -1,7 +1,7 @@
 import { DragEvent, PointerEvent, Text } from "leafer-ui"
 import type { RegisterEventFuncParam } from "../plugins"
-import { NAME, STYPE_CONTROLL_KEYS } from "./const"
-import { getStyleParamByKeyList } from "../../utils/styleLocalStorage"
+import { NAME } from "./const"
+import { getTextStyleParams } from "./style"
 
 const registerEvent = (param: RegisterEventFuncParam) => {
     const { app } = param
@@ -13,10 +13,9 @@ const registerEvent = (param: RegisterEventFuncParam) => {
         }
 
         app.mode = 'draw'
-        const styleParams = getStyleParamByKeyList(STYPE_CONTROLL_KEYS)
+        const styleParams = getTextStyleParams()
         const { x, y } = e.getPagePoint()
-        const fontColor = styleParams['fontColor']
-        const text = new Text({ name: NAME, x: x, y: y, editable: true, resizeFontSize: true, lockRatio: true, editConfig: { editSize: 'font-size', lockRatio: true }, fill: fontColor, ...styleParams })
+        const text = new Text({ name: NAME, x: x, y: y, editable: true, resizeFontSize: true, lockRatio: true, editConfig: { editSize: 'font-size', lockRatio: true }, ...styleParams })
         app.tree.add(text)
         app.editor.select(text)
         app.editor.openInnerEditor(text, true)

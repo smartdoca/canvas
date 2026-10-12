@@ -3,10 +3,10 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { flushSync } from 'react-dom'
-import { CanvasEditor } from 'aidcanvas'
-import { CanvasModel } from 'aidcanvas/model'
-import * as io from 'aidcanvas/io'
-import 'aidcanvas/style.css'
+import { CanvasEditor } from '@smartdoca/canvas'
+import { CanvasModel } from '@smartdoca/canvas/model'
+import * as io from '@smartdoca/canvas/io'
+import '@smartdoca/canvas/style.css'
 
 const search = new URLSearchParams(location.search)
 const seeded = search.get('checkpoint')
@@ -130,7 +130,7 @@ function Host() {
     autoSave saveStatus={status} onSaveRequest={() => { throw new Error('Unexpected autosave') }}
     onPresenceChange={selection => { if (connected) send({ type: 'presence', identity, selection }) }}
     onReady={handle => {
-      window.demo = { io, resources, assetUrls, model, handle, allUpdates, outbox, resourceLog, resourceControls, transportControls, errors, link: link.href, setMode, setStatus, setAnchors, setActiveAnchorId, setCanComment, setLayersPosition, setShowToolbar, closeDocument, openDocument, changeConnection, identity, readyCount: (window.demo?.readyCount || 0) + 1 }
+      window.demo = { io, resources, assetUrls, model, handle, allUpdates, outbox, resourceLog, resourceControls, transportControls, errors, link: link.href, setMode, setStatus, setAnchors, setActiveAnchorId, setCanComment, setLayersPosition: () => {}, setShowToolbar, closeDocument, openDocument, changeConnection, identity, readyCount: (window.demo?.readyCount || 0) + 1 }
       send({ type: 'sync-request', vector: model.stateVector() })
     }} />}</section></>
 }

@@ -201,13 +201,11 @@ const StyleEditor: React.FC<StyleEditorProps> = (props: StyleEditorProps) => {
   }
 
   const getStyleControlUI = (styleControlConfig: styleControlRender): JSX.Element => {
+    const Control = styleControlConfig.render
     return (
       <div key={styleControlConfig.key} className="style-control">
         <div className="style-label">{t(styleControlConfig.title as MessageKey)}</div>
-        {styleControlConfig.render({
-          value: styleParam[styleControlConfig.key],
-          onChange: (value) => updateStyleParam(styleControlConfig.key, value)
-        })}
+        <Control value={styleParam[styleControlConfig.key]} onChange={(value) => updateStyleParam(styleControlConfig.key, value)} />
       </div>
     )
   }
