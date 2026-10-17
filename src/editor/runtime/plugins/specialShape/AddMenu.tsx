@@ -1,10 +1,10 @@
+import { fitSpecialPath } from '../../utils/shapeGeometry'
 import { DragEvent, Path } from 'leafer-ui'
 import { useEffect, useState } from 'react'
 import { IconButton } from '../../../ui/Controls'
 import { getStyleParamByKeyList } from '../../utils/styleLocalStorage'
 import type { AddMenuProps } from '../plugins'
 import { NAME, SPECIAL_SHAPES, STYLE_CONTROL_KEYS, type SpecialShapeType } from './const'
-import { applyCurrentRoughStyle, fitSpecialPath, updateCurrentRoughPreview } from '../../utils/roughStyle'
 import { useCanvasI18n } from '../../../../i18n/context'
 import type { MessageKey } from '../../../../i18n/en'
 
@@ -33,9 +33,7 @@ export function AddMenu({ app, activeKey, onClick, onCreateComplete, customShape
         shape = new Path({ name: NAME, editable: true, path: selectedShape.path, x: point.x, y: point.y, scaleX: 1, scaleY: 1, ...getStyleParamByKeyList(STYLE_CONTROL_KEYS) })
         shape.data = { ...(shape.data || {}), specialShapeType: selectedShape.type, customPath: selectedShape.path }
         app.tree.add(shape)
-        // Measure the authored path before any Rough conversion. Converting at
-        // pointer-down can interrupt creation for complex/multi-subpath shapes;
-        // the final Rough path is applied once on pointer-up instead.
+        // Measure the authored path before fitting its intrinsic bounds to the drag.
         shape.updateLayout()
         const intrinsicBounds = shape.getBounds('box', 'inner')
         intrinsicX = intrinsicBounds.x
@@ -57,11 +55,11 @@ export function AddMenu({ app, activeKey, onClick, onCreateComplete, customShape
           scaleX: 1,
           scaleY: 1,
         })
-        updateCurrentRoughPreview(shape)
+
       }),
       app.on_(DragEvent.END, () => {
         if (shape) {
-          applyCurrentRoughStyle(shape)
+
           // Keep the final transform used by the live preview. Setting Path
           // width/height here makes Leafer resolve it back to the preset's
           // intrinsic 100×100 box, so the element jumps after pointer-up.

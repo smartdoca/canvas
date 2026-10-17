@@ -1,0 +1,232 @@
+import { test, expect } from './fixtures.mjs'
+test.setTimeout(45000)
+
+const scene = page => page.evaluate(() => window.demo.model.getValue().scene.children)
+const frameOf = async (page, type) => (await scene(page)).find(node => node.data?.containerType === type)
+async function open(page) {
+  await page.setViewportSize({ width: 1440, height: 1000 })
+  await page.goto('/examples/doca/'); await page.waitForFunction(() => window.demo?.handle)
+  await page.evaluate(() => window.demo.model.remove(window.demo.model.getValue().scene.children.map(node => node.id)))
+}
+async function pick(page, label) {
+  await page.getByRole('button', { name: '分区 (F)', exact: true }).click()
+  await page.getByRole('menuitem', { name: label, exact: true }).click()
+}
+async function seed(page, type, children = []) {
+  return page.evaluate(async ({ type, children }) => {
+    const { makeContainer } = await import('/src/editor/runtime/thinking/containers.ts'), { translate } = await import('/src/i18n/translate.ts')
+    const frame = makeContainer(type, { x: 320, y: 220, width: 700, height: 480 }, (key, params) => translate('zh', key, params))
+    children.forEach(child => frame.add(child))
+    const id = frame.id; window.demo.handle.addElement(frame.toJSON()); frame.destroy(); window.demo.handle.flush(); return id
+  }, { type, children })
+}
+async function select(page, id) { await page.evaluate(id => window.demo.handle.select([id]), id); await page.locator('.canvas-app').focus() }
+async function drag(page, from, to) {
+  await page.mouse.move(from.x, from.y); await page.mouse.down(); await page.mouse.move(to.x, to.y, { steps: 16 }); await page.mouse.up()
+  await page.evaluate(() => window.demo.handle.flush())
+}
+async function dragInCanvas(page, from, to) {
+  const host = await page.locator('.canvas-host').boundingBox()
+  await drag(page, { x: host.x + from.x, y: host.y + from.y }, { x: host.x + to.x, y: host.y + to.y })
+}
+const rect = (id, x, y, width = 100, height = 70) => ({ id, tag: 'Rect', name: 'rect', x, y, width, height, fill: '#dce8ff', editable: true })
+
+test('all 19 container presets place through the menu, undo/redo and reopen without writes', async ({ page }, info) => {
+  await open(page)
+  const presets = [ ['选区', 'section', 480, 320], ['画板', 'board', 800, 600], ['软木板', 'corkboard', 800, 560], ['16:9', 'wide', 800, 450], ['4:3', 'standard', 800, 600], ['3:4', 'portrait', 600, 800], ['1:1', 'square', 640, 640], ['A4', 'a4', 595, 842], ['演示文稿', 'presentation', 960, 540], ['Phone', 'phone', 390, 844], ['Pad', 'tablet', 820, 1180], ['Web', 'web', 1280, 800], ['Watch', 'watch', 198, 242], ['水平', 'horizontal', 640, 280], ['垂直', 'vertical', 320, 560], ['水平泳道', 'swimlane-horizontal', 800, 480], ['垂直泳道', 'swimlane-vertical', 800, 480], ['坐标轴', 'axes', 640, 480], ['矩阵', 'matrix', 640, 480] ]
+  for (const [label, type, width, height] of presets) {
+    await page.evaluate(() => { window.demo.handle.select([]); window.demo.model.remove(window.demo.model.getValue().scene.children.map(node => node.id)) })
+    await pick(page, label); await page.mouse.move(720, 480)
+    await expect(page.locator('.tool-placement-preview')).toBeVisible(); expect(await scene(page)).toEqual([])
+    await page.mouse.click(720, 480)
+    await expect.poll(async () => Boolean(await frameOf(page, type))).toBe(true)
+    const item = await frameOf(page, type)
+    expect(item).toMatchObject({ tag: 'Frame', name: 'frame', width, height })
+    expect(item.children.find(child => child.name === 'frame-title').text).toBe(label)
+    await page.getByRole('button', { name: '撤销 (⌘Z)', exact: true }).click()
+    await expect.poll(async () => (await scene(page)).length).toBe(0)
+    await page.getByRole('button', { name: '重做 (⇧⌘Z)', exact: true }).click()
+    await expect.poll(async () => Boolean(await frameOf(page, type))).toBe(true)
+  }
+  const saved = await scene(page), updates = await page.evaluate(() => window.demo.allUpdates.length)
+  await page.evaluate(() => { const reopen = window.demo.openDocument, checkpoint = window.demo.closeDocument(); reopen(checkpoint) }); await page.waitForFunction(() => window.demo?.handle)
+  expect(await scene(page)).toEqual(saved); expect(await page.evaluate(() => window.demo.allUpdates.length)).toBe(updates)
+  await page.getByRole('button', { name: '分区 (F)', exact: true }).click()
+  await expect(page.getByRole('menuitem')).toHaveCount(19)
+  await page.screenshot({ path: info.outputPath('container-picker.png') })
+})
+
+test('ratio drag, library drag and cancellation share the preset geometry', async ({ page }) => {
+  await open(page)
+  await pick(page, '16:9'); await page.mouse.move(650, 440); const updates = await page.evaluate(() => window.demo.allUpdates.length)
+  await page.keyboard.press('Escape'); await expect(page.locator('.tool-placement-preview')).toHaveCount(0)
+  expect(await page.evaluate(() => window.demo.allUpdates.length)).toBe(updates)
+  await pick(page, '16:9'); await dragInCanvas(page, { x: 500, y: 300 }, { x: 820, y: 500 })
+  const wide = await frameOf(page, 'wide'); expect(wide.width / wide.height).toBeCloseTo(16 / 9, 6); expect(wide.lockRatio).toBe(true)
+  await page.evaluate(() => window.demo.model.remove(window.demo.model.getValue().scene.children.map(node => node.id)))
+  await page.getByRole('button', { name: '分区 (F)', exact: true }).click()
+  const tile = await page.getByRole('menuitem', { name: 'Phone', exact: true }).boundingBox()
+  await drag(page, { x: tile.x + tile.width / 2, y: tile.y + tile.height / 2 }, { x: 850, y: 500 })
+  await expect.poll(async () => Boolean(await frameOf(page, 'phone'))).toBe(true)
+  expect(await frameOf(page, 'phone')).toMatchObject({ width: 390, height: 844 })
+})
+
+test('content enters a board, moves with it, and leaves without changing world position', async ({ page }) => {
+  await open(page); const id = await seed(page, 'board')
+  await page.evaluate(rect => window.demo.handle.addElement(rect), rect('outside', 1120, 420))
+  await select(page, 'outside'); await dragInCanvas(page, { x: 1170, y: 455 }, { x: 700, y: 455 })
+  await expect.poll(async () => (await frameOf(page, 'board')).children.some(child => child.id === 'outside')).toBe(true)
+  const child = (await frameOf(page, 'board')).children.find(child => child.id === 'outside')
+  expect(child.x + 320).toBeCloseTo(650, 0)
+  await select(page, id); await dragInCanvas(page, { x: 600, y: 600 }, { x: 650, y: 660 })
+  const moved = await frameOf(page, 'board'); expect(moved.x).toBeCloseTo(370, 0); expect(moved.y).toBeCloseTo(280, 0)
+  expect(moved.children.find(child => child.id === 'outside').x).toBeCloseTo(child.x, 0)
+  await select(page, 'outside'); await dragInCanvas(page, { x: 750, y: 515 }, { x: 1220, y: 515 })
+  await expect.poll(async () => (await scene(page)).some(child => child.id === 'outside')).toBe(true)
+  expect((await scene(page)).find(child => child.id === 'outside').x).toBeCloseTo(1170, 0)
+})
+
+test('auto layout orders children, follows content sizes, reorders on drop and closes deletion gaps', async ({ page }, info) => {
+  await open(page); await seed(page, 'horizontal', [rect('first', 28, 56), rect('second', 152, 56, 140, 100)])
+  await select(page, 'first'); await page.evaluate(() => window.demo.handle.updateSelection({ width: 180 }))
+  let frame = await frameOf(page, 'horizontal'), first = frame.children.find(c => c.id === 'first'), second = frame.children.find(c => c.id === 'second')
+  expect(first.x).toBe(28); expect(second.x).toBe(232); expect(first.y).toBe(56); expect(second.y).toBe(56)
+  await dragInCanvas(page, { x: 320 + first.x + 70, y: 220 + first.y + 35 }, { x: 320 + second.x + 160, y: 220 + first.y + 35 })
+  await expect.poll(async () => (await frameOf(page, 'horizontal')).children.find(c => c.id === 'second').x).toBe(28)
+  frame = await frameOf(page, 'horizontal'); first = frame.children.find(c => c.id === 'first'); second = frame.children.find(c => c.id === 'second')
+  expect(second.x).toBe(28); expect(first.x).toBe(192)
+  await select(page, 'second'); await page.keyboard.press('Backspace'); await page.evaluate(() => window.demo.handle.flush())
+  frame = await frameOf(page, 'horizontal'); expect(frame.children.find(c => c.id === 'first').x).toBe(28)
+  await page.screenshot({ path: info.outputPath('auto-layout.png') })
+  await select(page, 'first'); await dragInCanvas(page, { x: 420, y: 311 }, { x: 1200, y: 850 })
+  await expect.poll(async () => (await scene(page)).some(child => child.id === 'first')).toBe(true)
+  expect((await frameOf(page, 'horizontal')).children.find(c => c.data?.containerPart === 'layout-hint').visible).not.toBe(false)
+})
+
+test('swimlane and matrix resize preserves edited labels; release removes guides only', async ({ page }) => {
+  await open(page); const id = await seed(page, 'swimlane-horizontal', [rect('content', 180, 100)])
+  const frame = await frameOf(page, 'swimlane-horizontal'), label = frame.children.find(child => child.data?.containerPart === 'label')
+  const host = await page.locator('.canvas-host').boundingBox()
+  await page.mouse.dblclick(host.x + 366, host.y + 293)
+  await expect(page.locator('.canvas-plain-text-editor')).toBeFocused()
+  await page.locator('.canvas-plain-text-editor').fill('设计评审'); await page.keyboard.press('Escape'); await page.evaluate(() => window.demo.handle.flush())
+  await select(page, id); await page.evaluate(() => window.demo.handle.updateSelection({ width: 900, height: 650 }))
+  let resized = await frameOf(page, 'swimlane-horizontal')
+  expect(resized.children.find(child => child.id === label.id).text).toBe('设计评审')
+  expect(resized.children.filter(child => child.data?.containerPart === 'cell')).toHaveLength(3)
+  expect(resized.children.find(child => child.data?.containerPart === 'cell').width).toBe(900)
+  await page.getByRole('button', { name: '解除容器', exact: true }).click()
+  await expect.poll(async () => (await scene(page)).map(node => node.id)).toEqual(['content'])
+  await page.getByRole('button', { name: '撤销 (⌘Z)', exact: true }).click()
+  await expect.poll(async () => Boolean(await frameOf(page, 'swimlane-horizontal'))).toBe(true)
+  resized = await frameOf(page, 'swimlane-horizontal'); expect(resized.children.find(child => child.id === label.id).text).toBe('设计评审')
+})
+
+test('container menu fits mobile, switches language and respects readonly', async ({ page }, info) => {
+  await page.setViewportSize({ width: 390, height: 844 }); await page.goto('/?locale=en'); await page.locator('.canvas-host canvas').first().waitFor()
+  await page.locator('.board-mobile-expand').click()
+  await page.getByRole('button', { name: 'Section (F)', exact: true }).click()
+  const menu = await page.getByRole('menu', { name: 'Section (F)', exact: true }).boundingBox()
+  expect(menu.x).toBeGreaterThanOrEqual(0); expect(menu.x + menu.width).toBeLessThanOrEqual(390); expect(menu.y).toBeGreaterThanOrEqual(0); expect(menu.y + menu.height).toBeLessThanOrEqual(844)
+  await page.getByRole('menuitem', { name: 'Matrix', exact: true }).scrollIntoViewIfNeeded()
+  await page.screenshot({ path: info.outputPath('container-picker-mobile.png') })
+  await open(page); await seed(page, 'matrix')
+  const saved = await scene(page), updates = await page.evaluate(() => window.demo.allUpdates.length)
+  await page.evaluate(() => window.demo.setMode('readonly'))
+  await expect(page.locator('.container-picker')).toHaveCount(0)
+  await page.mouse.click(600, 400); await page.keyboard.press('Backspace')
+  expect(await scene(page)).toEqual(saved); expect(await page.evaluate(() => window.demo.allUpdates.length)).toBe(updates)
+})
+
+test('vertical layout accepts frame objects and nested boards keep their own contents', async ({ page }) => {
+  await open(page)
+  await seed(page, 'vertical', [rect('upper', 28, 56, 120, 60), { id: 'note-child', tag: 'Frame', name: 'note', x: 28, y: 140, width: 180, height: 180, fill: '#fff2a8', editable: true, children: [{ id: 'note-label', tag: 'Text', name: 'text', text: '计划', x: 16, y: 16, fontSize: 20 }] }])
+  let frame = await frameOf(page, 'vertical'); expect(frame.children.find(c => c.id === 'upper').y).toBe(56); expect(frame.children.find(c => c.id === 'note-child').y).toBe(140)
+  await select(page, 'upper'); await page.evaluate(() => window.demo.handle.updateSelection({ height: 100 }))
+  frame = await frameOf(page, 'vertical'); expect(frame.children.find(c => c.id === 'note-child').y).toBe(180)
+  await select(page, 'note-child'); await dragInCanvas(page, { x: 420, y: 490 }, { x: 1220, y: 820 })
+  await expect.poll(async () => (await scene(page)).some(c => c.id === 'note-child')).toBe(true)
+  await select(page, 'note-child'); await dragInCanvas(page, { x: 1220, y: 820 }, { x: 650, y: 600 })
+  await expect.poll(async () => (await frameOf(page, 'vertical')).children.some(c => c.id === 'note-child')).toBe(true)
+  await page.evaluate(() => window.demo.model.remove(window.demo.model.getValue().scene.children.map(n => n.id)))
+  await seed(page, 'board')
+  await page.evaluate(async () => {
+    const { makeContainer } = await import('/src/editor/runtime/thinking/containers.ts'), { translate } = await import('/src/i18n/translate.ts')
+    const inner = makeContainer('section', { x: 450, y: 360, width: 250, height: 200 }, key => translate('zh', key))
+    inner.add({ id: 'nested-content', tag: 'Rect', name: 'rect', x: 60, y: 70, width: 80, height: 40, fill: '#dce8ff', editable: true })
+    window.demo.handle.addElement(inner.toJSON()); inner.destroy()
+  })
+  await page.mouse.click(1300, 800)
+  await expect.poll(async () => (await frameOf(page, 'board')).children.some(n => n.data?.containerType === 'section')).toBe(true)
+  const inner = (await frameOf(page, 'board')).children.find(n => n.data?.containerType === 'section')
+  expect(inner.children.find(c => c.id === 'nested-content')).toMatchObject({ x: 60, y: 70 })
+})
+
+test('container edits converge with a peer, export guides and preserve content on save failure', async ({ page, context }, info) => {
+  await open(page); const id = await seed(page, 'matrix', [rect('matrix-content', 50, 100)])
+  const peer = await context.newPage(); await peer.goto(await page.evaluate(() => window.demo.link)); await peer.waitForFunction(() => window.demo?.handle)
+  await expect.poll(async () => JSON.stringify(await scene(peer))).toBe(JSON.stringify(await scene(page)))
+  await select(page, id); await page.evaluate(() => window.demo.handle.updateSelection({ width: 900, height: 600 }))
+  await expect.poll(async () => JSON.stringify(await scene(peer))).toBe(JSON.stringify(await scene(page)))
+  const svg = await page.evaluate(async () => (await window.demo.handle.exportFile({ format: 'svg' })).blob.text())
+  expect(svg).toContain('象限 1'); expect(svg).toContain('fill="#dce8ff"'); expect(svg).toContain('clipPath')
+  await page.screenshot({ path: info.outputPath('matrix-container.png') })
+  await page.evaluate(() => { window.demo.transportControls.reject = true; window.demo.handle.updateSelection({ height: 640 }) })
+  expect((await frameOf(page, 'matrix')).height).toBe(640)
+  const saved = await scene(page)
+  await page.evaluate(() => { const reopen = window.demo.openDocument, checkpoint = window.demo.closeDocument(); reopen(checkpoint) }); await page.waitForFunction(() => window.demo?.handle)
+  expect(await scene(page)).toEqual(saved)
+  await peer.close()
+})
+
+test('phone previews and created frames show hardware that follows resizing and reopens intact', async ({ page }, info) => {
+  await open(page); await pick(page, 'Phone'); await page.mouse.move(720, 490)
+  await expect(page.locator('.tool-placement-preview [data-phone-preview]')).toBeVisible()
+  await page.mouse.down(); await page.mouse.move(950, 900, { steps: 12 })
+  await expect(page.locator('.thinking-insert-preview [data-phone-preview]')).toBeVisible()
+  await page.mouse.up()
+  await expect.poll(async () => Boolean(await frameOf(page, 'phone'))).toBe(true)
+  let phone = await frameOf(page, 'phone')
+  const hardware = phone.children.filter(child => child.data?.containerPart?.startsWith('device-'))
+  expect(hardware).toHaveLength(10)
+  expect(hardware.every(child => child.editable === false && child.hittable === false)).toBe(true)
+  expect(hardware.find(child => child.data.containerPart === 'device-bezel')).toMatchObject({ tag: 'Path', windingRule: 'evenodd' })
+  const ids = hardware.map(child => child.id).sort()
+  await select(page, phone.id); await page.evaluate(() => window.demo.handle.updateSelection({ width: 390, height: 844 }))
+  phone = await frameOf(page, 'phone')
+  expect(phone.children.find(child => child.data?.containerPart === 'device-earpiece')).toMatchObject({ x: 147, y: 22, width: 96, height: 27 })
+  expect(phone.children.find(child => child.data?.containerPart === 'device-bar')).toMatchObject({ x: 140, y: 818, width: 110, height: 5 })
+  await page.evaluate(id => window.demo.handle.revealElements([id], { maxZoom: 1, padding: 60 }), phone.id)
+  await page.screenshot({ path: info.outputPath('phone-device-frame.png') })
+  const saved = await scene(page)
+  await page.evaluate(() => { const reopen = window.demo.openDocument, checkpoint = window.demo.closeDocument(); reopen(checkpoint) }); await page.waitForFunction(() => window.demo?.handle)
+  expect(await scene(page)).toEqual(saved)
+  expect((await frameOf(page, 'phone')).children.filter(child => child.data?.containerPart?.startsWith('device-')).map(child => child.id).sort()).toEqual(ids)
+})
+
+test('older phone frames gain a bezel without covering content or releasing hardware as objects', async ({ page }) => {
+  await open(page)
+  const legacySvg = await page.evaluate(async () => {
+    const legacy = { id: 'legacy-phone', tag: 'Frame', name: 'frame', x: 500, y: 80, width: 390, height: 844, fill: '#ffffff', stroke: '#b8bec9', cornerRadius: 32, overflow: 'hide', data: { kind: 'container', containerType: 'phone', title: 'Phone' }, children: [
+    { id: 'legacy-title', tag: 'Text', name: 'frame-title', text: '我的应用', x: 20, y: 14, fontSize: 18 },
+    { id: 'legacy-bar', tag: 'Rect', x: 175, y: 830, width: 40, height: 4, fill: '#d5dae3', data: { kind: 'container-decoration', containerPart: 'device-bar' } },
+    { id: 'phone-content', tag: 'Rect', name: 'rect', x: 0, y: 0, width: 390, height: 844, fill: '#e8efff', editable: true },
+    ] }
+    window.demo.handle.addElement(legacy)
+    return (await window.demo.io.exportCanvasFile({ scene: { tag: 'Leafer', children: [legacy] } }, { format: 'svg' })).blob.text()
+  })
+  expect(legacySvg).toContain('fill-rule="evenodd"'); expect(legacySvg).toContain('fill="#354154"')
+  let phone = await frameOf(page, 'phone')
+  expect(phone.children.find(child => child.id === 'phone-content')).toMatchObject({ x: 0, y: 0, width: 390, height: 844 })
+  expect(phone.children.find(child => child.id === 'legacy-title')).toMatchObject({ text: '我的应用', fontSize: 18 })
+  expect(phone.children.find(child => child.id === 'legacy-bar').data.containerPart).toBe('device-bar')
+  const svg = await page.evaluate(async () => (await window.demo.handle.exportFile({ format: 'svg' })).blob.text())
+  expect(svg).toContain('fill-rule="evenodd"')
+  expect(svg.indexOf('fill="#292c32"')).toBeGreaterThan(svg.indexOf('fill="#e8efff"'))
+  expect(svg).toContain('fill="#354154"')
+  await select(page, phone.id); await page.getByRole('button', { name: '解除容器', exact: true }).click()
+  await expect.poll(async () => (await scene(page)).map(node => node.id)).toEqual(['phone-content'])
+  await page.getByRole('button', { name: '撤销 (⌘Z)', exact: true }).click()
+  await expect.poll(async () => Boolean(await frameOf(page, 'phone'))).toBe(true)
+  phone = await frameOf(page, 'phone'); expect(phone.children.filter(child => child.data?.containerPart?.startsWith('device-'))).toHaveLength(10)
+})

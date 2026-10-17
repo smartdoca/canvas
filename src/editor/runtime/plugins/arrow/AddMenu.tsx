@@ -6,7 +6,6 @@ import { useEffect } from 'react'
 import type { AddMenuProps } from '../plugins'
 import { getStyleParamByKeyList } from '../../utils/styleLocalStorage'
 import { NAME, STYPE_CONTROLL_KEYS } from './const'
-import { applyCurrentRoughStyle, updateCurrentRoughPreview } from '../../utils/roughStyle'
 import { useCanvasI18n } from '../../../../i18n/context'
 
 export function AddMenu({ app, activeKey, onClick, onCreateComplete }: AddMenuProps) {
@@ -26,10 +25,9 @@ export function AddMenu({ app, activeKey, onClick, onCreateComplete }: AddMenuPr
         if (!arrow) return
         const point = event.getPagePoint()
         arrow.toPoint = { x: point.x - (arrow.x || 0), y: point.y - (arrow.y || 0) }
-        updateCurrentRoughPreview(arrow)
+
       }),
       app.on_(DragEvent.END, () => {
-        if (arrow) applyCurrentRoughStyle(arrow)
         if (arrow) app.editor.select(arrow)
         onCreateComplete()
         app.off_(events)

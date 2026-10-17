@@ -1,16 +1,8 @@
 import type { styleControlRender } from "../../plugins/plugins";
 import { FillColorSelector, FontColorSelector, StrokeColorSelector } from "./ColorSelector";
-import { ArrowHeadSelector, CornerRadiusSelector, FontWeightSelector, ItalicSelector, OpacitySelector, RoughFillStyleSelector, RoughModeSelector, RoughStrokeStyleSelector, SidesSelector, StrokeStyleSelector, StrokeWidthSelector, TextAlignSelector, TextDecorationSelector } from "./SingleSelector";
+import { ArrowHeadSelector, CornerRadiusSelector, FontWeightSelector, ItalicSelector, OpacitySelector, SidesSelector, StrokeStyleSelector, StrokeWidthSelector, TextAlignSelector, TextDecorationSelector } from "./SingleSelector";
 
 const commonStyleRenders: styleControlRender[] = [
-    {
-        key: 'roughMode',
-        title: 'style.roughMode',
-        order: 0,
-        render: RoughModeSelector,
-    },
-    { key: 'roughFillStyle', title: 'style.roughFill', order: 0.1, render: RoughFillStyleSelector },
-    { key: 'roughStrokeStyle', title: 'style.roughStroke', order: 0.2, render: RoughStrokeStyleSelector },
     {
         key: 'stroke',
         title: 'style.stroke',

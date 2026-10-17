@@ -1,10 +1,10 @@
-import { CanvasModel, type CanvasCheckpoint, type CanvasUpdate } from 'aidcanvas/model'
+import { CanvasModel, type CanvasCheckpoint, type CanvasUpdate, type CanvasPresence } from '@smartdoca/canvas/model'
 
 /** Implemented by Doca's existing authenticated room runtime. */
 export interface DocaRuntime {
   enqueue(update: CanvasUpdate): void
   onRemoteUpdate(callback: (update: CanvasCheckpoint) => void): () => void
-  publishSelection(selection: { elementIds: string[] } | null): void
+  publishSelection(selection: CanvasPresence | null): void
   reportError(error: unknown): void
 }
 

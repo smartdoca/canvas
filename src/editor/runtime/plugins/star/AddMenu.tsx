@@ -5,7 +5,6 @@ import { useEffect } from 'react'
 import type { AddMenuProps } from '../plugins'
 import { getStyleParamByKeyList } from '../../utils/styleLocalStorage'
 import { NAME, STYPE_CONTROLL_KEYS } from './const'
-import { applyCurrentRoughStyle, updateCurrentRoughPreview } from '../../utils/roughStyle'
 import { useCanvasI18n } from '../../../../i18n/context'
 
 export function AddMenu({ app, activeKey, onClick, onCreateComplete }: AddMenuProps) {
@@ -20,9 +19,8 @@ export function AddMenu({ app, activeKey, onClick, onCreateComplete }: AddMenuPr
         shape = new LeaferStar({ name: NAME, corners: 5, innerRadius: 0.45, editable: true, ...getStyleParamByKeyList(STYPE_CONTROLL_KEYS) })
         app.tree.add(shape)
       }),
-      app.on_(DragEvent.DRAG, (event: DragEvent) => { if (shape) { shape.set(event.getPageBounds()); updateCurrentRoughPreview(shape) } }),
+      app.on_(DragEvent.DRAG, (event: DragEvent) => { if (shape) { shape.set(event.getPageBounds());  } }),
       app.on_(DragEvent.END, () => {
-        if (shape) applyCurrentRoughStyle(shape)
         if (shape) app.editor.select(shape)
         onCreateComplete()
         app.off_(events)

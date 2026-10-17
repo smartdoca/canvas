@@ -6,6 +6,8 @@ import { useEffect } from 'react'
 import type { AddMenuProps } from '../plugins'
 import { useCanvasI18n } from '../../../../i18n/context'
 
+import { removeItems } from '../../thinking/scene'
+
 const NAME = 'eraser'
 
 export function AddMenu({ app, activeKey, onClick }: AddMenuProps) {
@@ -15,17 +17,17 @@ export function AddMenu({ app, activeKey, onClick }: AddMenuProps) {
     if (!active) return
     // Keep normal hit-testing enabled so pointer events target actual elements.
     app.mode = 'normal'
-    app.editor.select([])
+    app.editor.cancel()
     const selectionEvent = app.editor.on_(EditorEvent.SELECT, (event: EditorEvent) => {
-      event.editor.list.forEach((item) => item.remove())
-      if (event.editor.list.length) event.editor.select([])
+      removeItems(app, [...event.editor.list])
+      if (event.editor.list.length) event.editor.cancel()
     })
     const erase = (event: DragEvent) => {
       // Leafer has already resolved the pointer target. Re-picking with page
       // coordinates breaks after viewport pan/zoom because it mixes spaces.
       const target = event.target as IUI | undefined
       if (target && target !== app && target !== app.tree && target.parent) {
-        target.remove()
+        removeItems(app, [target])
       }
       // The eraser owns the pointer gesture, including clicks on empty space.
       // Otherwise Editor starts its area-selection gesture underneath it.

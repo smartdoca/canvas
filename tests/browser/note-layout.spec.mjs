@@ -1,0 +1,87 @@
+import { test, expect } from './fixtures.mjs'
+
+const scene = page => page.evaluate(() => window.demo.model.getValue().scene.children)
+async function open(page) {
+  await page.goto('/examples/doca/'); await page.waitForFunction(() => window.demo?.handle)
+  await page.evaluate(() => {
+    window.demo.model.remove(window.demo.model.getValue().scene.children.map(n => n.id))
+    window.demo.handle.addElement({ id: 'note-fit', tag: 'Frame', name: 'note', data: { kind: 'note' }, x: 340, y: 180, width: 200, height: 200, fill: '#fff2a8', editable: true, hitChildren: false, children: [{ id: 'note-fit-label', tag: 'Text', name: 'text', x: 16, y: 16, width: 168, height: 168, text: 'First\nSecond\nThird', fontSize: 18, lineHeight: { type: 'percent', value: 1.5 }, verticalAlign: 'top', editable: true }] })
+    window.demo.handle.select([])
+  })
+}
+const note = async page => (await scene(page)).find(n => n.id === 'note-fit')
+const minimum = page => page.evaluate(async () => { const { makeDiagram } = await import('/src/editor/runtime/thinking/scene.ts'), { richLayout } = await import('/src/editor/runtime/thinking/richText.ts'); const n = window.demo.model.getValue().scene.children.find(n => n.id === 'note-fit'), box = makeDiagram('rect', 0, 0), t = box.children[1]; t.set(n.children[0]); const height = Math.ceil(richLayout(t, true).height + 32); box.destroy(); return height })
+async function resize(page, dx, dy) {
+  const bounds = await page.evaluate(() => window.demo.handle.revealElements(['note-fit'], { maxZoom: 1 }).bounds), host = await page.locator('.canvas-host').boundingBox()
+  const p = { x: host.x + bounds.x + bounds.width, y: host.y + bounds.y + bounds.height }
+  await page.mouse.move(p.x, p.y); await page.mouse.down(); await page.mouse.move(p.x + dx, p.y + dy, { steps: 16 }); await page.mouse.up()
+  await page.evaluate(() => window.demo.handle.flush())
+}
+
+test('note resize accepts extra space and stops at its rich content height; width changes reflow content', async ({ page }, info) => {
+  await open(page)
+  await page.evaluate(() => window.demo.handle.select(['note-fit']))
+  await expect(page.locator('.rich-object-move-handle')).toHaveCount(0)
+  await resize(page, 0, 90)
+  const larger = await note(page); expect(larger.height).toBeGreaterThan(250)
+  expect(larger.children[0].height).toBe(larger.height - 32)
+  await resize(page, 0, -240)
+  let current = await note(page), min = await minimum(page)
+  expect(current.height).toBeGreaterThanOrEqual(min); expect(current.height).toBeLessThan(larger.height)
+  expect(current.y).toBe(180); expect(current.children[0].fontSize).toBe(18)
+  await page.evaluate(() => window.demo.handle.updateSelection({ width: 80, height: 20 }))
+  current = await note(page); min = await minimum(page)
+  expect(current.height).toBeGreaterThanOrEqual(min); expect(current.children[0].width).toBe(48)
+  expect(current.children[0].height).toBe(current.height - 32)
+  expect(JSON.stringify(current)).not.toContain('heightRange')
+  await page.screenshot({ path: info.outputPath('note-content-minimum.png') })
+})
+
+test('typing and larger rich marks grow a note atomically; deleting content preserves manually added space', async ({ page, context }, info) => {
+  await open(page)
+  const peer = await context.newPage(); await peer.goto(await page.evaluate(() => window.demo.link)); await peer.waitForFunction(() => window.demo?.handle)
+  await page.evaluate(() => window.demo.handle.select(['note-fit-label'])); await page.locator('.canvas-app').focus(); await page.keyboard.press('Enter')
+  const input = page.locator('[data-slate-editor]'); await expect(input).toBeFocused()
+  const before = await page.evaluate(() => window.demo.allUpdates.length)
+  await input.fill(Array.from({ length: 8 }, (_, i) => `第${i + 1}行思考`).join('\n'))
+  await page.evaluate(() => window.demo.handle.flush())
+  const textHeight = (await note(page)).height
+  expect(await page.evaluate(() => window.demo.allUpdates.length)).toBe(before + 1)
+  await page.keyboard.press('Meta+a'); await page.locator('.slate-format-toolbar').getByRole('combobox', { name: '选中文字字号', exact: true }).click(); await page.getByRole('option', { name: '24', exact: true }).click()
+  await expect(input.locator('[data-slate-leaf]').first()).toHaveCSS('line-height', '36px')
+  await page.evaluate(() => window.demo.handle.flush())
+  let current = await note(page); expect(current.height).toBeGreaterThan(200); expect(current.height).toBeGreaterThanOrEqual(await minimum(page))
+  expect(await page.evaluate(() => window.demo.allUpdates.length)).toBe(before + 2)
+  expect(await input.evaluate(el => el.scrollHeight <= el.clientHeight + 1)).toBe(true)
+  await expect.poll(async () => JSON.stringify(await scene(page)) === JSON.stringify(await scene(peer))).toBe(true)
+  await page.keyboard.press('Meta+z'); await expect(input).toContainText('第8行思考'); expect((await note(page)).height).toBe(textHeight)
+  await page.keyboard.press('Meta+z'); await expect(input).toHaveText('FirstSecondThird'); expect((await note(page)).height).toBe(200)
+  await page.keyboard.press('Meta+Shift+z'); await page.keyboard.press('Meta+Shift+z'); await expect(input).toContainText('第8行思考')
+  await page.screenshot({ path: info.outputPath('note-auto-grown.png') })
+  await page.keyboard.press('Escape')
+  await page.evaluate(() => window.demo.handle.updateSelection({ height: 420 }))
+  await page.evaluate(() => window.demo.handle.select(['note-fit-label'])); await page.locator('.canvas-app').focus(); await page.keyboard.press('Enter')
+  await input.fill('短内容'); await page.keyboard.press('Escape'); await page.evaluate(() => window.demo.handle.flush())
+  current = await note(page); expect(current.height).toBe(420)
+  const updates = await page.evaluate(() => window.demo.allUpdates.length)
+  await page.evaluate(() => window.demo.setMode('readonly'))
+  await expect.poll(async () => JSON.stringify(await scene(page)) === JSON.stringify(await scene(peer))).toBe(true)
+  expect(await page.evaluate(() => window.demo.allUpdates.length)).toBe(updates)
+  await peer.close()
+})
+
+test('inline image height contributes to the note minimum and reopens without size or content writes', async ({ page }) => {
+  await open(page)
+  await page.evaluate(() => window.demo.handle.select(['note-fit-label'])); await page.locator('.canvas-app').focus(); await page.keyboard.press('Enter')
+  const input = page.locator('[data-slate-editor]'); await input.fill('图片说明'); await page.keyboard.press('End'); await page.keyboard.press('Enter')
+  await input.evaluate(async element => {
+    const canvas = document.createElement('canvas'); canvas.width = 100; canvas.height = 240; const ctx = canvas.getContext('2d'); ctx.fillStyle = '#3370ff'; ctx.fillRect(0, 0, 100, 240)
+    const blob = await new Promise(resolve => canvas.toBlob(resolve)), data = new DataTransfer(); data.items.add(new File([blob], 'tall.png', { type: 'image/png' }))
+    element.dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: data }))
+  })
+  await expect(input.locator('[data-resource-kind=image] img')).toBeVisible(); await page.keyboard.press('Escape'); await page.evaluate(() => window.demo.handle.flush())
+  const saved = await note(page); expect(saved.height).toBeGreaterThan(300); expect(saved.height).toBeGreaterThanOrEqual(await minimum(page))
+  const updates = await page.evaluate(() => window.demo.allUpdates.length)
+  await page.evaluate(() => { const reopen = window.demo.openDocument, checkpoint = window.demo.closeDocument(); reopen(checkpoint) }); await page.waitForFunction(() => window.demo?.handle)
+  expect(await note(page)).toEqual(saved); expect(await page.evaluate(() => window.demo.allUpdates.length)).toBe(updates)
+})

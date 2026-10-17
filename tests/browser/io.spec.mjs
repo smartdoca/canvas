@@ -109,7 +109,7 @@ test('upload failure, explicit cancellation, permission revocation and disposal 
   expect((await value(page)).scene.children).toHaveLength(3)
 })
 
-test('true vector SVG and PNG open independently: Chinese/emoji, group transforms, arrows, rough, shadow and embedded images; export has zero writes', async ({ page, context }, testInfo) => {
+test('true vector SVG and PNG open independently: Chinese/emoji, group transforms, arrows, native fills, shadow and embedded images; export has zero writes', async ({ page, context }, testInfo) => {
   await open(page)
   for (const ext of ['png', 'jpg', 'webp', 'svg']) {
     const bytes = await page.evaluate(async ext => [...new Uint8Array(await window.files[ext].arrayBuffer())], ext)
@@ -122,7 +122,7 @@ test('true vector SVG and PNG open independently: Chinese/emoji, group transform
       { id: 'text', tag: 'Text', x: 5, y: 20, text: '中文 😀\nVector text', fontSize: 20, fill: '#111111' },
     ] })
     window.demo.model.add({ id: 'arrow', tag: 'Arrow', name: 'arrow', x: 80, y: 260, width: 200, height: 50, stroke: '#2255aa', strokeWidth: 6, startArrow: 'circle', endArrow: 'triangle' })
-    window.demo.model.add({ id: 'rough', tag: 'Rect', name: 'rect', x: 330, y: 80, width: 160, height: 100, stroke: '#225522', fill: '#b2f2bb', data: { roughMode: true, roughSeed: 321, roughOriginalFill: '#b2f2bb', roughFillStyle: 'cross-hatch', roughStrokeStyle: 1 } })
+    window.demo.model.add({ id: 'rough', tag: 'Rect', name: 'rect', x: 330, y: 80, width: 160, height: 100, stroke: '#225522', fill: '#b2f2bb', dashPattern: [8, 4] })
     await window.demo.handle.insertImageFile(window.files.png, { x: 330, y: 240, width: 160 })
     await window.demo.handle.insertImageFile(window.files.svg, { x: 330, y: 350, width: 160 })
     window.demo.handle.select(['group', 'rough'])
@@ -140,7 +140,7 @@ test('true vector SVG and PNG open independently: Chinese/emoji, group transform
     const viewer = await context.newPage(); await viewer.goto(pathToFileURL(file).href)
     if (format === 'svg') {
       const source = await readFile(file, 'utf8')
-      expect(source).toContain('<path'); expect(source).toContain('<text'); expect(source).toContain('中文'); expect(source).toContain('😀'); expect(source).toContain('<pattern'); expect(source).toContain('<filter')
+      expect(source).toContain('<path'); expect(source).toContain('<text'); expect(source).toContain('中文'); expect(source).toContain('😀'); expect(source).toContain('<filter')
       expect(source).not.toMatch(/COMMENT-PRIVATE|epochId|resourcePath|blob:|http:\/\/127|<metadata/)
       expect(await viewer.locator('svg > g').count()).toBeGreaterThan(2)
       expect(result.warnings.some(w => w.code === 'FONT_NOT_EMBEDDED_SYSTEM_FALLBACK')).toBe(true)
@@ -194,7 +194,7 @@ test('readonly export, asset authorization failure and in-flight export cancella
   expect(result.size).toBeGreaterThan(0); expect(result.errors).toEqual(['ASSET_READ_FAILED', 'CANCELLED']); expect(result.unchanged).toBe(true); expect(result.updates).toBe(0)
 })
 
-test('bounded SVG references, explicit editable-data fallback, nested selection and all rough fills export deterministically', async ({ page }) => {
+test('bounded SVG references, explicit editable-data fallback, nested selection and native stroke styles export deterministically', async ({ page }) => {
   await open(page)
   const result = await page.evaluate(async () => {
     const io = window.demo.io
@@ -205,8 +205,8 @@ test('bounded SVG references, explicit editable-data fallback, nested selection 
     ] }] } }
     const selection = await io.exportCanvasFile(source, { format: 'svg', scope: 'selection', elementIds: ['yes'] })
     const patterns = []
-    for (const style of ['hachure', 'cross-hatch', 'zigzag-line', 'dots', 'solid']) {
-      const scene = { scene: { children: [{ id: 'r', tag: 'Rect', name: 'rect', width: 100, height: 70, rotation: 20, scaleX: 1.2, fill: '#ffc9c9', stroke: '#333333', data: { roughMode: true, roughSeed: 781, roughOriginalFill: '#ffc9c9', roughFillStyle: style } }] } }
+    for (const style of ['solid', 'dashed', 'dotted']) {
+      const scene = { scene: { children: [{ id: 'r', tag: 'Rect', name: 'rect', width: 100, height: 70, rotation: 20, scaleX: 1.2, fill: '#ffc9c9', stroke: '#333333', dashPattern: style === 'dashed' ? [10, 6] : style === 'dotted' ? [2, 5] : undefined }] } }
       const a = await io.exportCanvasFile(scene, { format: 'svg' }), b = await io.exportCanvasFile(scene, { format: 'svg' })
       const text = await a.blob.text(); patterns.push({ style, deterministic: text === await b.blob.text(), pattern: text.includes('<pattern'), raster: text.includes('data:image') })
     }
@@ -214,7 +214,7 @@ test('bounded SVG references, explicit editable-data fallback, nested selection 
   })
   expect(result.safe).toContain('href="#p"'); expect(result.degraded.some(w => w.code === 'EDITABLE_DATA_IGNORED')).toBe(true)
   expect(result.selection).not.toContain('PRIVATE-UNSELECTED'); expect(result.selection).toContain('matrix(')
-  for (const p of result.patterns) { expect(p.deterministic).toBe(true); expect(p.raster).toBe(false); expect(p.pattern).toBe(p.style !== 'solid') }
+  for (const p of result.patterns) { expect(p.deterministic).toBe(true); expect(p.raster).toBe(false); expect(p.pattern).toBe(false) }
 })
 
 test('scope, transparent/color background, scale and memory limits, empty states, pending input and cancellation are explicit', async ({ page }) => {
@@ -237,6 +237,9 @@ test('scope, transparent/color background, scale and memory limits, empty states
     window.demo.handle.select(['rect-a'])
     const selected = await window.demo.handle.exportFile({ format: 'svg', scope: 'selection' })
     window.demo.handle.updateSelection({ x: 999 })
+    // Public commands now commit atomically; an active native edit remains an export barrier.
+    window.demo.handle.select(['text-a'])
+    document.querySelector('.canvas-app').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true }))
     try { await window.demo.handle.exportFile({ format: 'png' }) } catch(e) { errors.push(e.code) }
     return { errors, transparent: await firstPixel(transparent.blob), colored: await firstPixel(colored.blob), dimensions: [transparent.width, transparent.height, colored.width, colored.height], selected: await selected.blob.text() }
   })

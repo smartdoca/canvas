@@ -21,5 +21,20 @@ for (const count of [100, 1000, 5000, 10000]) {
   if (JSON.stringify(a.getValue()) !== JSON.stringify(b.getValue())) throw new Error('CONVERGENCE_FAILED')
   a.dispose(); b.dispose()
 }
+// Many sibling groups exercise ordering cost that a single flat board misses.
+for (const count of [1000, 5000, 10000]) {
+  const children = Array.from({ length: count / 10 }, (_, group) => ({ id: `g-${group}`, tag: 'Group', children: Array.from({ length: 9 }, (_, child) => ({ id: `g-${group}-${child}`, tag: 'Rect', x: child * 30, y: 0, width: 24, height: 24 })) }))
+  const a = CanvasModel.initialize('grouped-benchmark', { version: 1, scene: { children } }), b = CanvasModel.restore(a.checkpoint()), updates = [], apply = []
+  a.onLocalUpdate(update => updates.push(update))
+  let base = a.getValue().scene
+  for (let step = 0; step < 5; step++) {
+    const next = structuredClone(base); next.children[0].children[0].x = 50 + step
+    apply.push(measure(() => a.applyScene(next, base))[0]); base = next
+    b.applyUpdate(updates.at(-1))
+  }
+  if (JSON.stringify(a.getValue()) !== JSON.stringify(b.getValue())) throw new Error('GROUPED_CONVERGENCE_FAILED')
+  results.push({ count, layout: 'grouped', groups: count / 10, sceneApplyMs: median(apply), updateBytes: updates.at(-1).update.length })
+  a.dispose(); b.dispose()
+}
 console.log(JSON.stringify(results, null, 2))
 if (process.env.PERF_OUTPUT) await writeFile(process.env.PERF_OUTPUT, JSON.stringify(results, null, 2))

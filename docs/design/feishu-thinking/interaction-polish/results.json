@@ -1,0 +1,51 @@
+{
+  "date": "2026-10-17",
+  "scope": "current workspace source; isolated fixtures; source frozen during complete run",
+  "fullBrowser": {
+    "passed": 141,
+    "failed": 0,
+    "seconds": 275.31,
+    "log": ".cache/final-clean-verification.log"
+  },
+  "repeatedCritical": {
+    "scenarios": 33,
+    "repeatEach": 3,
+    "passed": 99,
+    "seconds": 86.61
+  },
+  "repeatedRichLayout": {
+    "scenarios": 24,
+    "repeatEach": 3,
+    "passed": 72,
+    "seconds": 79.14
+  },
+  "repeatedPencil": {
+    "scenarios": 1,
+    "repeatEach": 3,
+    "passed": 3,
+    "seconds": 17.71
+  },
+  "modelSourceTests": {
+    "passed": 27
+  },
+  "checks": {
+    "lintAndTypeScript": true,
+    "lintAndTypeScriptSeconds": 10.0,
+    "examplesTypeScript": true,
+    "examplesTypeScriptSeconds": 4.19,
+    "diffWhitespace": true,
+    "previewHttp": 200
+  },
+  "sourceIntegrity": {
+    "files": 110,
+    "unchangedDuringFullRun": true,
+    "manifestSha256": "f26f93a7937b78a44179ba8c9fc764a565b3f4eb34d010e8c1744f1310b15e52"
+  },
+  "note": "Repeated groups overlap with the full browser suite. Earlier failed, interrupted or hot-reloaded runs are excluded.",
+  "notVerified": [
+    "physical touchpad system history gesture",
+    "production Doca asset-service integration",
+    "durable server ACK acceptance",
+    "published npm artifact"
+  ]
+}

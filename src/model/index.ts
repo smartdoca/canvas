@@ -13,18 +13,20 @@ export interface CanvasUpdate {
 export interface CanvasCheckpoint { codec: typeof CANVAS_CODEC; schemaVersion: 1; epochId: string; update: Uint8Array }
 export interface ElementAnchor { type: 'elements'; epochId: string; elementIds: string[] }
 export interface ModelMatch { elementId: string; start: number; end: number; text: string; revision: number }
-export interface SessionSelection { sessionId: string; userId: string; name: string; color: string; elementIds: string[] }
+export interface CanvasTextPresence { epochId: string; elementId: string; anchor: string; focus: string }
+export interface CanvasPresence { elementIds: string[]; cursor?: { x: number; y: number }; text?: CanvasTextPresence }
+export interface SessionSelection extends CanvasPresence { sessionId: string; userId: string; name: string; color: string }
 /** Transient DOM caret only. Never persist these numeric offsets as comment anchors. */
 export interface TextSelection { anchor: number; focus: number }
 export interface CanvasTextSession {
-  commit(text: string): boolean
+  commit(text: string, formatting?: { richText: Json | undefined }): boolean
   sync(selection?: TextSelection): { text: string; selection?: TextSelection; deleted: boolean }
   dispose(): void
 }
 export type ModelOrigin = 'local' | 'remote'
 export type CanvasFlushReason = 'command' | 'remote' | 'sync' | 'checkpoint' | 'undo' | 'dispose'
 export interface ModelChange { origin: ModelOrigin; revision: number }
-type Flat = { id: string; parent: string | null; index: number; props: Record<string, unknown> }
+type Flat = { id: string; parent: string | null; index: number; props: Record<string, unknown>; input?: string }
 type Placement = { parent: string | null; rank: number }
 const forbidden = new Set(['__proto__', 'constructor', 'prototype'])
 const tags = new Set(['Rect', 'Ellipse', 'Line', 'Path', 'Polygon', 'Star', 'Text', 'Frame', 'Group', 'Image', 'Arrow'])
@@ -40,7 +42,7 @@ const propertyKeys = new Set(('tag name data x y width height scale scaleX scale
   'zIndex draggable dragBounds dragOut event bubbleEvent button').split(' '))
 export const CANVAS_ELEMENT_PROPERTIES: readonly string[] = Object.freeze([...propertyKeys])
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v)) as T
-const equal = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
+const equal = (a: unknown, b: unknown) => a === b || JSON.stringify(a) === JSON.stringify(b)
 export const createElementId = () => globalThis.crypto.randomUUID()
 
 /** Native render projection -> persistent drawing intent, before any Yjs transaction.
@@ -49,7 +51,12 @@ export const createElementId = () => globalThis.crypto.randomUUID()
 export function toPersistedCanvasScene(scene: SceneNode): SceneNode {
   const copy = clone(scene)
   const visit = (node: SceneNode) => {
+    // Leafer's active text editor hides native glyphs with this render-only flag.
+    delete node.textEditing
     const data = node.data as Record<string, unknown> | undefined
+    // Leafer opens structured text containers while selecting/editing a label.
+    // That hit-testing state belongs to this view, not the shared drawing.
+    if (['table-cell', 'diagram-node', 'mind-node', 'note', 'card', 'connector-label'].includes(String(data?.kind || node.name))) node.hitChildren = false
     if (data?.roughMode === true) node.fill = clone(data.roughOriginalFill ?? null)
     if (data?.resourcePath) {
       node.url = data.resourcePath
@@ -86,24 +93,30 @@ function prepareCanvasValue(value: { version: number; scene: SceneNode; name?: s
   return { version: 1, name: value.name || '未命名画布', updatedAt: '', scene }
 }
 
-function flatten(scene: SceneNode): Map<string, Flat> {
+function flatten(scene: SceneNode, validated?: Map<string, Flat>): Map<string, Flat> {
   const result = new Map<string, Flat>()
   const visit = (nodes: SceneNode[], parent: string | null, depth = 0) => nodes.forEach((node, index) => {
     if (depth > 64) throw new Error('MODEL_DEPTH')
     if (typeof node.id !== 'string' || !node.id || result.has(node.id) || forbidden.has(node.id)) throw new Error('INVALID_ELEMENT_ID')
-    const { id, ...props } = toPersistedCanvasScene({ ...node, children: undefined })
-    if (typeof props.tag !== 'string' || !tags.has(props.tag)) throw new Error('UNSUPPORTED_ELEMENT_TAG')
-    // Viewport is root-only. Resolved image URLs never enter the model.
-    const data = props.data as Record<string, unknown> | undefined
-    if (props.tag === 'Image' && (typeof data?.resourcePath !== 'string' || !data.resourcePath)) throw new Error('IMAGE_REQUIRES_STABLE_RESOURCE_PATH')
-    if (data?.resourcePath) { props.url = data.resourcePath; props.data = { ...data, sourceUrl: data.resourcePath } }
-    Object.entries(props).forEach(([key, value]) => {
-      if (key === 'text' && props.tag === 'Text') { if (typeof value !== 'string') throw new Error('INVALID_PLAIN_TEXT') }
-      else validateProperty(key, value)
-    })
-    result.set(id!, { id: id!, parent, index, props })
+    const input = validated ? JSON.stringify({ ...node, children: undefined }) : undefined, previous = validated?.get(node.id)
+    let props: Record<string, unknown>
+    if (previous && previous.input === input) props = previous.props
+    else {
+      props = toPersistedCanvasScene({ ...node, children: undefined })
+      delete props.id
+      if (typeof props.tag !== 'string' || !tags.has(props.tag)) throw new Error('UNSUPPORTED_ELEMENT_TAG')
+      // Viewport is root-only. Resolved image URLs never enter the model.
+      const data = props.data as Record<string, unknown> | undefined
+      if (props.tag === 'Image' && (typeof data?.resourcePath !== 'string' || !data.resourcePath)) throw new Error('IMAGE_REQUIRES_STABLE_RESOURCE_PATH')
+      if (data?.resourcePath) { props.url = data.resourcePath; props.data = { ...data, sourceUrl: data.resourcePath } }
+      Object.entries(props).forEach(([key, value]) => {
+        if (key === 'text' && props.tag === 'Text') { if (typeof value !== 'string') throw new Error('INVALID_PLAIN_TEXT') }
+        else validateProperty(key, value)
+      })
+    }
+    result.set(node.id, { id: node.id, parent, index, props, input })
     if (node.children?.length && !['Group', 'Frame'].includes(String(props.tag))) throw new Error('UNSUPPORTED_CHILDREN')
-    visit(node.children || [], id!, depth + 1)
+    visit(node.children || [], node.id, depth + 1)
   })
   visit(scene.children || [], null)
   return result
@@ -121,6 +134,10 @@ export class CanvasModel {
   private readonlyFlag = false
   private disposed = false
   private rev = 0
+  // Reuse an isolated validation replica. Rebuilding every element for each
+  // small remote update makes collaboration cost proportional to checkpoint size.
+  private validationDoc?: Y.Doc
+  private adapterBase?: { json: string; flat: Map<string, Flat> }
   readonly epochId: string
 
   private constructor(checkpoint: CanvasCheckpoint) {
@@ -161,8 +178,14 @@ export class CanvasModel {
   subscribe(fn: (change: ModelChange) => void) { this.changeListeners.add(fn); return () => { this.changeListeners.delete(fn) } }
   /** View adapters synchronously flush pending native edits before a remote merge or undo. */
   beforeApply(fn: (reason: CanvasFlushReason) => void) { this.flushListeners.add(fn); return () => { this.flushListeners.delete(fn) } }
-  flush(reason: CanvasFlushReason = 'command') { if (this.disposed) throw new Error('MODEL_DISPOSED'); this.flushListeners.forEach(fn => fn(reason)) }
+  flush(reason: CanvasFlushReason = 'command') {
+    if (this.disposed) throw new Error('MODEL_DISPOSED')
+    // One native content flush may contain text, formatting and its layout.
+    // They share one local update and undo item; an idle flush writes nothing.
+    this.doc.transact(() => this.flushListeners.forEach(fn => fn(reason)), this.localOrigin)
+  }
   private handleUpdate = (bytes: Uint8Array, origin: unknown) => {
+    if (this.validationDoc) Y.applyUpdate(this.validationDoc, bytes)
     const local = origin === this.localOrigin || origin === this.undoManager
     this.rev++
     if (local) {
@@ -191,9 +214,13 @@ export class CanvasModel {
     if (update.epochId !== this.epochId) throw new Error('EPOCH_MISMATCH')
     this.flush('remote')
     // Validate in an isolated replica first; malformed content cannot partially mutate the live document.
-    const candidate = new Y.Doc()
-    try {
+    let candidate = this.validationDoc
+    if (!candidate) {
+      candidate = new Y.Doc()
       Y.applyUpdate(candidate, Y.encodeStateAsUpdate(this.doc))
+      this.validationDoc = candidate
+    }
+    try {
       Y.applyUpdate(candidate, update.update)
       validateDoc(candidate, this.epochId)
       this.elements.forEach((element, id) => {
@@ -201,7 +228,12 @@ export class CanvasModel {
         if (next && (next.get('props') as Y.Map<unknown>).get('tag') !== (element.get('props') as Y.Map<unknown>).get('tag')) throw new Error('ELEMENT_IDENTITY_IMMUTABLE')
       })
       Y.applyUpdate(this.doc, update.update, 'remote')
-    } finally { candidate.destroy() }
+    } catch (error) {
+      // Rejected bytes never reach the live replica. Discard the contaminated
+      // validator so a later valid update starts from the authoritative state.
+      candidate.destroy(); this.validationDoc = undefined
+      throw error
+    }
   }
   getValue(): ModelValue {
     const alive = new Map<string, { props: SceneNode; placement: Placement }>()
@@ -236,7 +268,11 @@ export class CanvasModel {
   /** Formal scene-to-CRDT adapter. The base is the last view projection, not the current remote snapshot. */
   applyScene(next: SceneNode, base: SceneNode, expectedRevision = this.rev) {
     if (expectedRevision !== this.rev) throw new Error('STALE_PROJECTION')
-    const before = flatten(base), after = flatten(next)
+    // Reuse only a byte-equal, previously validated projection. Caller-owned
+    // objects can be mutated between calls, so object identity is insufficient.
+    const baseJson = JSON.stringify(base)
+    const before = this.adapterBase?.json === baseJson ? this.adapterBase.flat : flatten(base, new Map())
+    const after = flatten(next, before)
     after.forEach(f => {
       if (!before.has(f.id) && this.elements.has(f.id)) throw new Error('ELEMENT_ID_REUSE')
       const old = before.get(f.id)
@@ -246,9 +282,15 @@ export class CanvasModel {
     const placements = new Map<string, Placement>()
     after.forEach(f => placements.set(f.id, (this.elements.get(f.id)?.get('placement') as Placement | undefined) || { parent: f.parent, rank: f.index }))
     // Plan order changes before starting the Yjs transaction, including precision checks.
-    new Set([...after.values()].map(f => f.parent)).forEach(parent => {
-      const siblings = [...after.values()].filter(x => x.parent === parent).sort((a, b) => a.index - b.index)
-      const oldIds = [...before.values()].filter(x => x.parent === parent).sort((a, b) => a.index - b.index).map(x => x.id)
+    const siblingsByParent = (flat: Map<string, Flat>) => {
+      const groups = new Map<string | null, Flat[]>()
+      // flatten visits siblings in index order, even when they have children.
+      flat.forEach(item => { const siblings = groups.get(item.parent); if (siblings) siblings.push(item); else groups.set(item.parent, [item]) })
+      return groups
+    }
+    const oldSiblings = siblingsByParent(before)
+    siblingsByParent(after).forEach((siblings, parent) => {
+      const oldIds = (oldSiblings.get(parent) || []).map(x => x.id)
       if (equal(oldIds, siblings.map(x => x.id))) return
       siblings.forEach((f, index) => {
         const place = placements.get(f.id)!
@@ -269,6 +311,7 @@ export class CanvasModel {
         }
         const e = this.elements.get(f.id)
         if (!e || e.get('deleted')) return
+        if (old.props === f.props) return
         const props = e.get('props') as Y.Map<unknown>
         new Set([...Object.keys(old.props), ...Object.keys(f.props)]).forEach(key => {
           if (key === 'text' && f.props.tag === 'Text') {
@@ -281,6 +324,7 @@ export class CanvasModel {
       })
       placements.forEach((place, id) => { const e = this.elements.get(id)!; if (!equal(e.get('placement'), place)) e.set('placement', place) })
     })
+    this.adapterBase = { json: JSON.stringify(next), flat: after }
   }
   add(element: SceneNode, parent: string | null = null): string {
     const id = element.id || createElementId()
@@ -358,6 +402,25 @@ export class CanvasModel {
     if (!Number.isInteger(index) || !Number.isInteger(deleteCount) || index < 0 || deleteCount < 0 || index + deleteCount > text.length) throw new Error('INVALID_TEXT_RANGE')
     this.write(() => { if (deleteCount) text.delete(index, deleteCount); if (insert) text.insert(index, insert) })
   }
+  captureTextPresence(elementId: string, selection: TextSelection): CanvasTextPresence | undefined {
+    if (this.readOnly || this.disposed) return
+    this.flush('sync')
+    const element = this.elements.get(elementId), text = element?.get('text')
+    if (!element || element.get('deleted') || !(text instanceof Y.Text) || (element.get('props') as Y.Map<unknown>).get('tag') !== 'Text') return
+    if (![selection.anchor, selection.focus].every(index => Number.isInteger(index) && index >= 0 && index <= text.length)) return
+    const relative = (index: number) => JSON.stringify(Y.relativePositionToJSON(Y.createRelativePositionFromTypeIndex(text, index)))
+    return { epochId: this.epochId, elementId, anchor: relative(selection.anchor), focus: relative(selection.focus) }
+  }
+  resolveTextPresence(presence: CanvasTextPresence): TextSelection | undefined {
+    if (this.disposed || presence.epochId !== this.epochId || typeof presence.anchor !== 'string' || typeof presence.focus !== 'string' || presence.anchor.length > 2048 || presence.focus.length > 2048) return
+    const element = this.elements.get(presence.elementId), text = element?.get('text')
+    if (!element || element.get('deleted') || !(text instanceof Y.Text)) return
+    try {
+      const points = [presence.anchor, presence.focus].map(value => Y.createAbsolutePositionFromRelativePosition(Y.createRelativePositionFromJSON(JSON.parse(value)), this.doc))
+      if (points.some(point => !point || point.type !== text)) return
+      return { anchor: points[0]!.index, focus: points[1]!.index }
+    } catch { return }
+  }
   /** A temporary CRDT branch for one native text input. Remote changes cannot be overwritten by a stale DOM string. */
   startTextSession(id: string): CanvasTextSession {
     const branch = new Y.Doc()
@@ -366,6 +429,7 @@ export class CanvasModel {
     const element = branch.getMap<Y.Map<unknown>>('elements').get(id)
     if (!element || element.get('deleted') || (element.get('props') as Y.Map<unknown>).get('tag') !== 'Text') { branch.destroy(); throw new Error('TEXT_NOT_FOUND') }
     const text = element.get('text') as Y.Text
+    const props = element.get('props') as Y.Map<unknown>
     const origin = {}
     let closed = false
     const alive = () => !closed && !this.disposed && this.elements.has(id) && !this.elements.get(id)!.get('deleted')
@@ -373,16 +437,26 @@ export class CanvasModel {
       if (source === origin) this.write(() => Y.applyUpdate(this.doc, update, this.localOrigin))
     })
     return {
-      commit: next => {
+      commit: (next, formatting) => {
         if (typeof next !== 'string') throw new Error('INVALID_PLAIN_TEXT')
         if (!alive() || this.readOnly) return false
-        if (next !== text.toString()) branch.transact(() => spliceText(text, next), origin)
+        const data = { ...(props.get('data') as Record<string, Json> || {}) }
+        if (formatting) {
+          if (formatting.richText === undefined) delete data.richText
+          else data.richText = formatting.richText
+          validateProperty('data', data)
+        }
+        const formatChanged = Boolean(formatting && !equal(props.get('data') || {}, data))
+        if (next !== text.toString() || formatChanged) branch.transact(() => {
+          spliceText(text, next)
+          if (formatChanged) props.set('data', data)
+        }, origin)
         return true
       },
       sync: selection => {
         if (!alive()) return { text: text.toString(), deleted: true }
         const relative = selection && [selection.anchor, selection.focus].map(index => Y.createRelativePositionFromTypeIndex(text, Math.max(0, Math.min(text.length, index))))
-        Y.applyUpdate(branch, Y.encodeStateAsUpdate(this.doc), 'remote')
+        Y.applyUpdate(branch, Y.encodeStateAsUpdate(this.doc, Y.encodeStateVector(branch)), 'remote')
         const positions = relative?.map(position => Y.createAbsolutePositionFromRelativePosition(position, branch)?.index ?? text.length)
         return { text: text.toString(), deleted: false, selection: positions && { anchor: positions[0], focus: positions[1] } }
       },
@@ -426,7 +500,7 @@ export class CanvasModel {
     return { valid: elementIds.length > 0, partial: elementIds.length !== anchor.elementIds.length, elementIds }
   }
   /** Flush while local subscribers/outbox are still attached. Idempotent; never an ACK. */
-  dispose() { if (this.disposed) return; this.flush('dispose'); this.disposed = true; this.doc.off('update', this.handleUpdate); this.undoManager.destroy(); this.doc.destroy(); this.changeListeners.clear(); this.localListeners.clear(); this.flushListeners.clear() }
+  dispose() { if (this.disposed) return; this.flush('dispose'); this.disposed = true; this.doc.off('update', this.handleUpdate); this.undoManager.destroy(); this.validationDoc?.destroy(); this.validationDoc = undefined; this.adapterBase = undefined; this.doc.destroy(); this.changeListeners.clear(); this.localListeners.clear(); this.flushListeners.clear() }
 }
 
 function makeElement(f: Flat, rank: number) {
@@ -505,7 +579,7 @@ function validateProperty(key: string, value: unknown) {
 // Render caches and authenticated URLs belong to the view, not even tombstoned model properties.
 // This is deliberately not an authorization/URL allowlist: the host still validates its resource IDs.
 function validateResourceLocators(value: unknown, key: string) {
-  if (typeof value === 'string' && ['url', 'sourceUrl', 'resourcePath', 'fill', 'stroke', 'roughOriginalFill'].includes(key)) {
+  if (typeof value === 'string' && ['url', 'sourceUrl', 'resourcePath', 'path', 'fill', 'stroke', 'roughOriginalFill'].includes(key)) {
     const uri = value.trim()
     if (/^(?:data|blob|javascript|file):/i.test(uri) || /^https?:\/\/[^\s]*[?#]/i.test(uri)) throw new Error('UNSAFE_RESOURCE_URL')
   } else if (Array.isArray(value)) value.forEach(item => validateResourceLocators(item, key))

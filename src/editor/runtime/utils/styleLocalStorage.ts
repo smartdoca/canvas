@@ -1,14 +1,15 @@
 import type { styleValue } from '../plugins/plugins'
 
 const DEFAULT_STYLE_PARAMS: { [key: string]: styleValue } = {
-    strokeWidth: 1,
-    stroke: '#000000',
+    strokeWidth: 1.5,
+    connectorMode: 'elbow',
+    stroke: '#646a73',
     fill: undefined,
     dashPattern: undefined,
-    cornerRadius: 12,
-    fontColor: '#000000',
+    cornerRadius: 8,
+    fontColor: '#1d1d1d',
     fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif',
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: 400,
     italic: false,
     textDecoration: 'none',
@@ -18,9 +19,6 @@ const DEFAULT_STYLE_PARAMS: { [key: string]: styleValue } = {
     sides: 5,
     corners: 5,
     opacity: 1,
-    roughMode: false,
-    roughFillStyle: 'hachure',
-    roughStrokeStyle: 1,
 }
 
 // Preferences are ephemeral. Embeddable editors must not access host storage.

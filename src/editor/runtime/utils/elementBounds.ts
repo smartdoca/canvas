@@ -1,8 +1,8 @@
 import type { App, IUI } from 'leafer-ui'
 import { findItem } from './findItem'
 
-export function elementBounds(app: App, id: string) {
-  const item = findItem(app.tree, id)
+export function elementBounds(app: App, id: string, index?: Map<string, IUI>) {
+  const item = index ? index.get(id) : findItem(app.tree, id)
   if (!item) return undefined
   let node: IUI | null | undefined = item
   while (node && node !== app.tree) { if (node.visible === false || node.opacity === 0) return { item, hidden: true }; node = node.parent }

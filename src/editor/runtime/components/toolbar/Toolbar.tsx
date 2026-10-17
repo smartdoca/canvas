@@ -1,165 +1,74 @@
 import type { App } from 'leafer-ui'
-import React, { useCallback, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { Plugins } from '../../plugins/plugins'
-import { HandDrag, More, Mouse, Picture, Redo, Undo } from '@icon-park/react'
-import { IconButton } from '../../../ui/Controls'
-import type { ReactNode } from 'react'
 import type { CanvasElementExtension, CustomShapeDefinition } from '../../../../sdk/types'
 import { ExtensionTool } from './ExtensionTool'
 import { useCanvasI18n } from '../../../../i18n/context'
+import type { MessageKey } from '../../../../i18n/en'
+import { BoardIcon } from '../../thinking/BoardIcon'
+import { getStyleParamsFromLocalStorage, setStyleParamsToLocalStorage } from '../../utils/styleLocalStorage'
+import type { DiagramShape } from '../../thinking/scene'
+import { NotePresetPicker } from '../../thinking/NotePresetPicker'
+import { ContainerPicker } from '../../thinking/ContainerPicker'
+import { STROKE_WIDTH_PRESETS } from '../../plugins/path/const'
 
 interface ToolbarProps {
-  app: App
-  plugins: Plugins[]
-  activeKey: string
-  setActiveKey: (key: string) => void
-  canUndo: boolean
-  canRedo: boolean
-  onUndo: () => void
-  onRedo: () => void
-  onImage: (file: File) => boolean
-  onImageRequest?: () => void
-  customShapes?: CustomShapeDefinition[]
-  elementExtensions?: CanvasElementExtension[]
-  extensionValues?: Record<string, Record<string, unknown>>
-  start?: ReactNode
-  end?: ReactNode
+  app: App; plugins: Plugins[]; activeKey: string; setActiveKey: (key: string) => void
+  canUndo: boolean; canRedo: boolean; hasSelection: boolean
+  onUndo: () => void; onRedo: () => void; onDuplicate: () => void; onDelete: () => void
+  onCreateComplete: () => void
+  onGroup: () => void; onUngroup: () => void; onSelectAll: () => void
+  onAttachment: (file: File) => void
+  onImage: (file: File) => boolean; onImageRequest?: () => void
+  onTemplates: () => void; onLibrary: () => void
+  customShapes?: CustomShapeDefinition[]; elementExtensions?: CanvasElementExtension[]; extensionValues?: Record<string, Record<string, unknown>>
+  start?: ReactNode; end?: ReactNode
 }
+const shapeTypes: DiagramShape[] = ['rounded', 'ellipse', 'diamond', 'rect', 'cylinder', 'parallelogram', 'triangle', 'hexagon', 'cloud', 'document']
+const runtimeNames = ['text', 'note', 'path', 'frame', 'eraser']
+const emojis = ['😊', '👍', '❤️', '🎯', '💡', '⭐', '🚀', '✅', '🔥', '🎉', '📌', '🤔', '💬', '📚', '⚡', '🌱']
 
-interface ToolEntry {
-  key: string
-  name?: string
-  element: ReactNode
-}
-
-const trailingShapeNames = ['square', 'circle', 'polygon', 'star', 'frame']
-const reservedNames = new Set(['eraser', 'image', 'special-shape', ...trailingShapeNames])
-
-const Toolbar: React.FC<ToolbarProps> = ({
-  app, plugins, activeKey, setActiveKey, canUndo, canRedo, onUndo, onRedo, onImage, onImageRequest, customShapes, elementExtensions = [], extensionValues = {}, start, end,
-}) => {
-  const imageInputRef = useRef<HTMLInputElement>(null)
-  const toolbarRef = useRef<HTMLDivElement>(null)
-  const fixedRef = useRef<HTMLDivElement>(null)
-  const toolsRef = useRef<HTMLDivElement>(null)
-  const endRef = useRef<HTMLDivElement>(null)
-  const widthCache = useRef(new Map<string, number>())
-  const [moreOpen, setMoreOpen] = useState(false)
-  const setInit = useCallback(() => {
-    setActiveKey('init')
-    app.mode = 'normal'
-  }, [app, setActiveKey])
+export default function Toolbar({ app, plugins, activeKey, setActiveKey, onCreateComplete, onImage, onImageRequest, onAttachment, onTemplates, onLibrary, customShapes, elementExtensions = [], extensionValues = {}, start, end }: ToolbarProps) {
+  const attachmentInput = useRef<HTMLInputElement>(null)
+  const imageInput = useRef<HTMLInputElement>(null), root = useRef<HTMLDivElement>(null), closeTimer = useRef<ReturnType<typeof setTimeout>>()
+  const [expanded, setExpanded] = useState(false)
+  const [open, setOpen] = useState(''), [tableSize, setTableSize] = useState({ rows: 3, columns: 3 })
   const t = useCanvasI18n()
-
-  const renderPlugin = useCallback((plugin: Plugins) => {
-    const AddMenu = plugin.AddMenu
-    return <AddMenu app={app} onCreateComplete={setInit} activeKey={activeKey} onClick={setActiveKey} customShapes={customShapes} />
-  }, [activeKey, app, customShapes, setActiveKey, setInit])
-
-  const pluginByName = (name: string) => plugins.find(plugin => plugin.name === name)
-  const tools: ToolEntry[] = [
-    ...plugins.filter(plugin => !reservedNames.has(plugin.name)).map(plugin => ({ key: plugin.name, name: plugin.name, element: renderPlugin(plugin) })),
-    ...elementExtensions.map(extension => ({
-      key: `extension:${extension.type}`,
-      name: extension.type,
-      element: <ExtensionTool app={app} extension={extension} properties={extensionValues[extension.type] || {}} activeKey={activeKey} onClick={setActiveKey} onCreateComplete={setInit} />,
-    })),
-    {
-      key: 'image',
-      element: <IconButton label={t('toolbar.image')} icon={<Picture />} onClick={() => onImageRequest ? onImageRequest() : imageInputRef.current?.click()} />,
-    },
-    ...['special-shape', 'eraser'].flatMap(name => {
-      const plugin = pluginByName(name)
-      return plugin ? [{ key: plugin.name, name: plugin.name, element: renderPlugin(plugin) }] : []
-    }),
-    ...trailingShapeNames.flatMap(name => {
-      const plugin = pluginByName(name)
-      return plugin ? [{ key: plugin.name, name: plugin.name, element: renderPlugin(plugin) }] : []
-    }),
-  ]
-  const signature = tools.map(tool => tool.key).join('\0')
-  const toolsRefState = useRef(tools)
-  toolsRefState.current = tools
-  const [layout, setLayout] = useState({ signature: '', visibleCount: tools.length })
-  if (layout.signature !== signature) setLayout({ signature, visibleCount: tools.length })
-  const visibleCount = layout.signature === signature ? Math.min(layout.visibleCount, tools.length) : tools.length
-  const visibleTools = tools.slice(0, visibleCount)
-  const overflowTools = tools.slice(visibleCount)
-
-  useLayoutEffect(() => {
-    const measure = () => {
-      const toolbar = toolbarRef.current
-      const fixed = fixedRef.current
-      const toolRow = toolsRef.current
-      const wrap = toolbar?.parentElement
-      const entries = toolsRefState.current
-      if (!toolbar || !fixed || !toolRow || !wrap) return entries.length
-      const style = getComputedStyle(toolbar)
-      const barGap = Number.parseFloat(style.columnGap || style.gap || '0') || 0
-      const padding = (Number.parseFloat(style.paddingLeft) || 0) + (Number.parseFloat(style.paddingRight) || 0)
-      const border = (Number.parseFloat(style.borderLeftWidth) || 0) + (Number.parseFloat(style.borderRightWidth) || 0)
-      const endWidth = endRef.current?.offsetWidth ?? 0
-      const gapCount = endWidth > 0 ? 2 : 1
-      const available = wrap.clientWidth - border - padding - fixed.offsetWidth - endWidth - barGap * gapCount
-      Array.from(toolRow.children).forEach(node => {
-        if (!(node instanceof HTMLElement)) return
-        const key = node.dataset.toolKey
-        if (key && node.offsetWidth > 0) widthCache.current.set(key, node.offsetWidth)
-      })
-      const toolGap = Number.parseFloat(getComputedStyle(toolRow).columnGap || '0') || 0
-      const more = toolRow.querySelector('.toolbar-more')
-      const moreWidth = more instanceof HTMLElement && more.offsetWidth > 0 ? more.offsetWidth : 28
-      let used = 0
-      for (let index = 0; index < entries.length; index += 1) {
-        const width = widthCache.current.get(entries[index].key) ?? 28
-        const itemGap = index > 0 ? toolGap : 0
-        const reserve = index < entries.length - 1 ? toolGap + moreWidth : 0
-        if (used + itemGap + width + reserve > available - 1) return index
-        used += itemGap + width
-      }
-      return entries.length
-    }
-    const apply = () => {
-      const next = measure()
-      setLayout(previous => previous.signature === signature && previous.visibleCount === next ? previous : { signature, visibleCount: next })
-      setMoreOpen(open => next === toolsRefState.current.length ? false : open)
-    }
-    apply()
-    const wrap = toolbarRef.current?.parentElement
-    if (!wrap) return
-    const observer = new ResizeObserver(apply)
-    observer.observe(wrap)
-    if (fixedRef.current) observer.observe(fixedRef.current)
-    if (endRef.current) observer.observe(endRef.current)
-    return () => observer.disconnect()
-  }, [signature])
-
-  return <div ref={toolbarRef} className="canvas-toolbar">
-    <div ref={fixedRef} className="toolbar-fixed">
-      {start}
-      <IconButton label={t('toolbar.select')} icon={<Mouse />} active={activeKey === 'init'} onClick={setInit} />
-      <IconButton label={t('toolbar.hand')} icon={<HandDrag />} active={activeKey === 'hand'} onClick={() => { setActiveKey('hand'); app.mode = 'normal'; app.editor.select([]) }} />
-      <span className="toolbar-divider" />
-      <IconButton label={t('toolbar.undo')} icon={<Undo />} disabled={!canUndo} onClick={onUndo} />
-      <IconButton label={t('toolbar.redo')} icon={<Redo />} disabled={!canRedo} onClick={onRedo} />
-      <span className="toolbar-divider" />
-    </div>
-    <div ref={toolsRef} className="toolbar-tools">
-      {visibleTools.map(tool => <div key={tool.key} className="toolbar-tool" data-tool-key={tool.key}>{tool.element}</div>)}
-      {overflowTools.length > 0 && <div className="toolbar-more" onMouseEnter={() => setMoreOpen(true)} onMouseLeave={() => setMoreOpen(false)}>
-        <IconButton label={t('toolbar.more')} icon={<More />} active={overflowTools.some(tool => tool.name === activeKey)} onClick={() => setMoreOpen(true)} />
-        <div className={`toolbar-more-menu ${moreOpen ? 'is-open' : ''}`} onClick={() => setMoreOpen(false)}>
-          {overflowTools.map(tool => <div key={tool.key} className="toolbar-tool">{tool.element}</div>)}
-        </div>
-      </div>}
-    </div>
-    {end && <div ref={endRef} className="toolbar-end">{end}</div>}
-    <input ref={imageInputRef} aria-label={t('toolbar.imageFile')} hidden type="file" accept="image/*" onChange={(event) => {
-      const file = event.target.files?.[0]
-      if (file) onImage(file)
-      event.target.value = ''
-    }} />
+  const setInit = useCallback(() => { setActiveKey('init'); app.mode = 'normal'; onCreateComplete() }, [app, setActiveKey, onCreateComplete])
+  const activate = (key: string) => { setActiveKey(key); setOpen(''); (app.view as HTMLElement).closest<HTMLElement>('.canvas-app')?.focus() }
+  useEffect(() => {
+    const dismiss = (event: PointerEvent) => { if (!root.current?.contains(event.target as Node)) setOpen('') }
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') setOpen('') }
+    document.addEventListener('pointerdown', dismiss); document.addEventListener('keydown', escape)
+    return () => { document.removeEventListener('pointerdown', dismiss); document.removeEventListener('keydown', escape); clearTimeout(closeTimer.current) }
+  }, [])
+  const tool = (name: string, label: string, key: string, content?: ReactNode) => <div data-tool={name} className={`board-tool-group ${open === name ? 'is-open' : ''}`} onPointerEnter={() => { clearTimeout(closeTimer.current); if (content) setOpen(name) }} onPointerLeave={() => { closeTimer.current = setTimeout(() => setOpen(''), 180) }}>
+    <button type="button" className={`board-tool-button ${activeKey === key || activeKey.startsWith(`${name}:`) || name === 'shapes' && activeKey.startsWith('diagram:') || name === 'section' && activeKey.startsWith('container:') ? 'is-active' : ''}`} title={label} aria-label={label} data-canvas-insert={['text', 'note', 'frame', 'mindmap'].includes(key) || key.includes(':') ? key : undefined} aria-expanded={content ? open === name : undefined} onClick={() => { if (content) { setOpen(name); if (key) setActiveKey(key) } else activate(key) }}><BoardIcon name={name} />{content && <span className="tool-caret" />}</button>
+    {content && <div className="board-tool-flyout" hidden={open !== name} role="menu" aria-label={label}>{content}</div>}
+  </div>
+  const pluginButton = (plugin: Plugins) => { const AddMenu = plugin.AddMenu; return <AddMenu app={app} onCreateComplete={plugin.name === 'path' ? onCreateComplete : setInit} activeKey={plugin.name === 'frame' && activeKey === 'frame' ? 'init' : activeKey} onClick={key => activate(key)} customShapes={customShapes} /> }
+  return <div ref={root} className={`canvas-toolbar${expanded ? ' is-mobile-expanded' : ''}`} role="toolbar" aria-label={t('toolbar.tools')}>
+    {start}
+    <button type="button" className="board-tool-button board-template-button" aria-label={t('template.library')} title={t('template.library')} onClick={onTemplates}><BoardIcon name="templates" size={23} /></button>
+    <span className="board-toolbar-separator" />
+    {tool('shapes', t('board.shapes'), 'diagram:rounded', <><div className="shape-quick-grid">{shapeTypes.map(shape => <button type="button" className={activeKey === `diagram:${shape}` ? 'is-active' : ''} key={shape} data-canvas-insert={`diagram:${shape}`} title={t(`shape.${shape}` as MessageKey)} aria-label={t(`shape.${shape}` as MessageKey)} onClick={() => activate(`diagram:${shape}`)}><BoardIcon name={shape} size={24} /></button>)}</div><button type="button" className="flyout-footer" onClick={() => { onLibrary(); setOpen('') }}>{t('board.moreShapes')}<kbd>M</kbd></button></>)}
+    {tool('text', t('toolbar.text'), 'text')}
+    {tool('note', t('toolbar.note'), 'note', <NotePresetPicker draggable onPick={id => { setStyleParamsToLocalStorage({ ...getStyleParamsFromLocalStorage(), notePreset: id }); activate('note') }} />)}
+    {tool('connector', t('board.connector'), `connector:${getStyleParamsFromLocalStorage().connectorMode || 'elbow'}`, <div className="connector-choices">{['elbow', 'straight', 'curve'].map(mode => <button type="button" key={mode} data-canvas-insert={`connector:${mode}`} onClick={() => activate(`connector:${mode}`)}><BoardIcon name={mode} size={23} /><span>{t(`connector.${mode}` as MessageKey)}</span></button>)}</div>)}
+    {tool('section', t('board.section'), 'frame', <ContainerPicker activeKey={activeKey} isOpen={open === 'section'} onPick={activate} />)}
+    {tool('table', t('board.table'), 'table:3:3', <><div className="table-picker">{Array.from({ length: 30 }, (_, i) => { const row = Math.floor(i / 6) + 1, column = i % 6 + 1; return <button type="button" key={i} data-canvas-insert={`table:${row}:${column}`} aria-label={`${row} × ${column}`} className={row <= tableSize.rows && column <= tableSize.columns ? 'is-highlighted' : ''} onPointerEnter={() => setTableSize({ rows: row, columns: column })} onFocus={() => setTableSize({ rows: row, columns: column })} onClick={() => activate(`table:${row}:${column}`)} /> })}</div><div className="table-picker-size">{tableSize.rows} × {tableSize.columns}</div></>)}
+    {tool('pen', t('toolbar.pencil'), 'path', <><div className="connector-choices"><button type="button" onClick={() => activate('path')}><BoardIcon name="pen" /><span>{t('toolbar.pencil')}</span></button><button type="button" onClick={() => activate('eraser')}><span className="eraser-icon">▱</span><span>{t('toolbar.eraser')}</span></button></div><div className="pen-width-picker" role="group" aria-label={t('style.strokeWidth')}><div className="pen-width-label">{t('style.strokeWidth')}</div><div className="pen-width-presets">{STROKE_WIDTH_PRESETS.map(width => <button type="button" key={width} aria-label={`${t('style.strokeWidth')} ${width} px`} title={`${width} px`} aria-pressed={Number(getStyleParamsFromLocalStorage().strokeWidth) === width} onClick={() => { setStyleParamsToLocalStorage({ ...getStyleParamsFromLocalStorage(), strokeWidth: width }); activate('path') }}><svg width="42" height="24" viewBox="0 0 42 24" aria-hidden="true"><path d="M12 12H30" stroke="currentColor" strokeWidth={width} strokeLinecap="round" /></svg><span>{width}</span></button>)}</div></div></>)}
+    {tool('mindmap', t('board.mindmap'), 'mindmap')}
+    {tool('sticker', t('board.sticker'), 'sticker:😊', <div className="sticker-grid">{emojis.map(emoji => <button type="button" key={emoji} data-canvas-insert={`sticker:${emoji}`} aria-label={emoji} onClick={() => activate(`sticker:${emoji}`)}>{emoji}</button>)}</div>)}
+    <button type="button" className="board-tool-button board-image-tool" aria-label={t('toolbar.image')} title={t('toolbar.image')} onClick={() => onImageRequest ? onImageRequest() : imageInput.current?.click()}><BoardIcon name="image" /></button>
+    <button type="button" className="board-tool-button" aria-label={t('resource.attachment')} title={t('resource.attachment')} onClick={() => attachmentInput.current?.click()}><BoardIcon name="attachment" /></button>
+    {elementExtensions.length > 0 && tool('more', t('toolbar.more'), '', <div className="board-legacy-grid">{elementExtensions.map(extension => <ExtensionTool key={extension.type} app={app} extension={extension} properties={extensionValues[extension.type] || {}} activeKey={activeKey} onClick={key => activate(key)} onCreateComplete={setInit} />)}</div>)}
+    <span className="board-toolbar-separator" />
+    <button type="button" className={`board-tool-button ${activeKey === 'init' ? 'is-active' : ''}`} aria-label={t('toolbar.select')} title={t('toolbar.select')} onClick={setInit}><BoardIcon name="select" /></button>
+    <button type="button" className="board-tool-button board-mobile-expand" aria-label={t('board.moreTools')} aria-expanded={expanded} onClick={() => { setExpanded(!expanded); setOpen('') }}><BoardIcon name={expanded ? 'close' : 'dots'} /></button>
+    {end}
+    <div className="tool-runtime-only" hidden>{plugins.filter(plugin => runtimeNames.includes(plugin.name)).map(plugin => <div key={plugin.name}>{pluginButton(plugin)}</div>)}</div>
+    <input ref={attachmentInput} hidden type="file" aria-label={t('resource.file')} multiple onChange={event => { [...event.target.files || []].forEach(onAttachment); event.target.value = '' }} />
+    <input ref={imageInput} hidden type="file" aria-label={t('toolbar.imageFile')} accept="image/*" onChange={event => { const file = event.target.files?.[0]; if (file) onImage(file); event.target.value = '' }} />
   </div>
 }
-
-export default Toolbar
