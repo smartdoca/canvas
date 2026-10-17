@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.1 — 2026-10-17
+
+- Keep the element toolbar attached to its selection during canvas panning and zooming, including movement outside the viewport. Preserve initial clearance from the drawing tools without pinning the toolbar to screen edges.
+- Preserve native Slate and plain-text inner-editor registration in the library build by marking both registration modules as side effects. Fix text editing in the published package; no model or schema conversion is required.
+- Skip unchanged rich-text gutter layout updates to prevent an update loop when opening the editor with React 18.
+- Add regressions for toolbar movement in all four directions and for plain/rich text editing, undo/redo and checkpoint restoration in the built library.
+
 ## 0.5.0 — 2026-10-17
 
 - Add mind maps, editable diagram templates, connectable shapes, alignment guides, containers, rich notes, cards and tables. Replace the primitive and rough-style toolbar with the modern shape tools.

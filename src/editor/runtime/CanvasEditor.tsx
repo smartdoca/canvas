@@ -195,6 +195,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
   const restoringRef = useRef(false)
   const resourceMutationRef = useRef(false)
   const selectionActionsRef = useRef<HTMLDivElement>(null)
+  const selectionPlacementRef = useRef<{ items: IUI[]; layout: string; offsetX: number; below: boolean }>()
   const movedFrameItemsRef = useRef(new Set<IUI>())
   const editorHandleRef = useRef<CanvasEditorRef>()
   const uploadControllersRef = useRef(new Set<AbortController>())
@@ -312,10 +313,10 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
   const updateSelectionPosition = useCallback(() => {
     const current = appRef.current
     const stage = stageRef.current
-    if (!current || !stage) { setSelectionPosition(null); return }
+    if (!current || !stage) { selectionPlacementRef.current = undefined; setSelectionPosition(null); return }
     current.updateClientBounds()
     current.tree.updateClientBounds()
-    if (!current.editor.list.length) { setSelectionPosition(null); return }
+    if (!current.editor.list.length) { selectionPlacementRef.current = undefined; setSelectionPosition(null); return }
     const clientBounds = (item: IUI) => {
       const world = item.getBounds('render', 'world')
       const start = current.tree.getClientPointByWorld({ x: world.x, y: world.y })
@@ -346,8 +347,19 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
     const reserveTableAxis = Boolean(ancestor(current.editor.list[0], 'table'))
     const above = top - stageBounds.top - barHeight - (reserveTopPort ? 80 : reserveTableAxis ? 38 : 20)
     const below = Math.max(...contextBounds.map(item => item.y + item.height)) - stageBounds.top + 20
-    const y = (connectedBounds.length || reserveTopPort || reserveTableAxis) && above < 72 && below + barHeight < stageBounds.height - 72 ? below : Math.max(72, above)
-    const position = { x: Math.max(barHalf + leftInset, Math.min(stageBounds.width - barHalf - 12, (left + right) / 2 - stageBounds.left)), y }
+    const centerX = (left + right) / 2 - stageBounds.left
+    const layout = [barHalf, barHeight, availableWidth, stageBounds.height, leftInset].join(':')
+    let placement = selectionPlacementRef.current
+    if (!placement || placement.layout !== layout || placement.items.length !== current.editor.list.length || !placement.items.every((item, index) => item === current.editor.list[index])) {
+      // Resolve initial tool clearance once. Keeping this offset relative to
+      // the selection lets panning/zooming carry the toolbar out of the view.
+      const initialX = centerX >= leftInset && centerX <= stageBounds.width - 12
+        ? Math.max(barHalf + leftInset, Math.min(stageBounds.width - barHalf - 12, centerX)) : centerX
+      placement = { items: [...current.editor.list], layout, offsetX: initialX - centerX,
+        below: Boolean(connectedBounds.length || reserveTopPort || reserveTableAxis) && top >= stageBounds.top && above < 72 && below + barHeight < stageBounds.height - 72 }
+      selectionPlacementRef.current = placement
+    }
+    const position = { x: centerX + placement.offsetX, y: placement.below ? below : above }
     if (selectionActionsRef.current) {
       selectionActionsRef.current.style.left = `${position.x}px`
       selectionActionsRef.current.style.top = `${position.y}px`
@@ -986,6 +998,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
 
     instance.editor.on(EditorEvent.SELECT, (event: EditorEvent) => {
       const list = [...event.editor.list]
+      if (!list.length) selectionPlacementRef.current = undefined
       list.forEach(prepareNoteLayout)
       if (!list.length) queueMicrotask(() => {
         if (!instance.editor.list.length) { setStyleOpen(false); styleSelectionItems.current = [] }
