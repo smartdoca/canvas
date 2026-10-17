@@ -39,20 +39,22 @@ test('drag from a live caret across cells, merge, split, reverse drag and select
   await page.getByRole('button', { name: '合并选中单元格', exact: true }).click()
   let table = (await scene(page)).find(n => n.id === id); expect(table.children[0].data).toMatchObject({ rowSpan: 2, columnSpan: 2 }); expect(table.children[0].children[0].text).toBe('First cell\nB\nD\nE')
   await page.getByRole('button', { name: '拆分单元格', exact: true }).click()
-  await page.mouse.move(end.x, end.y); await page.mouse.down(); await page.mouse.move(start.x, start.y, { steps: 16 }); await page.mouse.up()
+  table = (await scene(page)).find(n => n.id === id)
+  const expandedEnd = await point(page, table.x + 220, table.y + table.data.rowHeights[0] + 20)
+  await page.mouse.move(expandedEnd.x, expandedEnd.y); await page.mouse.down(); await page.mouse.move(start.x, start.y, { steps: 16 }); await page.mouse.up()
   await expect(page.locator('.table-range-indicator')).toHaveText('2 × 2')
   await click(page, 390, 242); await expect(input).toBeFocused(); await page.keyboard.press('Home'); await page.keyboard.press('Shift+End')
   await expect(page.locator('.slate-format-toolbar')).toBeVisible(); await expect(page.locator('.table-cell-toolbar')).toHaveCount(0)
   await page.screenshot({ path: info.outputPath('cell-text-selection.png') })
-  table = (await scene(page)).find(n => n.id === id); expect(table.data.rowHeights[0]).toBe(46)
+  table = (await scene(page)).find(n => n.id === id); expect(table.data.rowHeights[0]).toBeGreaterThan(46)
 })
 
-for (const type of ['card', 'table']) test(`${type}: click edits shared top aligned text; wrapped overflow scrolls; hand selects and moves container`, async ({ page }, info) => {
+for (const type of ['card', 'table']) test(`${type}: click edits shared top aligned text; wrapped content fits its container policy; hand selects and moves container`, async ({ page }, info) => {
   await open(page); const id = await seed(page, type)
   await click(page, 380, 244); const input = page.locator('[data-slate-editor]'); await expect(input).toBeFocused()
-  await expect(input).toHaveCSS('overflow-y', 'auto'); await expect(input).toHaveCSS('overflow-x', 'hidden'); await expect(input).toHaveCSS('padding-top', '0px'); await expect(input).toHaveCSS('outline-style', 'none')
+  await expect(input).toHaveCSS('overflow-y', type === 'table' ? 'clip' : 'auto'); await expect(input).toHaveCSS('overflow-x', type === 'table' ? 'clip' : 'hidden'); await expect(input).toHaveCSS('padding-top', '0px'); await expect(input).toHaveCSS('outline-style', 'none')
   for (let i = 0; i < 9; i++) { await page.keyboard.insertText(`${i} 这是超长的发散思考与行动项 abcdefghijklmnopqrstuvwxyz`); if (i < 8) await page.keyboard.press('Enter') }
-  expect(await input.evaluate(el => el.scrollHeight > el.clientHeight)).toBe(true)
+  expect(await input.evaluate(el => el.scrollHeight > el.clientHeight + 1)).toBe(type === 'card')
   expect(await input.evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBe(true)
   await expect(page.locator('.slate-format-toolbar')).toBeHidden(); await expect(page.locator('.rich-object-move-handle')).toBeVisible()
   await page.screenshot({ path: info.outputPath(`${type}-scroll-caret.png`) })
@@ -63,9 +65,10 @@ for (const type of ['card', 'table']) test(`${type}: click edits shared top alig
   let node = (await scene(page)).find(n => n.id === id), label = type === 'table' ? node.children[0].children[0] : node.children[1]
   expect(label.verticalAlign).toBe('bottom')
   await page.getByRole('menu', { name: '文本对齐', exact: true }).getByRole('button', { name: '顶部对齐', exact: true }).click()
+  expect(await page.locator('.canvas-app').evaluate(el => el.scrollTop)).toBe(0)
   await drag(page, page.locator('.rich-object-move-handle'), 90, 60); await page.evaluate(() => window.demo.handle.flush())
   node = (await scene(page)).find(n => n.id === id); expect(node.x).toBeCloseTo(430); expect(node.y).toBeCloseTo(280)
-  if (type === 'table') expect(node.data.rowHeights).toEqual([46, 46, 46]); else expect(node.height).toBe(200)
+  if (type === 'table') { expect(node.data.rowHeights[0]).toBeGreaterThan(46); expect(node.data.rowHeights.slice(1)).toEqual([46, 46]) } else expect(node.height).toBe(200)
   await page.evaluate(() => window.demo.handle.undo()); node = (await scene(page)).find(n => n.id === id); expect(node.x).toBe(340); expect(node.y).toBe(220)
 })
 

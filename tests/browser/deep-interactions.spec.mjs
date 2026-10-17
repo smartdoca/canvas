@@ -100,7 +100,7 @@ test('note and cell partial rich text, alignment, merged-cell Tab and readonly a
   await expect(input).toHaveCount(0); await expect(page.locator('.graph-interaction-overlay')).toHaveCount(0); expect(await scene(page)).toEqual(snapshot)
 })
 
-test('multiline rich paragraphs scroll within rows, rich table clipboard preserves marks, and checkpoint restores them', async ({ page }, info) => {
+test('multiline rich paragraphs grow rows, rich table clipboard preserves marks, and checkpoint restores them', async ({ page }, info) => {
   await open(page); const id = await tableSeed(page)
   await page.locator('.canvas-host').dblclick({ position: { x: 390, y: 312 } })
   const input = page.locator('[data-slate-editor]')
@@ -109,7 +109,7 @@ test('multiline rich paragraphs scroll within rows, rich table clipboard preserv
   await page.getByRole('button', { name: '选中文字加粗', exact: true }).click(); await page.getByRole('button', { name: '选中文字高亮', exact: true }).click()
   await page.keyboard.press('Escape'); await page.evaluate(() => window.demo.handle.flush())
   let table = (await scene(page)).find(node => node.id === id), first = table.children[0]
-  expect(first.children[0].text).toBe('第一段重点\n第二段行动'); expect(first.children[0].data.richText.value).toHaveLength(2); expect(table.data.rowHeights[0]).toBe(46)
+  expect(first.children[0].text).toBe('第一段重点\n第二段行动'); expect(first.children[0].data.richText.value).toHaveLength(2); expect(table.data.rowHeights[0]).toBeGreaterThan(46)
   await select(page, first.id)
   const clipboard = await page.locator('.canvas-app').evaluate(element => { const clipboardData = new DataTransfer(); element.dispatchEvent(new ClipboardEvent('copy', { clipboardData, bubbles: true, cancelable: true })); return Object.fromEntries(clipboardData.types.map(type => [type, clipboardData.getData(type)])) })
   expect(clipboard['application/x-aidcanvas-table']).toBeTruthy()
@@ -279,15 +279,15 @@ test('cell text click places a caret, drag selects text or crosses cells, and ca
   const card = (await scene(page)).find(node => node.id === cardId); expect(card.children[0].text).toBe('卡片第一段\n第二段重点'); expect(card.children[0].data.richText.value).toHaveLength(2)
 })
 
-test('bounded multiline text and formatting flush as one collaborative update and undo together', async ({ page }) => {
+test('multiline cell text and row height flush as one collaborative update and undo together', async ({ page }) => {
   await open(page); const id = await tableSeed(page), first = (await scene(page)).find(node => node.id === id).children[0]
   await select(page, first.id); await page.keyboard.press('Enter')
   const before = await page.evaluate(() => window.demo.allUpdates.length)
   await page.locator('[data-slate-editor]').fill('多行第一段\n多行第二段\n多行第三段')
-  expect((await page.locator('[data-slate-editor]').boundingBox()).height).toBe(26)
-  expect(await page.locator('[data-slate-editor]').evaluate(el => el.scrollHeight > el.clientHeight)).toBe(true)
+  expect((await page.locator('[data-slate-editor]').boundingBox()).height).toBeGreaterThan(26)
+  expect(await page.locator('[data-slate-editor]').evaluate(el => el.scrollHeight <= el.clientHeight + 1)).toBe(true)
   await page.evaluate(() => window.demo.handle.flush())
-  const table = (await scene(page)).find(node => node.id === id); expect(table.data.rowHeights[0]).toBe(46)
+  const table = (await scene(page)).find(node => node.id === id); expect(table.data.rowHeights[0]).toBeGreaterThan(46)
   expect(await page.evaluate(() => window.demo.allUpdates.length)).toBe(before + 1)
   await page.keyboard.press('Meta+z'); await expect(page.locator('[data-slate-editor]')).toHaveText('方向')
   expect((await scene(page)).find(node => node.id === id).data.rowHeights[0]).toBe(46)

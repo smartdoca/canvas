@@ -7,6 +7,7 @@ type NativeTextEditor = { editDom?: HTMLDivElement; editTarget?: IUI & { text: s
 /** Keep the native editor's displayed CRDT branch independent during IME composition. */
 export function createTextInputBridge(app: App, getModel: () => CanvasModel | undefined, local: (fn: () => void) => void, standaloneFlush?: () => void) {
   let binding: CanvasTextSession | undefined, native: NativeTextEditor | undefined, composing = false, flushing = false
+  let compositionGeneration = 0
   const selection = (): TextSelection | undefined => {
     if (native?.getSelection) return native.getSelection()
     const dom = native?.editDom, s = window.getSelection()
@@ -52,11 +53,11 @@ export function createTextInputBridge(app: App, getModel: () => CanvasModel | un
     }
     if (native.editTarget) native.editTarget.text = result.text
   }
-  const startComposition = () => { composing = true }
+  const startComposition = () => { composing = true; compositionGeneration++ }
   // Slate commits composition text in its delegated React handler, after the
   // native DOM event. Wait until that handler has run before reading its value.
-  const endComposition = () => { const editor = native; window.setTimeout(() => { if (native === editor) { composing = false; flush(); sync() } }, 0) }
-  const beforeClose = () => { composing = false; flush(); sync() }
+  const endComposition = () => { const editor = native, generation = compositionGeneration; window.setTimeout(() => { if (native === editor && generation === compositionGeneration) { composing = false; flush(); sync() } }, 0) }
+  const beforeClose = () => { compositionGeneration++; composing = false; flush(); sync() }
   const close = () => {
     native?.editDom?.removeEventListener('compositionstart', startComposition)
     native?.editDom?.removeEventListener('compositionend', endComposition)
@@ -64,7 +65,7 @@ export function createTextInputBridge(app: App, getModel: () => CanvasModel | un
     if (native && document.activeElement === document.body) {
       (app.view as HTMLElement).closest<HTMLElement>('.canvas-app')?.focus({ preventScroll: true })
     }
-    binding?.dispose(); binding = undefined; native = undefined; composing = false
+    binding?.dispose(); binding = undefined; native = undefined; composing = false; compositionGeneration++
   }
   // Leafer's global Enter handler must not insert a newline when confirming an IME candidate.
   const keydown = (event: KeyboardEvent) => { if (composing || event.isComposing || event.keyCode === 229) event.stopPropagation() }

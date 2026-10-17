@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.2 — 2026-10-17
+
+- Preserve committed Chinese text and the caret during consecutive IME input in rich notes and cards. Keep transient composition ranges out of toolbar selection synchronization, and ignore completion timers from an earlier composition.
+- Grow table rows to fit wrapped text, rich formatting, merged cells and media. Column resizing respects content height; cell content does not scroll internally. Text and row geometry remain in the same collaborative undo transaction.
+- Prevent browser caret scrolling from moving the canvas stage and its overlays. Keep table toolbar and movement controls separate from cell selection gestures.
+- Add browser regressions for repeated Chinese composition and editing after save, and for table row growth, peer convergence, undo/redo and checkpoint restoration on desktop and narrow viewports.
+
 ## 0.5.1 — 2026-10-17
 
 - Keep the element toolbar attached to its selection during canvas panning and zooming, including movement outside the viewport. Preserve initial clearance from the drawing tools without pinning the toolbar to screen edges.

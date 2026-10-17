@@ -8,7 +8,7 @@ import { Dropdown } from '../../ui/Dropdown'
 import { BoardIcon } from './BoardIcon'
 import { TextAlignmentControl } from './TextAlignmentControl'
 import { allItems, ancestor, kind, labelOf } from './scene'
-import { TABLE_CLIPBOARD, formatTableCells, copyTableFragment, pasteTableFragment, tableFragmentFromHtml, fitTableContent, cellAt, cellsInRange, clearTableCells, deleteTableAxis, insertTableAxis, layoutTable, mergeTableCells, pasteTableText, rangeBounds, splitTableCells, tableCells, tableSizes, visibleCell, type CellPoint, type CellRange } from './table'
+import { TABLE_CLIPBOARD, formatTableCells, copyTableFragment, pasteTableFragment, tableFragmentFromHtml, fitTableContent, cellAt, cellsInRange, clearTableCells, deleteTableAxis, insertTableAxis, mergeTableCells, pasteTableText, rangeBounds, splitTableCells, tableCells, tableSizes, visibleCell, type CellPoint, type CellRange } from './table'
 
 type Resize = { axis: 'row' | 'column' | 'move'; index: number; start: { x: number; y: number }; delta: number; dx: number; dy: number }
 const pointOf = (cell: IUI): CellPoint => ({ row: Number(cell.data?.row), column: Number(cell.data?.column) })
@@ -65,6 +65,7 @@ export function TableInteractions({ app, activeKey, selection, onComplete }: { a
     }
     const down = (event: PointerEvent) => {
       if (event.button !== 0 || !(event.target instanceof HTMLElement) || !host.contains(event.target) || event.target.closest('.canvas-slate-mount') && !event.target.closest('.canvas-slate-editable')) return
+      if (event.target.closest('button,input,select,textarea,[role=menu]')) return
       if (event.target.closest('.canvas-slate-mount [contenteditable=false],.canvas-slate-mount button,.canvas-slate-mount input,.canvas-slate-mount select,.canvas-slate-mount textarea')) return
       const owner = allItems(app).filter(item => kind(item) === 'table').reverse().find(item => locate(item as Group, event)) as Group | undefined
       if (!owner) return
@@ -110,7 +111,7 @@ export function TableInteractions({ app, activeKey, selection, onComplete }: { a
         const sizes = tableSizes(owner)
         if (current.axis === 'column') sizes.widths[current.index] = Math.max(48, sizes.widths[current.index] + current.delta)
         else sizes.heights[current.index] = Math.max(28, sizes.heights[current.index] + current.delta)
-        owner.data = { ...owner.data, columnWidths: sizes.widths, rowHeights: sizes.heights }; layoutTable(owner)
+        owner.data = { ...owner.data, columnWidths: sizes.widths, rowHeights: sizes.heights }; fitTableContent(owner)
       }
       onComplete([...app.editor.list])
     }
