@@ -45,7 +45,7 @@ test('canvas and graph overlays cancel horizontal browser gestures without trapp
   expect(await page.evaluate(() => window.demo.model.getValue().scene.children.length)).toBe(scene.scene.children.length + 1)
 })
 
-test('root scroll-chain guard is scoped to pointer presence, releases on exit and disposal; rich vertical scroll remains native', async ({ page }) => {
+test('root scroll-chain guard is scoped to pointer presence, releases on exit and disposal; table content fits without internal scrolling', async ({ page }) => {
   await open(page)
   await page.evaluate(() => { document.documentElement.style.overscrollBehaviorX = 'contain'; document.body.style.overscrollBehaviorX = 'auto' })
   const host = page.locator('.canvas-host')
@@ -61,7 +61,7 @@ test('root scroll-chain guard is scoped to pointer presence, releases on exit an
   expect(await wheelCanceled(input, -120)).toBe(true); expect(await wheelCanceled(input, 0, 80)).toBe(false)
   const position = await page.evaluate(() => window.demo.handle.clientToScene({ x: 800, y: 450 }))
   await input.hover(); await page.mouse.wheel(0, 110)
-  await expect.poll(() => input.evaluate(el => el.scrollTop)).toBeGreaterThan(0)
+  expect(await input.evaluate(el => ({ top: el.scrollTop, fits: el.scrollHeight <= el.clientHeight + 1 }))).toEqual({ top: 0, fits: true })
   expect(await page.evaluate(() => window.demo.handle.clientToScene({ x: 800, y: 450 }))).toEqual(position)
   await page.mouse.move(10, 15)
   await expect.poll(() => page.evaluate(() => document.documentElement.style.overscrollBehaviorX)).toBe('contain')

@@ -1,0 +1,42 @@
+import { test, expect } from './fixtures.mjs'
+
+for (const surface of ['standalone', 'host']) test(`${surface}: centered pink note remains editable across repeated Chinese composition and save`, async ({ page, context }) => {
+  await page.goto(surface === 'host' ? '/examples/doca/' : '/?document=rich-editing-regression')
+  await page.getByRole('button', { name: '便笺 (N)', exact: true }).click()
+  await page.getByRole('button', { name: '玫瑰粉', exact: true }).click()
+  await page.locator('.canvas-host').click({ position: { x: 720, y: 300 } })
+  await expect(page.locator('.selection-actions')).toBeVisible()
+  await page.locator('.canvas-app').focus()
+  await page.keyboard.press('Enter')
+  const input = page.locator('[data-slate-editor]')
+  await expect(input).toBeFocused()
+  const cdp = await context.newCDPSession(page)
+  let value = ''
+  for (const text of ['你好', '继续编辑', '中文输入', '保存以后', '仍然可以修改']) {
+    for (const candidate of ['n', 'ni', 'nih', 'niha', 'nihao']) await cdp.send('Input.imeSetComposition', { text: candidate, selectionStart: candidate.length, selectionEnd: candidate.length })
+    await cdp.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 229 })
+    await cdp.send('Input.insertText', { text })
+    await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 })
+    value += text
+    await expect(input).toHaveText(value)
+    await expect(input).toBeFocused()
+  }
+  if (surface === 'host') await expect.poll(() => page.evaluate(() => window.demo.model.getValue().scene.children.find(n => n.name === 'note').children[0].text)).toBe(value)
+  else await expect(page.getByText('已保存', { exact: true })).toBeVisible()
+  await page.keyboard.press('ArrowLeft')
+  await page.keyboard.press('Backspace')
+  await page.keyboard.insertText('修')
+  value = value.slice(0, -2) + '修' + value.slice(-1)
+  await expect(input).toHaveText(value)
+  await page.keyboard.press('Escape')
+  await expect(page.locator('.selection-actions')).toBeVisible()
+  await page.locator('.canvas-app').focus()
+  await page.keyboard.press('Enter')
+  await expect(input).toHaveText(value)
+  await page.keyboard.press('End')
+  await page.keyboard.insertText('完成')
+  await expect(input).toHaveText(value + '完成')
+  await page.keyboard.type(' editable', { delay: 35 })
+  await expect(input).toHaveText(value + '完成 editable')
+  expect(await page.locator('.canvas-app').evaluate(el => el.scrollTop)).toBe(0)
+})

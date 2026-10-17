@@ -1,4 +1,5 @@
-import { readRich, plainText, richFromHtml, cleanRichValue, type RichLeaf, type RichValue } from './richText'
+import { readRich, plainText, richFromHtml, cleanRichValue, richLayout, type RichLeaf, type RichValue } from './richText'
+import { setRichScroll } from './richBounds'
 import { Frame, Text, type Group, type IUI } from 'leafer-ui'
 import { createElementId } from '../../../model'
 
@@ -115,11 +116,34 @@ export function pasteTableText(table: Group, point: CellPoint, content: string) 
   while (Number(table.data?.columns) < neededColumns) insertTableAxis(table, 'column', Number(table.data?.columns))
   splitTableCells(table, { anchor: point, focus: { row: neededRows - 1, column: neededColumns - 1 } })
   rows.forEach((row, r) => row.forEach((value, c) => { const cell = visibleCell(table, { row: point.row + r, column: point.column + c }), text = cell && label(cell); if (text) { text.text = value; const data = { ...text.data }; delete data.richText; text.data = data } }))
+  fitTableContent(table)
   return true
 }
 
-/** Reconcile bounded cell geometry; overflowing content scrolls inside it. */
-export function fitTableContent(table: Group) { layoutTable(table) }
+const fitting = new WeakSet<Group>()
+/** Grow whole rows to fit wrapped rich content, including merged cells and media. */
+export function fitTableContent(table: Group) {
+  if (fitting.has(table)) return
+  fitting.add(table)
+  try {
+    layoutTable(table)
+    const { heights } = tableSizes(table)
+    let changed = false
+    // Fit individual rows first. A merged cell adds only its remaining deficit
+    // to its last row, so following cells keep a shared, deterministic grid.
+    const cells = tableCells(table).filter(cell => !cell.data?.coveredBy).sort((a, b) => Number(a.data?.rowSpan || 1) - Number(b.data?.rowSpan || 1))
+    for (const cell of cells) {
+      const text = label(cell)
+      if (!text) continue
+      const row = Number(cell.data!.row), end = Math.min(heights.length, row + Number(cell.data?.rowSpan || 1))
+      const required = Math.ceil((richLayout(text, true)?.height || Number(text.fontSize) * 1.5) + 20)
+      const available = heights.slice(row, end).reduce((a, b) => a + b, 0)
+      if (required > available && end > row) { heights[end - 1] += required - available; changed = true }
+      setRichScroll(text, 0)
+    }
+    if (changed) { table.data = { ...table.data, rowHeights: heights }; layoutTable(table) }
+  } finally { fitting.delete(table) }
+}
 
 export const TABLE_CLIPBOARD = 'application/x-aidcanvas-table'
 export function copyTableFragment(table: Group, range: CellRange) {

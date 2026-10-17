@@ -50,6 +50,7 @@ class CanvasSlateEditor extends TextEditor {
   private slate?: SlateEditor
   private projecting = false
   private composing = false
+  private compositionGeneration = 0
   private loadedText = ''
   private hasLocalEdit = false
   private locale: 'en' | 'zh' = 'zh'
@@ -127,6 +128,8 @@ class CanvasSlateEditor extends TextEditor {
   override onLoad() {
     const text = this.editTarget as Text, app = this.editor.app
     prepareNoteLayout(text)
+    const table = ancestor(text, 'table') as Group | undefined
+    if (table) fitTableContent(table)
     this.loadedText = String(text.text || ''); this.hasLocalEdit = false
     this._keyEvent = app.config.keyEvent !== false; app.config.keyEvent = false
     this.inBody = false; this.isHTMLText = false; text.textEditing = true
@@ -159,14 +162,11 @@ class CanvasSlateEditor extends TextEditor {
     this.editDom = mount.querySelector<HTMLDivElement>('[data-slate-editor]')!
     this.composing = false
     this.editDom.addEventListener('compositionstart', () => {
-      this.composing = true
-      const selection = window.getSelection()
-      if (selection?.anchorNode && ReactEditor.hasDOMNode(editor, selection.anchorNode, { editable: true })) {
-        const range = ReactEditor.toSlateRange(editor, selection, { exactMatch: false, suppressThrow: true })
-        if (range) Transforms.select(editor, range)
-      }
+      this.composing = true; this.compositionGeneration++
+      // Slate owns the IME range. Re-selecting the transient candidate DOM here
+      // can replace its composing range or move the next commit to the start.
     }, true)
-    this.editDom.addEventListener('compositionend', () => { window.setTimeout(() => { this.composing = false }, 0) })
+    this.editDom.addEventListener('compositionend', () => { const generation = this.compositionGeneration; window.setTimeout(() => { if (this.slate === editor && generation === this.compositionGeneration) this.composing = false }, 0) })
     this.tools = mount.querySelector<HTMLElement>('.slate-format-toolbar')!
     this.editDom.style.position = 'fixed'; this.editDom.style.transformOrigin = 'left top'
     this.onUpdate()
@@ -199,7 +199,8 @@ class CanvasSlateEditor extends TextEditor {
     if (richContainer(text)) {
       this.editDom.style.height = `${Number(text.height) * this.textScale}px`
       this.editDom.style.maxHeight = this.editDom.style.height
-      this.editDom.style.overflowY = 'auto'; this.editDom.style.overflowX = 'hidden'
+      const cell = Boolean(ancestor(text, 'table-cell'))
+      this.editDom.style.overflowY = cell ? 'clip' : 'auto'; this.editDom.style.overflowX = cell ? 'clip' : 'hidden'
       this.editDom.style.overscrollBehavior = 'contain'
     }
     const spare = Math.max(0, Number(text.height) - (layout?.height || Number(text.fontSize || 16)))
@@ -325,6 +326,7 @@ export function SlateSurface({ editor, value, baseSize, baseBold = false, baseAl
     if (row?.resource || row?.custom) return
     try {
       const viewport = ReactEditor.toDOMNode(editor, editor)
+      if (viewport.style.overflowY === 'clip') return
       if (viewport.scrollHeight <= viewport.clientHeight) return
       const box = viewport.getBoundingClientRect(), caret = ReactEditor.toDOMRange(editor, editor.selection).getBoundingClientRect()
       if (!caret.height) return
@@ -395,7 +397,11 @@ export function SlateSurface({ editor, value, baseSize, baseBold = false, baseAl
       pending?.selection.unref(); event.target.value = ''; ReactEditor.focus(editor)
     }} />
     <UploadTasks uploads={uploads} t={t} />
-    <Editable className="leafer-text-editor canvas-slate-editable" aria-label={t('rich.edit')} spellCheck={false} renderLeaf={({ attributes, children, leaf, text }: RenderLeafProps) => {
+    <Editable className="leafer-text-editor canvas-slate-editable" aria-label={t('rich.edit')} spellCheck={false} scrollSelectionIntoView={() => {
+      // Canvas navigation belongs to Leafer. Slate's document scrolling can
+      // scroll overflow-hidden stage ancestors and displace every DOM overlay.
+      // The layout effect above handles the active editor's own scroll viewport.
+    }} renderLeaf={({ attributes, children, leaf, text }: RenderLeafProps) => {
       const mark = leaf as RichLeaf, paragraph = editor.children[ReactEditor.findPath(editor, text)[0]] as RichValue[number]
       const content = mark.url ? <a href={safeLink(mark.url)} title={mark.url} onClick={event => { event.preventDefault(); if (event.metaKey || event.ctrlKey) window.open(safeLink(mark.url), '_blank', 'noopener,noreferrer') }}>{children}</a> : children
       return <span {...attributes} style={{ fontWeight: mark.bold === false ? 400 : mark.bold ? 700 : undefined, fontStyle: mark.italic ? 'italic' : undefined, textDecoration: [mark.underline || mark.url ? 'underline' : '', mark.strikethrough ? 'line-through' : ''].join(' '), color: mark.color || (mark.url ? '#3370ff' : undefined), backgroundColor: mark.backgroundColor, fontSize: mark.fontSize ? `${mark.fontSize / (baseSize * headingScale(paragraph))}em` : undefined, fontFamily: mark.code ? 'ui-monospace, monospace' : undefined }}>{content}</span>
