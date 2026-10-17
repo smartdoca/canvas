@@ -46,14 +46,28 @@ jobs:
         shell: bash
         run: |
           node --input-type=module <<'JS'
-          import { appendFileSync, readFileSync } from 'node:fs'
+          import { appendFileSync, readFileSync, mkdtempSync, rmSync } from 'node:fs'
+          import { tmpdir } from 'node:os'
+          import { join } from 'node:path'
           import { spawnSync } from 'node:child_process'
           const { name, version } = JSON.parse(readFileSync('package.json', 'utf8'))
           if (process.env.GITHUB_REF_NAME !== `v${version}`) throw new Error('Tag must match package.json version')
           const result = spawnSync('npm', ['view', `${name}@${version}`, '--json'], { encoding: 'utf8' })
           if (result.status === 0) {
             const published = JSON.parse(result.stdout)
-            if (published.gitHead !== process.env.GITHUB_SHA) throw new Error('Published version belongs to another commit')
+            if (published.gitHead) {
+              if (published.gitHead !== process.env.GITHUB_SHA) throw new Error('Published version belongs to another commit')
+            } else {
+              // Publishing a tested .tgz may omit gitHead. Verify the exact
+              // rebuilt package instead of treating missing metadata as identity.
+              const directory = mkdtempSync(join(tmpdir(), 'canvas-release-'))
+              try {
+                const pack = spawnSync('npm', ['pack', '--ignore-scripts', '--json', '--pack-destination', directory], { encoding: 'utf8' })
+                if (pack.status !== 0) throw new Error(pack.stderr || 'Package verification failed')
+                const [{ integrity }] = JSON.parse(pack.stdout)
+                if (!integrity || integrity !== published.dist?.integrity) throw new Error('Published tarball differs from this build')
+              } finally { rmSync(directory, { recursive: true, force: true }) }
+            }
             appendFileSync(process.env.GITHUB_OUTPUT, 'published=true\n')
           } else {
             let error
