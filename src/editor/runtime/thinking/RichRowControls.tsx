@@ -12,19 +12,28 @@ import type { ResourceRuntime } from './slateRuntime'
 export function RichRowControls({ baseAlign, extensions, runtime, t, onUpload }: { baseAlign: string; extensions: CanvasRichTextExtension[]; runtime?: ResourceRuntime; t: (key: MessageKey) => string; onUpload: (kind: 'image' | 'attachment', row: RichValue[number]) => void }) {
   const editor = useSlate() as ReturnType<typeof useSlate> & ReactEditor, root = useRef<HTMLDivElement>(null), menu = useRef<HTMLDivElement>(null), [open, setOpen] = useState(false)
   const [hover, setHover] = useState<RichValue[number]>(), [position, setPosition] = useState<{ x: number; y: number; menuX: number; menuY: number }>()
+  const positionRef = useRef(position)
+  const updatePosition = (next: typeof position) => {
+    const previous = positionRef.current
+    if (previous === next || previous && next && previous.x === next.x && previous.y === next.y && previous.menuX === next.menuX && previous.menuY === next.menuY) return
+    positionRef.current = next
+    setPosition(next)
+  }
   const selected = editor.children[editor.selection?.focus.path[0] || 0] as RichValue[number]
   const row = hover && editor.children.includes(hover as Descendant) ? hover : open && hover ? undefined : selected
   const rowRef = useRef(row), openRef = useRef(open); rowRef.current = row; openRef.current = open
   const place = () => {
     const current = rowRef.current
-    if (!current) { setPosition(undefined); return }
+    if (!current) { updatePosition(undefined); return }
     try {
       const dom = ReactEditor.toDOMNode(editor, current), viewport = ReactEditor.toDOMNode(editor, editor).getBoundingClientRect(), rect = dom.getBoundingClientRect()
-      if (rect.bottom <= viewport.top || rect.top >= viewport.bottom) { setPosition(undefined); return }
+      if (rect.bottom <= viewport.top || rect.top >= viewport.bottom) { updatePosition(undefined); return }
       const x = Math.max(8, rect.left - 35), y = Math.max(8, Math.min(window.innerHeight - 35, Math.max(viewport.top, rect.top) + Math.min(rect.height, 36) / 2 - 13.5))
       const menuX = Math.max(8, Math.min(window.innerWidth - 228, x > 236 ? x - 228 : x + 35)), menuY = Math.max(8, Math.min(y - 6, window.innerHeight - (menu.current?.offsetHeight || 240) - 8))
-      setPosition(previous => { const next = { x, y, menuX, menuY }; return previous && previous.x === x && previous.y === y && previous.menuX === menuX && previous.menuY === menuY ? previous : next })
-    } catch { setPosition(undefined) }
+      // React 18 may keep processing layout-effect state updates even when
+      // their updater returns the current value. Skip unchanged writes first.
+      updatePosition({ x, y, menuX, menuY })
+    } catch { updatePosition(undefined) }
   }
   useLayoutEffect(() => { if (!open) setHover(undefined) }, [editor.selection, open])
   useLayoutEffect(() => { if (open && !row) setOpen(false) }, [open, row])
