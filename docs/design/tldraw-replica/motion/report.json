@@ -1,0 +1,94 @@
+[
+  {
+    "file": "motion-probe",
+    "state": null,
+    "size": "1280x800",
+    "zoom": 1,
+    "motion": {
+      "load": {
+        "elements": 3,
+        "loops": 0,
+        "maxMove": 7,
+        "maxSize": 0,
+        "maxOpacity": 0.96,
+        "top": [
+          {
+            "el": "div.canvas-toolbar",
+            "move": 7,
+            "size": 0,
+            "opacity": 0.9,
+            "loop": false,
+            "sources": [
+              "css:aidcanvas-toolbar-arrive"
+            ]
+          },
+          {
+            "el": "div.floating-panel.style-panel",
+            "move": 0,
+            "size": 0,
+            "opacity": 0.96,
+            "loop": false,
+            "sources": [
+              "css:aidcanvas-chrome-arrive"
+            ]
+          },
+          {
+            "el": "div.canvas-quick-actions",
+            "move": 0,
+            "size": 0,
+            "opacity": 0.92,
+            "loop": false,
+            "sources": [
+              "css:aidcanvas-chrome-arrive"
+            ]
+          }
+        ]
+      },
+      "steps": {
+        "elements": 1,
+        "loops": 0,
+        "maxMove": 6,
+        "maxSize": 0.026,
+        "maxOpacity": 0.83,
+        "top": [
+          {
+            "el": "div.canvas-popover-content",
+            "move": 6,
+            "size": 0.026,
+            "opacity": 0.83,
+            "loop": false,
+            "sources": [
+              "css:aidcanvas-popover-arrive"
+            ]
+          }
+        ]
+      },
+      "hero": {
+        "elements": 0,
+        "loops": 0,
+        "maxMove": 0,
+        "maxSize": 0,
+        "maxOpacity": 0,
+        "top": [],
+        "layers": 0
+      },
+      "scroll": {
+        "elements": 0,
+        "loops": 0,
+        "maxMove": 0,
+        "maxSize": 0,
+        "maxOpacity": 0,
+        "top": [],
+        "scrollable": false
+      }
+    },
+    "issues": []
+  },
+  {
+    "file": "page.png",
+    "state": null,
+    "size": "1280x800",
+    "zoom": 1,
+    "issues": []
+  }
+]

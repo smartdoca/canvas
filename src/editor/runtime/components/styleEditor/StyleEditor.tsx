@@ -5,10 +5,10 @@ import { DEFAULT_STYLE_PARAMS, getStyleParamsFromLocalStorage, isStyleParamsExis
 import { commonStyleRenders } from './commonStyleRenders';
 import { BringForward, SendBackward, ToBottom, ToTop } from '@icon-park/react';
 import { IconButton } from '../../../ui/Controls';
-import { ROUGH_FILL_STYLE_KEY, ROUGH_STROKE_STYLE_KEY, ROUGH_STYLE_KEY, setRoughStyle, supportsRoughStyle, supportsRoughStyleName, updateRoughFill, updateRoughGeometry, updateRoughOption } from '../../utils/roughStyle';
 import type { CanvasElementExtension } from '../../../../sdk/types';
 import { useCanvasI18n } from '../../../../i18n/context';
 import type { MessageKey } from '../../../../i18n/en';
+import { QuickStyle } from './QuickStyle';
 
 interface StyleEditorProps {
   app: App;
@@ -25,7 +25,7 @@ const StyleEditor: React.FC<StyleEditorProps> = (props: StyleEditorProps) => {
   const { plugins, activeKey, editorList, onLayerChange, elementExtensions = [], extensionValues = {}, onExtensionValueChange } = props;
   const t = useCanvasI18n()
 
-  const [styleParam, setStyleParam] = React.useState<{ [key: string]: styleValue }>({})
+  const [styleParam, setStyleParam] = React.useState<{ [key: string]: styleValue }>(getStyleParamsFromLocalStorage)
   const [isScrollable, setIsScrollable] = React.useState(false)
   const panelRef = useRef<HTMLDivElement>(null)
 
@@ -47,6 +47,20 @@ const StyleEditor: React.FC<StyleEditorProps> = (props: StyleEditorProps) => {
     plugins.forEach(plugin => {
       map[plugin.name] = plugin
     })
+    if (map.rect) {
+      for (const name of ['mind-node', 'table-cell']) map[name] = { ...map.rect, name }
+      map['diagram-node'] = {
+        ...map.rect, name: 'diagram-node',
+        getStyleCustom: Object.fromEntries(['fill', 'stroke', 'strokeWidth', 'cornerRadius', 'dashPattern'].map(key => [key, (item: IUI) => (item.children?.[0] as unknown as Record<string, styleValue>)?.[key]])),
+        setStyleCustom: Object.fromEntries(['fill', 'stroke', 'strokeWidth', 'cornerRadius', 'dashPattern'].map(key => [key, (item: IUI, value: styleValue) => item.children?.[0]?.set({ [key]: value ?? null })])),
+      }
+      map.connector = { ...map.rect, name: 'connector', styleControlKeys: ['stroke', 'strokeWidth', 'dashPattern', 'opacity'] }
+      map['board-table'] = {
+        ...map.rect, name: 'board-table', styleControlKeys: ['fill', 'stroke', 'strokeWidth', 'opacity'],
+        getStyleCustom: Object.fromEntries(['fill', 'stroke', 'strokeWidth'].map(key => [key, (item: IUI) => (item.children?.[0] as unknown as Record<string, styleValue>)?.[key]])),
+        setStyleCustom: Object.fromEntries(['fill', 'stroke', 'strokeWidth'].map(key => [key, (item: IUI, value: styleValue) => item.children?.forEach(child => child.set({ [key]: value ?? null }))])),
+      }
+    }
     return map
   }, [plugins])
 
@@ -78,7 +92,6 @@ const StyleEditor: React.FC<StyleEditorProps> = (props: StyleEditorProps) => {
       plugin.styleControlKeys.forEach(key => {
         const styleMap = editorItem as unknown as Record<string, styleValue>
         let value = styleMap[key]
-        if (key === 'fill' && editorItem.data?.roughMode) value = editorItem.data.roughOriginalFill as styleValue
         if (plugin.getStyleCustom[key]) { // 如果有特殊处理的样式，则用特殊样式
           value = plugin.getStyleCustom[key](editorItem)
         }
@@ -107,17 +120,6 @@ const StyleEditor: React.FC<StyleEditorProps> = (props: StyleEditorProps) => {
       })
     })
 
-    const roughItems = editorList.filter(supportsRoughStyle)
-    if (roughItems.length) {
-      const roughValues = roughItems.map((item) => Boolean(item.data?.roughMode))
-      editorStyleParams[ROUGH_STYLE_KEY] = roughValues.every((value) => value === roughValues[0]) ? roughValues[0] : 'nothing-nothing'
-      if (roughValues.every(Boolean)) {
-        const fillStyles = roughItems.map((item) => item.data?.roughFillStyle || 'hachure')
-        const strokeStyles = roughItems.map((item) => item.data?.roughStrokeStyle ?? 1)
-        editorStyleParams[ROUGH_FILL_STYLE_KEY] = fillStyles.every((value) => value === fillStyles[0]) ? fillStyles[0] as styleValue : 'nothing-nothing'
-        editorStyleParams[ROUGH_STROKE_STYLE_KEY] = strokeStyles.every((value) => value === strokeStyles[0]) ? strokeStyles[0] as styleValue : 'nothing-nothing'
-      }
-    }
     setStyleParam({ ...editorStyleParams, ...undefinedKeyMap }) // 只更新状态里边的值，不能更新 localStorage 里的值
   }, [editorList, elementExtensions, pluginMap])
 
@@ -157,22 +159,8 @@ const StyleEditor: React.FC<StyleEditorProps> = (props: StyleEditorProps) => {
       props.app.editor.select([...editorList])
       return
     }
-    if (key === ROUGH_STYLE_KEY) {
-      editorList.forEach((item) => setRoughStyle(item, Boolean(value)))
-      setStyleParam(prev => ({ ...prev, [key]: value }))
-      const localMap = getStyleParamsFromLocalStorage()
-      setStyleParamsToLocalStorage({ ...localMap, [key]: value })
-      props.app.editor.select([...editorList])
-      return
-    }
-    if (key === ROUGH_FILL_STYLE_KEY || key === ROUGH_STROKE_STYLE_KEY) {
-      editorList.forEach((item) => updateRoughOption(item, key, value))
-      setStyleParam(prev => ({ ...prev, [key]: value }))
-      const localMap = getStyleParamsFromLocalStorage()
-      setStyleParamsToLocalStorage({ ...localMap, [key]: value })
-      props.app.editor.select([...editorList])
-      return
-    }
+
+
     // 实时更新选中元素的样式参数
     editorList.forEach(editorItem => {
       if (!editorItem.name || !pluginMap[editorItem.name]) {
@@ -180,7 +168,6 @@ const StyleEditor: React.FC<StyleEditorProps> = (props: StyleEditorProps) => {
       }
       const plugin = pluginMap[editorItem.name]
       if (plugin.styleControlKeys.includes(key)) {
-        if (key === 'fill' && updateRoughFill(editorItem, value)) return
         if (plugin.setStyleCustom[key]) { // 如果有特殊处理的逻辑，就用特殊处理的逻辑
           plugin.setStyleCustom[key](editorItem, value)
         } else {
@@ -189,7 +176,6 @@ const StyleEditor: React.FC<StyleEditorProps> = (props: StyleEditorProps) => {
           // undefined as the default for subsequently created elements.
           editorItem.set({ [key]: value === undefined && (key === 'fill' || key === 'stroke') ? null : value })
         }
-        if (key === 'sides' || key === 'corners' || key === 'cornerRadius') updateRoughGeometry(editorItem)
       }
     })
 
@@ -240,18 +226,13 @@ const StyleEditor: React.FC<StyleEditorProps> = (props: StyleEditorProps) => {
           }
         })
       })
-      if (editorList.some(supportsRoughStyle)) {
-        const roughControl = commonStyleRenders.find((item) => item.key === ROUGH_STYLE_KEY)
-        if (roughControl) styleControls.push({ render: getStyleControlUI(roughControl), order: roughControl.order })
-        if (styleParam[ROUGH_STYLE_KEY] === true) {
-          commonStyleRenders.filter((item) => item.key === ROUGH_FILL_STYLE_KEY || item.key === ROUGH_STROKE_STYLE_KEY).forEach((item) => styleControls.push({ render: getStyleControlUI(item), order: item.order }))
-        }
-      }
+
       elementExtensions.filter(extension => editorList.some(item => item.name === extension.type)).forEach(extension => {
         extension.properties?.forEach(property => styleControls.push({ order: property.order ?? 50, render: <div key={`${extension.type}-${property.key}`} className="style-control"><div className="style-label">{property.label}</div><property.control value={styleParam[property.key]} selection={editorList.map(item => item.toJSON() as Record<string, unknown>)} onChange={value => updateStyleParam(property.key, value as styleValue)} /></div> }))
       })
-    } else if (activeKey !== 'init') {
-      const plugin = pluginMap[activeKey]
+    } else {
+      const toolKey = activeKey === 'init' || activeKey === 'hand' ? 'rect' : activeKey
+      const plugin = pluginMap[toolKey]
       if (plugin) {
         plugin.styleControlKeys.forEach(key => {
           commonStyleRenders.forEach(item => {
@@ -266,15 +247,7 @@ const StyleEditor: React.FC<StyleEditorProps> = (props: StyleEditorProps) => {
             }
           })
         })
-        if (supportsRoughStyleName(activeKey)) {
-          const roughControl = commonStyleRenders.find((item) => item.key === ROUGH_STYLE_KEY)
-          if (roughControl) styleControls.push({ render: getStyleControlUI(roughControl), order: roughControl.order })
-          if (styleParam[ROUGH_STYLE_KEY] === true) {
-            commonStyleRenders
-              .filter((item) => item.key === ROUGH_FILL_STYLE_KEY || item.key === ROUGH_STROKE_STYLE_KEY)
-              .forEach((item) => styleControls.push({ render: getStyleControlUI(item), order: item.order }))
-          }
-        }
+
       }
       const extension = elementExtensions.find(item => item.type === activeKey)
       extension?.properties?.forEach(property => styleControls.push({ order: property.order ?? 50, render: <div key={`${extension.type}-${property.key}`} className="style-control"><div className="style-label">{property.label}</div><property.control value={extensionValues[extension.type]?.[property.key] ?? property.defaultValue} selection={[]} onChange={value => updateStyleParam(property.key, value as styleValue)} /></div> }))
@@ -283,12 +256,15 @@ const StyleEditor: React.FC<StyleEditorProps> = (props: StyleEditorProps) => {
     return styleControls.sort((a, b) => a.order - b.order).map(control => control.render)
   }
 
-  if (editorList.length === 0 && (activeKey === 'init' || (!pluginMap[activeKey]?.styleControlKeys.length && !elementExtensions.some(extension => extension.type === activeKey && extension.properties?.length)))) {
-    return null;
-  }
+  const isText = activeKey === 'text' || editorList.length > 0 && editorList.every(item => item.tag === 'Text')
+  const hasFill = !isText && !['path', 'line', 'arrow'].includes(activeKey) && !editorList.some(item => ['path', 'line', 'arrow', 'image'].includes(item.name || ''))
 
   return (
     <div ref={panelRef} className={`floating-panel style-panel ${isScrollable ? 'is-scrollable' : ''}`}>
+      <QuickStyle values={styleParam} onChange={updateStyleParam} hasFill={hasFill} isText={isText} />
+      <details className="advanced-style" open>
+        <summary>{t('style.more')}</summary>
+        <div className="advanced-style-content">
       {getAllStyleControls()}
       {editorList.length > 0 && <div className="style-control layer-order-section">
         <div className="style-label">{t('style.layerOrder')}</div>
@@ -299,6 +275,8 @@ const StyleEditor: React.FC<StyleEditorProps> = (props: StyleEditorProps) => {
           <IconButton label={t('style.layerBottom')} icon={<ToBottom />} onClick={() => onLayerChange('bottom')} />
         </div>
       </div>}
+        </div>
+      </details>
     </div>
   )
 }

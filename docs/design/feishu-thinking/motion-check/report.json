@@ -1,0 +1,94 @@
+[
+  {
+    "file": "motion-probe",
+    "state": null,
+    "size": "1440x900",
+    "zoom": 1,
+    "motion": {
+      "load": {
+        "elements": 2,
+        "loops": 0,
+        "maxMove": 4,
+        "maxSize": 0,
+        "maxOpacity": 0.88,
+        "top": [
+          {
+            "el": "div.canvas-toolbar",
+            "move": 4,
+            "size": 0,
+            "opacity": 0.88,
+            "loop": false,
+            "sources": [
+              "css:board-tools-arrive"
+            ]
+          },
+          {
+            "el": "aside.template-starter",
+            "move": 0,
+            "size": 0,
+            "opacity": 0.88,
+            "loop": false,
+            "sources": [
+              "css:board-panel-arrive"
+            ]
+          }
+        ]
+      },
+      "steps": {
+        "elements": 2,
+        "loops": 0,
+        "maxMove": 260,
+        "maxSize": 0.187,
+        "maxOpacity": 0.43,
+        "top": [
+          {
+            "el": "header.app-header",
+            "move": 260,
+            "size": 0.187,
+            "opacity": 0,
+            "loop": false,
+            "sources": [
+              "transition:left"
+            ]
+          },
+          {
+            "el": "aside.board-shapes-library",
+            "move": 10,
+            "size": 0,
+            "opacity": 0.43,
+            "loop": false,
+            "sources": [
+              "css:board-library-arrive"
+            ]
+          }
+        ]
+      },
+      "hero": {
+        "elements": 0,
+        "loops": 0,
+        "maxMove": 0,
+        "maxSize": 0,
+        "maxOpacity": 0,
+        "top": [],
+        "layers": 0
+      },
+      "scroll": {
+        "elements": 0,
+        "loops": 0,
+        "maxMove": 0,
+        "maxSize": 0,
+        "maxOpacity": 0,
+        "top": [],
+        "scrollable": false
+      }
+    },
+    "issues": []
+  },
+  {
+    "file": "page.png",
+    "state": null,
+    "size": "1440x900",
+    "zoom": 1,
+    "issues": []
+  }
+]

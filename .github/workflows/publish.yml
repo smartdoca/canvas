@@ -41,7 +41,29 @@ jobs:
         run: yarn install --frozen-lockfile
       - name: Build the package
         run: yarn build:lib
+      - name: Check for an existing publication
+        id: registry
+        shell: bash
+        run: |
+          node --input-type=module <<'JS'
+          import { appendFileSync, readFileSync } from 'node:fs'
+          import { spawnSync } from 'node:child_process'
+          const { name, version } = JSON.parse(readFileSync('package.json', 'utf8'))
+          if (process.env.GITHUB_REF_NAME !== `v${version}`) throw new Error('Tag must match package.json version')
+          const result = spawnSync('npm', ['view', `${name}@${version}`, '--json'], { encoding: 'utf8' })
+          if (result.status === 0) {
+            const published = JSON.parse(result.stdout)
+            if (published.gitHead !== process.env.GITHUB_SHA) throw new Error('Published version belongs to another commit')
+            appendFileSync(process.env.GITHUB_OUTPUT, 'published=true\n')
+          } else {
+            let error
+            try { error = JSON.parse(result.stdout).error } catch {}
+            if (error?.code !== 'E404') throw new Error(result.stderr || 'Registry check failed')
+            appendFileSync(process.env.GITHUB_OUTPUT, 'published=false\n')
+          }
+          JS
       - name: Publish
+        if: steps.registry.outputs.published != 'true'
         run: npm publish --access public --provenance --ignore-scripts
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -63,4 +85,4 @@ jobs:
           gh release create "$GITHUB_REF_NAME" \
             --title "$GITHUB_REF_NAME" \
             --verify-tag \
-            --generate-notes
+            --notes-file CHANGELOG.md

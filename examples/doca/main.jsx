@@ -43,8 +43,9 @@ const resources = {
     const path = `asset-${crypto.randomUUID()}`
     assetUrls.set(path, url)
     channel.postMessage({ type: 'asset', path, url, sessionId }) // Test host asset store, not CRDT.
-    return { path, size: blob.size }
+    return { path, name: context.fileName, size: blob.size, mimeType: blob.type }
   },
+  uploadAttachment(blob, context) { return resources.uploadImage(blob, context) },
   resolveUrl(path) { resourceLog.push({ type: 'display', path }); return assetUrls.get(path) || pixel },
   readImage(path) { resourceLog.push({ type: 'read', path }); if (resourceControls.failRead) return Promise.reject(new Error('READ_DENIED')); return Promise.resolve(assetBlob(path)) },
   resolveDownloadUrl(path) {
@@ -77,7 +78,7 @@ channel.onmessage = ({ data }) => {
     outbox.forEach(update => send({ type: 'update', update }))
   }
   if (data.type === 'presence') {
-    if (data.selection) peers.set(data.sessionId, { ...data.identity, elementIds: data.selection.elementIds })
+    if (data.selection) peers.set(data.sessionId, { ...data.identity, ...data.selection })
     else peers.delete(data.sessionId)
     renderPresence([...peers.values()])
   }
@@ -121,7 +122,7 @@ function Host() {
     <button onClick={() => changeConnection(!online)}>{online ? '模拟断线' : '重新连接'}</button>
     <button onClick={() => { const anchor = editor.current.captureAnchor(); if (anchor?.elementIds.length) setAnchors(previous => [...previous, { anchorId: `comment-${previous.length + 1}`, anchor }]) }}>标记选区评论</button>
     <span>{identity.name} · {status}（示例仅确认对端接收）</span>
-  </nav><input ref={fileInput} aria-label="宿主选择图片" hidden type="file" accept=".png,.jpg,.jpeg,.webp,.svg" onChange={e => { if (e.target.files[0]) void insertFile(e.target.files[0]); e.target.value = '' }} /><aside aria-label="宿主评论卡片">{anchors.filter(a => !a.resolved).map(a => <button key={a.anchorId} aria-pressed={activeAnchorId === a.anchorId} onClick={() => { setActiveAnchorId(a.anchorId); editor.current?.revealAnchor(a.anchor) }}>{a.anchorId}</button>)}</aside><section onDragOver={e => { if (e.dataTransfer.types.includes('Files')) e.preventDefault() }} onDrop={e => { if (e.dataTransfer.files[0]) { e.preventDefault(); void insertFile(e.dataTransfer.files[0], editor.current.clientToScene({ x: e.clientX, y: e.clientY })) } }} onPaste={e => { if (e.clipboardData.files[0]) { e.preventDefault(); void insertFile(e.clipboardData.files[0]) } }}>{mounted && <CanvasEditor ref={editor} model={model} hostManaged mode={mode} sessionId={sessionId} remoteSelections={remote} resources={resources} onError={error => errors.push(String(error))}
+  </nav><input ref={fileInput} aria-label="宿主选择图片" hidden type="file" accept=".png,.jpg,.jpeg,.webp,.svg" onChange={e => { if (e.target.files[0]) void insertFile(e.target.files[0]); e.target.value = '' }} /><aside aria-label="宿主评论卡片">{anchors.filter(a => !a.resolved).map(a => <button key={a.anchorId} aria-pressed={activeAnchorId === a.anchorId} onClick={() => { setActiveAnchorId(a.anchorId); editor.current?.revealAnchor(a.anchor) }}>{a.anchorId}</button>)}</aside><section>{mounted && <CanvasEditor ref={editor} model={model} hostManaged mode={mode} sessionId={sessionId} remoteSelections={remote} resources={resources} onResourcePreview={resource => { resourceLog.push({ type: 'preview', resource }) }} onError={error => errors.push(String(error))}
     onImportRequest={() => fileInput.current.click()} onExportRequest={options => void exportFile(options)}
     showToolbar={showToolbar}
     selectionActions={[{ id: 'comment', label: '评论选中元素', icon: <span>♧</span>, allowInReadOnly: true, disabled: !canComment, tooltip: canComment ? '为选中元素添加评论' : '没有评论权限', onClick: ({ selection }) => { window.demo.actionSelection = selection; setAnchors(previous => [...previous, { anchorId: `comment-${previous.length + 1}`, anchor: model.captureAnchor(selection.map(x => x.id)) }]) } }]}

@@ -6,7 +6,11 @@ import '@smartdoca/canvas/style.css'
 const count = Number(new URLSearchParams(location.search).get('count') || 100)
 if (![100, 1000, 5000, 10000].includes(count)) throw new Error('Unsupported fixture size')
 const children = Array.from({ length: count }, (_, i) => ({ id: `n-${i}`, tag: i % 5 ? 'Rect' : 'Text', name: i % 5 ? 'rect' : 'text', x: i % 100 * 30, y: Math.floor(i / 100) * 30, width: 24, height: 24, fill: '#7799bb', ...(i % 5 ? {} : { text: `中${i}`, fontSize: 10 }) }))
-const start = performance.now(), model = CanvasModel.initialize('benchmark', { version: 1, scene: { children } })
+// The paired-page benchmark restores the exact authority checkpoint in its peer.
+const checkpoint = window.__CANVAS_PERF_CHECKPOINT
+const start = performance.now(), model = checkpoint
+  ? CanvasModel.restore({ ...checkpoint, update: Uint8Array.from(checkpoint.update) })
+  : CanvasModel.initialize('benchmark', { version: 1, scene: { children } })
 const initMs = performance.now() - start, updates = [], frames = []
 model.onLocalUpdate(u => updates.push(u))
 const frame = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))

@@ -1,0 +1,447 @@
+{
+  "date": "2026-10-17",
+  "environment": "Local macOS Chrome; Vite development editor; bundled library for Node model benchmark",
+  "transport": "Two browser realms; ordered simulated example-host transport; 15 ms delay per message; waits two animation frames per received update",
+  "samples": 12,
+  "nativeSamples": 6,
+  "offlinePerPeer": "8 property edits + 1 concurrent text insert; replay original IDs/bytes and 1 duplicate",
+  "externalServiceVerified": false,
+  "before": [
+    {
+      "count": 1000,
+      "oneWayDelayMs": 15,
+      "samples": 12,
+      "commandMs": {
+        "p50": 24.799999952316284,
+        "p95": 29.100000023841858,
+        "max": 29.100000023841858
+      },
+      "nativeCommandMs": {
+        "p50": 43.299999952316284,
+        "p95": 52.69999998807907,
+        "max": 52.69999998807907
+      },
+      "receiverApplyAndProjectionMs": {
+        "p50": 40.5,
+        "p95": 49.80000001192093,
+        "max": 49.80000001192093
+      },
+      "visibleLatencyMs": {
+        "p50": 288.2998046875,
+        "p95": 418.5,
+        "max": 418.5
+      },
+      "updateBytes": {
+        "p50": 27,
+        "p95": 27,
+        "max": 27
+      },
+      "frameGapMs": [
+        {
+          "p50": 16.699999999999818,
+          "p95": 66.59999999999991,
+          "max": 349.89999999999986
+        },
+        {
+          "p50": 16.699999999999818,
+          "p95": 33.30000000000018,
+          "max": 199.9000000000001
+        }
+      ],
+      "reconnectMs": 1654,
+      "replayed": 19,
+      "writes": [
+        27,
+        9
+      ],
+      "converged": true,
+      "errors": []
+    },
+    {
+      "count": 5000,
+      "oneWayDelayMs": 15,
+      "samples": 12,
+      "commandMs": {
+        "p50": 122.60000002384186,
+        "p95": 129.89999997615814,
+        "max": 129.89999997615814
+      },
+      "nativeCommandMs": {
+        "p50": 205.5,
+        "p95": 250.39999997615814,
+        "max": 250.39999997615814
+      },
+      "receiverApplyAndProjectionMs": {
+        "p50": 196.5,
+        "p95": 207.69999998807907,
+        "max": 207.69999998807907
+      },
+      "visibleLatencyMs": {
+        "p50": 674.699951171875,
+        "p95": 1109.89990234375,
+        "max": 1109.89990234375
+      },
+      "updateBytes": {
+        "p50": 27,
+        "p95": 27,
+        "max": 27
+      },
+      "frameGapMs": [
+        {
+          "p50": 16.699999999999818,
+          "p95": 216.60000000000036,
+          "max": 1150
+        },
+        {
+          "p50": 16.699999999999818,
+          "p95": 183.30000000000018,
+          "max": 1083.3000000000002
+        }
+      ],
+      "reconnectMs": 5635,
+      "replayed": 19,
+      "writes": [
+        27,
+        9
+      ],
+      "converged": true,
+      "errors": []
+    },
+    {
+      "count": 10000,
+      "oneWayDelayMs": 15,
+      "samples": 12,
+      "commandMs": {
+        "p50": 251.69999998807907,
+        "p95": 267.5,
+        "max": 267.5
+      },
+      "nativeCommandMs": {
+        "p50": 423.10000002384186,
+        "p95": 474.80000001192093,
+        "max": 474.80000001192093
+      },
+      "receiverApplyAndProjectionMs": {
+        "p50": 390.5,
+        "p95": 410.89999997615814,
+        "max": 410.89999997615814
+      },
+      "visibleLatencyMs": {
+        "p50": 1004.999755859375,
+        "p95": 1786.099853515625,
+        "max": 1786.099853515625
+      },
+      "updateBytes": {
+        "p50": 27,
+        "p95": 27,
+        "max": 27
+      },
+      "frameGapMs": [
+        {
+          "p50": 16.700000000000728,
+          "p95": 250.10000000000036,
+          "max": 2416.500000000002
+        },
+        {
+          "p50": 16.699999999999818,
+          "p95": 366.7000000000007,
+          "max": 2216.6000000000004
+        }
+      ],
+      "reconnectMs": 10010,
+      "replayed": 19,
+      "writes": [
+        27,
+        9
+      ],
+      "converged": true,
+      "errors": []
+    }
+  ],
+  "after": [
+    {
+      "count": 1000,
+      "oneWayDelayMs": 15,
+      "samples": 12,
+      "commandMs": {
+        "p50": 9,
+        "p95": 11,
+        "max": 11
+      },
+      "nativeCommandMs": {
+        "p50": 20,
+        "p95": 25.69999998807907,
+        "max": 25.69999998807907
+      },
+      "receiverApplyAndProjectionMs": {
+        "p50": 10.5,
+        "p95": 24.30000001192093,
+        "max": 24.30000001192093
+      },
+      "visibleLatencyMs": {
+        "p50": 105.900146484375,
+        "p95": 239.800048828125,
+        "max": 239.800048828125
+      },
+      "updateBytes": {
+        "p50": 27,
+        "p95": 27,
+        "max": 27
+      },
+      "frameGapMs": [
+        {
+          "p50": 16.699999999999818,
+          "p95": 50,
+          "max": 350
+        },
+        {
+          "p50": 16.699999999999932,
+          "p95": 16.700000000000273,
+          "max": 66.70000000000005
+        }
+      ],
+      "reconnectMs": 1251,
+      "replayed": 19,
+      "writes": [
+        27,
+        9
+      ],
+      "converged": true,
+      "errors": []
+    },
+    {
+      "count": 5000,
+      "oneWayDelayMs": 15,
+      "samples": 12,
+      "commandMs": {
+        "p50": 38.80000001192093,
+        "p95": 46.69999998807907,
+        "max": 46.69999998807907
+      },
+      "nativeCommandMs": {
+        "p50": 118.80000001192093,
+        "p95": 123.40000003576279,
+        "max": 123.40000003576279
+      },
+      "receiverApplyAndProjectionMs": {
+        "p50": 47.30000001192093,
+        "p95": 101,
+        "max": 101
+      },
+      "visibleLatencyMs": {
+        "p50": 168.599853515625,
+        "p95": 247.10009765625,
+        "max": 247.10009765625
+      },
+      "updateBytes": {
+        "p50": 27,
+        "p95": 27,
+        "max": 27
+      },
+      "frameGapMs": [
+        {
+          "p50": 16.699999999999818,
+          "p95": 150,
+          "max": 383.39999999999964
+        },
+        {
+          "p50": 16.699999999999818,
+          "p95": 33.399999999999864,
+          "max": 333.2999999999997
+        }
+      ],
+      "reconnectMs": 1953,
+      "replayed": 19,
+      "writes": [
+        27,
+        9
+      ],
+      "converged": true,
+      "errors": []
+    },
+    {
+      "count": 10000,
+      "oneWayDelayMs": 15,
+      "samples": 12,
+      "commandMs": {
+        "p50": 77.19999998807907,
+        "p95": 82.40000003576279,
+        "max": 82.40000003576279
+      },
+      "nativeCommandMs": {
+        "p50": 223.60000002384186,
+        "p95": 249.39999997615814,
+        "max": 249.39999997615814
+      },
+      "receiverApplyAndProjectionMs": {
+        "p50": 94.80000001192093,
+        "p95": 194,
+        "max": 194
+      },
+      "visibleLatencyMs": {
+        "p50": 177.7998046875,
+        "p95": 380.699951171875,
+        "max": 380.699951171875
+      },
+      "updateBytes": {
+        "p50": 27,
+        "p95": 27,
+        "max": 27
+      },
+      "frameGapMs": [
+        {
+          "p50": 16.700000000000728,
+          "p95": 216.6999999999989,
+          "max": 666.6999999999989
+        },
+        {
+          "p50": 16.699999999999818,
+          "p95": 83.30000000000018,
+          "max": 649.8999999999996
+        }
+      ],
+      "reconnectMs": 3184,
+      "replayed": 19,
+      "writes": [
+        27,
+        9
+      ],
+      "converged": true,
+      "errors": []
+    }
+  ],
+  "modelBefore": [
+    {
+      "count": 100,
+      "initializeMs": 10.442625,
+      "checkpointMs": 0.730125000000001,
+      "restoreMs": 1.5503329999999949,
+      "checkpointBytes": 21780,
+      "getValueMs": 0.21912499999999824,
+      "patchMs": 0.10737500000000466,
+      "remoteMs": 1.9894999999999996,
+      "resolve100AnchorsMs": 0.04649999999999466
+    },
+    {
+      "count": 1000,
+      "initializeMs": 16.430417,
+      "checkpointMs": 1.178332999999995,
+      "restoreMs": 10.924333000000004,
+      "checkpointBytes": 220453,
+      "getValueMs": 1.1540830000000142,
+      "patchMs": 0.07895899999999756,
+      "remoteMs": 8.386667000000003,
+      "resolve100AnchorsMs": 0.06912499999999966
+    },
+    {
+      "count": 5000,
+      "initializeMs": 69.41412499999998,
+      "checkpointMs": 5.363291000000004,
+      "restoreMs": 30.669624999999996,
+      "checkpointBytes": 1146476,
+      "getValueMs": 4.65300000000002,
+      "patchMs": 0.07487500000002001,
+      "remoteMs": 37.13154099999997,
+      "resolve100AnchorsMs": 0.07370800000001054
+    },
+    {
+      "count": 10000,
+      "initializeMs": 114.49262500000003,
+      "checkpointMs": 10.628250000000094,
+      "restoreMs": 53.89154200000007,
+      "checkpointBytes": 2310134,
+      "getValueMs": 10.424540999999977,
+      "patchMs": 0.08920899999998255,
+      "remoteMs": 79.90125,
+      "resolve100AnchorsMs": 0.08175000000005639
+    }
+  ],
+  "modelAfter": [
+    {
+      "count": 100,
+      "initializeMs": 11.804874999999996,
+      "checkpointMs": 0.8392079999999993,
+      "restoreMs": 1.8023749999999978,
+      "checkpointBytes": 21780,
+      "getValueMs": 0.20491600000000432,
+      "patchMs": 0.10720900000000455,
+      "remoteMs": 0.5355829999999955,
+      "resolve100AnchorsMs": 0.053209000000002504
+    },
+    {
+      "count": 1000,
+      "initializeMs": 29.972958,
+      "checkpointMs": 1.7671670000000006,
+      "restoreMs": 14.216999999999999,
+      "checkpointBytes": 220453,
+      "getValueMs": 1.5420420000000092,
+      "patchMs": 0.1358330000000194,
+      "remoteMs": 4.044916000000001,
+      "resolve100AnchorsMs": 0.08979199999998855
+    },
+    {
+      "count": 5000,
+      "initializeMs": 96.025375,
+      "checkpointMs": 8.424499999999995,
+      "restoreMs": 58.90495899999999,
+      "checkpointBytes": 1146476,
+      "getValueMs": 6.427290999999968,
+      "patchMs": 0.09312499999998636,
+      "remoteMs": 13.136416999999994,
+      "resolve100AnchorsMs": 0.08362499999998363
+    },
+    {
+      "count": 10000,
+      "initializeMs": 166.12379200000004,
+      "checkpointMs": 15.61733300000003,
+      "restoreMs": 77.67099999999994,
+      "checkpointBytes": 2310134,
+      "getValueMs": 14.378791000000092,
+      "patchMs": 0.11754199999995762,
+      "remoteMs": 27.058959000000073,
+      "resolve100AnchorsMs": 0.0911670000000413
+    },
+    {
+      "count": 1000,
+      "layout": "grouped",
+      "groups": 100,
+      "sceneApplyMs": 1.6322090000001026,
+      "updateBytes": 27
+    },
+    {
+      "count": 5000,
+      "layout": "grouped",
+      "groups": 500,
+      "sceneApplyMs": 8.62587499999995,
+      "updateBytes": 27
+    },
+    {
+      "count": 10000,
+      "layout": "grouped",
+      "groups": 1000,
+      "sceneApplyMs": 19.2650000000001,
+      "updateBytes": 24
+    }
+  ],
+  "automatedStatus": {
+    "browserPassed": 222,
+    "browserDurationMinutes": 8.5,
+    "modelPassed": 29,
+    "additionalPresencePassed": 1,
+    "lintAndAppTypes": "passed",
+    "exampleTypes": "passed",
+    "libraryBuild": "passed",
+    "appProductionBuild": "passed",
+    "fullLog": "tmp/manual-20261017/performance-full-test.log"
+  },
+  "largeSelectionTimingMs": {
+    "firstMs": 1238,
+    "secondMs": 1068
+  },
+  "finalProductionSmoke": {
+    "reselectAfterDeleteUndo": true,
+    "threeServicesOnly": true,
+    "fullyContainedRoutesIncluded": true,
+    "browserErrors": 0
+  }
+}

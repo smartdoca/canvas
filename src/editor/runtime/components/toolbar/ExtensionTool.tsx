@@ -25,6 +25,7 @@ export function ExtensionTool({ app, extension, properties, activeKey, onClick, 
         app.tree.add(extension.create({ bounds: { x: point.x, y: point.y, width: 1, height: 1 }, properties }) as never)
         item = app.tree.children[app.tree.children.length - 1]
         item.name = extension.type
+        item.data = { ...item.data, canvasExtension: extension.type }
         item.editable = true
       }),
       app.on_(DragEvent.DRAG, (event: DragEvent) => item?.set(event.getPageBounds())),

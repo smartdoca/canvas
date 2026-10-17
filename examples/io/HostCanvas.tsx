@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
-import { CanvasEditor, type CanvasEditorRef, type CanvasEditorResources } from 'aidcanvas'
-import type { CanvasModel } from 'aidcanvas/model'
-import { CANVAS_IO_CAPABILITIES, type CanvasExportOptions, type CanvasIOProgress, type CanvasIOWarning } from 'aidcanvas/io'
+import { CanvasEditor, type CanvasEditorRef, type CanvasResource, type CanvasEditorResources } from '@smartdoca/canvas'
+import type { CanvasModel } from '@smartdoca/canvas/model'
+import { CANVAS_IO_CAPABILITIES, type CanvasExportOptions, type CanvasIOProgress, type CanvasIOWarning } from '@smartdoca/canvas/io'
 import { downloadCanvasFile } from './workflow'
-import 'aidcanvas/style.css'
+import '@smartdoca/canvas/style.css'
 
 export function HostCanvas(props: {
   model: CanvasModel // Restored once by the host, including outbox subscription and remote updates.
   resources: CanvasEditorResources
+  previewResource?: (resource: CanvasResource) => void
   canEdit: boolean
   showWarnings(warnings: CanvasIOWarning[]): void
   reportError(error: unknown): void
@@ -34,19 +35,12 @@ export function HostCanvas(props: {
     props.showWarnings(result.warnings)
     downloadCanvasFile(result)
   })
-  return <section onDragOver={event => { if (event.dataTransfer.types.includes('Files')) event.preventDefault() }}
-    onDrop={event => {
-      const file = event.dataTransfer.files[0]
-      if (file && editor.current) { event.preventDefault(); void insert(file, editor.current.clientToScene({ x: event.clientX, y: event.clientY })) }
-    }} onPaste={event => {
-      const file = event.clipboardData.files[0]
-      if (file) { event.preventDefault(); void insert(file) }
-    }}>
+  return <section>
     <input ref={picker} hidden type="file" accept={CANVAS_IO_CAPABILITIES.imports.flatMap(f => f.extensions).join(',')}
       onChange={event => { const file = event.target.files?.[0]; if (file) void insert(file); event.target.value = '' }} />
     {progress && <div role="status">{progress.phase}: {progress.completed}/{progress.total} <button onClick={() => pending.current?.abort()}>取消</button></div>}
     <button onClick={() => void exportFile({ format: 'png', scope: 'selection', background: 'transparent', scale: 2 })}>导出选区 PNG</button>
     <CanvasEditor ref={editor} model={props.model} hostManaged mode={props.canEdit ? 'edit' : 'readonly'}
-      resources={props.resources} onImportRequest={() => picker.current?.click()} onExportRequest={options => void exportFile(options)} />
+      resources={props.resources} onResourcePreview={props.previewResource} onImportRequest={() => picker.current?.click()} onExportRequest={options => void exportFile(options)} />
   </section>
 }

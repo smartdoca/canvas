@@ -1,0 +1,44 @@
+{
+  "date": "2026-10-17",
+  "scope": "current workspace source; isolated fixtures",
+  "ui": {
+    "uniqueScenarios": 87,
+    "repeatEach": 3,
+    "passed": 261,
+    "groups": [
+      {
+        "passed": 87,
+        "seconds": 78.33
+      },
+      {
+        "passed": 174,
+        "seconds": 247.66
+      }
+    ]
+  },
+  "hostAndCollaboration": {
+    "passed": 29,
+    "seconds": 84.9
+  },
+  "io": {
+    "passed": 9,
+    "seconds": 7.71
+  },
+  "modelSourceTests": {
+    "passed": 27
+  },
+  "performanceAndIdle": {
+    "passed": 3
+  },
+  "checks": {
+    "lintAndTypeScript": 3,
+    "examplesTypeScript": true,
+    "diffWhitespace": true
+  },
+  "notVerified": [
+    "production Doca asset-service integration",
+    "durable server ACK acceptance",
+    "published npm artifact"
+  ],
+  "latestAcceptance": "../interaction-polish/results.json"
+}

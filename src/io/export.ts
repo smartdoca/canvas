@@ -1,8 +1,12 @@
-import { Group, Text, PathConvert, type IUI, type IUIJSONData } from 'leafer-ui'
+import { Frame, Group, Text, PathConvert, type IUI, type IUIJSONData } from 'leafer-ui'
 import '@leafer-in/arrow'
-import rough from 'roughjs'
 import { CanvasModel, toPersistedCanvasScene, type SceneNode } from '../model'
-import { updateRoughGeometry } from '../editor/runtime/utils/roughStyle'
+import { enhanceRichText, richLayout } from '../editor/runtime/thinking/richText'
+import { taskCheckboxGeometry } from '../editor/runtime/thinking/richLists'
+import { richContainer } from '../editor/runtime/thinking/richBounds'
+import { syncPhoneFrame } from '../editor/runtime/thinking/phoneFrame'
+import type { CanvasResource } from '../sdk/types'
+import { connectorGeometry, type AnchorPoint } from '../editor/runtime/thinking/scene'
 import { parseCanvasFile } from './import'
 import { cancellable, checkAbort, dataUrl, decodeImage, limits, progress, safeFilename } from './common'
 import { CanvasIOError, type CanvasExportOptions, type CanvasExportResult, type CanvasExportSource, type CanvasIOWarning } from './types'
@@ -63,6 +67,8 @@ export async function exportCanvasFile(source: CanvasExportSource, options: Canv
   let assetBytes = 0, assetPixels = 0
   for (const node of nodes) {
     const id = String(node.id)
+    const route = node.data as Record<string, unknown> | undefined, from = route?.from as AnchorPoint | undefined, to = route?.to as AnchorPoint | undefined
+    if (route && ['connector', 'template-edge'].includes(String(route.kind)) && from && to && [from.x, from.y, to.x, to.y].every(Number.isFinite)) node.path = connectorGeometry(from, to, route).path
     // Effect support is explicit: these properties do not silently disappear.
     for (const key of ['mask', 'eraser', 'innerShadow', 'blur', 'backgroundBlur', 'blendMode']) {
       if (node[key] && node[key] !== 'normal') { warn('UNSUPPORTED_EFFECT_' + key, id); delete node[key] }
@@ -74,8 +80,12 @@ export async function exportCanvasFile(source: CanvasExportSource, options: Canv
     // No asset URL is assigned to a native element during layout/conversion.
     if (node.tag === 'Image') { node.url = ''; node.fill = null }
   }
-  progress(options, 'resources', 0, nodes.filter(n => n.tag === 'Image').length)
-  const images = nodes.filter(n => n.tag === 'Image')
+  const inlineImages: SceneNode[] = nodes.flatMap(node => {
+    const payload = (node.data as { richText?: { value?: { resource?: CanvasResource }[] } } | undefined)?.richText
+    return (payload?.value || []).filter(p => p.resource?.kind === 'image').map(p => ({ tag: 'Image', id: node.id, data: { resourcePath: p.resource!.path } }))
+  })
+  const images = [...nodes.filter(n => n.tag === 'Image'), ...inlineImages]
+  progress(options, 'resources', 0, images.length)
   for (let i = 0; i < images.length; i++) {
     const node = images[i], path = String((node.data as Record<string, unknown>)?.resourcePath || '')
     if (!path || !options.readAsset) throw new CanvasIOError('ASSET_READER_REQUIRED')
@@ -97,7 +107,8 @@ export async function exportCanvasFile(source: CanvasExportSource, options: Canv
   const group = new Group({ children: scene.children as IUIJSONData[] })
   try {
     const normalize = (items: IUI[]) => items.forEach(item => {
-      if (item.data?.roughMode) updateRoughGeometry(item, false)
+      if (item instanceof Text) enhanceRichText(item)
+      if (item instanceof Frame && item.data?.containerType === 'phone') syncPhoneFrame(item)
       if (item.children) normalize(item.children)
     })
     normalize(group.children)
@@ -141,7 +152,29 @@ export async function exportCanvasFile(source: CanvasExportSource, options: Canv
         warn('FONT_NOT_EMBEDDED_SYSTEM_FALLBACK', item.id)
         const font = String(data.fontFamily || 'Arial').replace(/[<>]/g, '') + ', sans-serif'
         const textElement = el('text', { fill, stroke, 'stroke-width': data.strokeWidth ?? 1, 'font-family': font, 'font-size': data.fontSize || 12, 'font-weight': data.fontWeight || 'normal', 'font-style': data.italic ? 'italic' : 'normal', 'xml:space': 'preserve', 'text-decoration': data.textDecoration === 'none' ? undefined : data.textDecoration })
-        for (const row of text.textDrawData.rows) {
+        const rich = richLayout(text, Boolean(richContainer(text)))
+        if (richContainer(text)) { const clip = id(), clipping = el('clipPath', { id: clip }); clipping.append(el('rect', { x: 0, y: 0, width: text.width, height: text.height })); defs.append(clipping); wrapper.setAttribute('clip-path', `url(#${clip})`) }
+        if (rich) for (const m of rich.media) {
+          if (m.resource.kind === 'image') wrapper.append(el('image', { href: assets.get(m.resource.path), x: m.x, y: m.y, width: m.width, height: m.height, preserveAspectRatio: 'xMidYMid meet' }))
+          else {
+            wrapper.append(el('rect', { x: m.x, y: m.y, width: m.width, height: m.height, rx: 5, fill: '#f2f5fa' }))
+            const name = el('text', { x: m.x + 8, y: m.y + 22, fill: '#1f2329', 'font-size': 12 }); name.textContent = m.resource.name || m.resource.path; wrapper.append(name)
+          }
+        }
+        if (rich) for (const d of rich.decorations) wrapper.append(el('rect', { x: d.x, y: d.y, width: d.width, height: d.height, fill: d.color }))
+        if (rich) for (const c of rich.checkboxes) {
+          const geometry = taskCheckboxGeometry(c)
+          wrapper.append(el('rect', { x: geometry.x, y: geometry.y, width: geometry.size, height: geometry.size, rx: geometry.radius, fill: c.checked ? '#3370ff' : '#ffffff', stroke: c.checked ? '#3370ff' : '#bbbfc4', 'stroke-width': geometry.border }))
+          if (c.checked) wrapper.append(el('polyline', { points: geometry.points.map(point => point.join(',')).join(' '), fill: 'none', stroke: '#ffffff', 'stroke-width': geometry.checkWidth, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }))
+        }
+        if (rich) for (const glyph of rich.glyphs) {
+          if (glyph.background) wrapper.append(el('rect', { x: glyph.x, y: glyph.y - glyph.size, width: glyph.width, height: glyph.size * 1.25, fill: glyph.background }))
+          const span = el('tspan', { x: glyph.x, y: glyph.y, fill: glyph.color, style: `font:${glyph.font}`, 'text-decoration': [glyph.underline ? 'underline' : '', glyph.strike ? 'line-through' : ''].filter(Boolean).join(' ') || 'none' })
+          span.textContent = glyph.text
+          if (glyph.url) { const link = el('a', { href: glyph.url, target: '_blank', rel: 'noopener noreferrer' }); link.append(span); textElement.append(link) }
+          else textElement.append(span)
+        }
+        else for (const row of text.textDrawData.rows) {
           if (row.text !== undefined) { const span = el('tspan', { x: row.x || 0, y: row.y || 0 }); span.textContent = row.text; textElement.append(span) }
           else for (const char of row.data || []) { const span = el('tspan', { x: char.x || 0, y: row.y || 0 }); span.textContent = char.char || ''; textElement.append(span) }
         }
@@ -153,20 +186,7 @@ export async function exportCanvasFile(source: CanvasExportSource, options: Canv
         const clip = id(), clipping = el('clipPath', { id: clip }); clipping.append(el('path', { d: item.getPathString(true, false) })); defs.append(clipping)
         wrapper.append(el('image', { href, x: 0, y: 0, width: item.width, height: item.height, preserveAspectRatio: 'none', 'clip-path': `url(#${clip})` }))
       } else if (item.tag !== 'Group') {
-        if (item.data?.roughMode && item.data?.roughFillStyle !== 'solid' && typeof item.data?.roughOriginalFill === 'string') {
-          const patternId = id(), box = item.getBounds('box', 'inner')
-          const w = Math.max(48, Math.min(1024, Math.round(box.width * Math.abs(Number(item.scaleX ?? 1))))), h = Math.max(48, Math.min(1024, Math.round(box.height * Math.abs(Number(item.scaleY ?? 1)))))
-          const pattern = el('pattern', { id: patternId, patternUnits: 'userSpaceOnUse', x: box.x, y: box.y, width: Math.max(1, box.width), height: Math.max(1, box.height), viewBox: `0 0 ${w} ${h}`, preserveAspectRatio: 'none' })
-          const g = rough.generator(), seed = Number(item.data.roughSeed || 1), c = paint(item.data.roughOriginalFill), style = String(item.data.roughFillStyle || 'hachure')
-          const factor = Math.max(0.55, Math.min(2.4, Math.min(w, h) / 160)), gap = factor * 12
-          const add = (drawable: ReturnType<typeof g.rectangle>) => g.toPaths(drawable).forEach(p => pattern.append(el('path', { d: p.d, fill: p.fill || 'none', stroke: p.stroke || 'none', 'stroke-width': p.strokeWidth })))
-          if (style === 'dots') {
-            let state = seed | 0
-            const random = () => { state ^= state << 13; state ^= state >>> 17; state ^= state << 5; return ((state >>> 0) % 10000) / 10000 }
-            for (let yy = -gap; yy <= h + gap; yy += gap) for (let xx = -gap; xx <= w + gap; xx += gap) add(g.circle(xx + (random() - 0.5) * gap / 2, yy + (random() - 0.5) * gap / 2, 4.5 * factor, { seed: Math.floor(random() * 2_000_000_000) + 1, roughness: 0.55, stroke: 'none', fill: c, fillStyle: 'solid' }))
-          } else add(g.rectangle(-8, -8, w + 16, h + 16, { seed, roughness: 0.55, bowing: 0.45, stroke: 'none', fill: c, fillStyle: style === 'zigzag-line' ? 'zigzag' : style, fillWeight: 1.2 * factor, hachureAngle: -43, hachureGap: gap, zigzagOffset: gap, disableMultiStrokeFill: false }))
-          defs.append(pattern); shape.setAttribute('fill', `url(#${patternId})`)
-        }
+
         wrapper.append(shape)
         // Leafer 2.1 adapter: closed/filled arrow heads are separate from the public render path.
         const arrows = item.__ as unknown as { __startArrowPath?: { data: number[]; fill: boolean }; __endArrowPath?: { data: number[]; fill: boolean } }

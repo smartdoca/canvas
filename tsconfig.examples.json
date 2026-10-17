@@ -1,5 +1,5 @@
 {
   "extends": "./tsconfig.app.json",
-  "compilerOptions": { "noEmit": true },
+  "compilerOptions": { "noEmit": true, "paths": { "@smartdoca/canvas": ["./src/index.ts"], "@smartdoca/canvas/model": ["./src/model/index.ts"], "@smartdoca/canvas/io": ["./src/io/index.ts"] } },
   "include": ["examples/doca/DocaCanvas.tsx", "examples/io/**/*.ts", "examples/io/**/*.tsx"]
 }

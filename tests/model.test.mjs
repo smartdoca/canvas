@@ -63,6 +63,50 @@ const node = (model, id) => {
   return visit(model.getValue().scene)
 }
 
+test('reused remote validation stays atomic after local edits, rejection, duplicates and checkpoint recovery', () => {
+  const a = CanvasModel.initialize('validation-cache', { version: 1, scene: { children: Array.from({ length: 1000 }, (_, i) => ({ id: `v-${i}`, tag: i ? 'Rect' : 'Text', ...(i ? { x: i } : { text: '起点' }) })) } })
+  const b = CanvasModel.restore(a.checkpoint()), qa = [], qb = []
+  a.onLocalUpdate(update => qa.push(update)); b.onLocalUpdate(update => qb.push(update))
+  for (let i = 0; i < 12; i++) {
+    a.patch('v-1', { x: 100 + i }); b.patch('v-2', { y: 200 + i })
+    for (const update of qa.splice(0)) { b.applyUpdate(update); b.applyUpdate(update) }
+    for (const update of qb.splice(0)) a.applyUpdate(update)
+    assert.deepEqual(a.getValue(), b.getValue())
+    assert.equal(qa.length + qb.length, 0)
+  }
+  const before = b.checkpoint(), revision = b.revision, bad = new Y.Doc()
+  Y.applyUpdate(bad, before.update)
+  bad.transact(() => { const props = bad.getMap('elements').get('v-1').get('props'); props.set('x', 999); props.set('unexpected', true) })
+  assert.throws(() => b.applyUpdate({ ...before, update: Y.encodeStateAsUpdate(bad) }), /UNKNOWN_ELEMENT_PROPERTY/)
+  assert.deepEqual(b.checkpoint(), before); assert.equal(b.revision, revision); assert.equal(qb.length, 0)
+  a.editText('v-0', 0, 0, '有效')
+  b.applyUpdate(qa.pop()); assert.deepEqual(a.getValue(), b.getValue())
+  const session = b.startTextSession('v-0')
+  a.editText('v-0', 0, 0, '远端'); b.applyUpdate(qa.pop())
+  assert.equal(session.sync().text, '远端有效起点')
+  session.commit('远端有效起点 本地'); for (const update of qb.splice(0)) a.applyUpdate(update)
+  assert.deepEqual(a.getValue(), b.getValue())
+  const restored = CanvasModel.restore(b.checkpoint()); assert.deepEqual(restored.getValue(), a.getValue())
+  session.dispose(); restored.dispose(); bad.destroy(); a.dispose(); b.dispose()
+})
+
+test('scene adapter caches only validated content and rejects caller mutations without partial writes', () => {
+  const model = CanvasModel.initialize('adapter-cache', initial)
+  let base = model.getValue().scene
+  for (let i = 0; i < 5; i++) { const next = structuredClone(base); next.children[0].x = i + 10; model.applyScene(next, base); base = next }
+  const before = model.checkpoint()
+  base.children[1].unknown = true
+  assert.throws(() => model.applyScene(structuredClone(base), base), /UNKNOWN_ELEMENT_PROPERTY/)
+  assert.deepEqual(model.checkpoint(), before)
+  delete base.children[1].unknown
+  const bad = structuredClone(base); bad.children[0].x = 999; bad.children[1].width = 'wrong'
+  assert.throws(() => model.applyScene(bad, base), /INVALID_PROPERTY_TYPE/)
+  assert.deepEqual(model.checkpoint(), before)
+  const next = structuredClone(base); next.children[0].x = 88
+  model.applyScene(next, base); assert.equal(node(model, 'r1').x, 88)
+  model.dispose()
+})
+
 test('targeted patch equals formal scene adapter, is atomic on invalid fields and keeps caller data isolated', () => {
   const a = CanvasModel.initialize('patch-perf', { version: 1, scene: { children: [{ id: 'r', tag: 'Rect', fill: 'red', x: 1 }, { id: 't', tag: 'Text', text: '中文' }] } })
   const b = CanvasModel.restore(a.checkpoint())

@@ -1,18 +1,19 @@
 import { useRef } from 'react'
-import { CanvasEditor, type CanvasAnchorDecoration, type CanvasEditorRef, type CanvasEditorResources, type CanvasSaveStatus } from 'aidcanvas'
-import type { SessionSelection } from 'aidcanvas/model'
+import { CanvasEditor, type CanvasAnchorDecoration, type CanvasEditorRef, type CanvasResource, type CanvasEditorResources, type CanvasSaveStatus } from '@smartdoca/canvas'
+import type { SessionSelection } from '@smartdoca/canvas/model'
 import type { createDocaCanvasSession, DocaRuntime } from './session'
-import 'aidcanvas/style.css'
+import '@smartdoca/canvas/style.css'
 
 export function DocaCanvas(props: {
   session: ReturnType<typeof createDocaCanvasSession>
   runtime: DocaRuntime
   resources: CanvasEditorResources
+  previewResource?: (resource: CanvasResource) => void
   sessionId: string
   peers: SessionSelection[]
   canEdit: boolean
   canComment: boolean
-  createComment(anchor: import('aidcanvas/model').ElementAnchor): void
+  createComment(anchor: import('@smartdoca/canvas/model').ElementAnchor): void
   openComments(): void
   saveStatus: CanvasSaveStatus
   anchors: CanvasAnchorDecoration[]
@@ -24,7 +25,7 @@ export function DocaCanvas(props: {
     mode={props.canEdit ? 'edit' : 'readonly'} saveStatus={props.saveStatus}
     sessionId={props.sessionId} remoteSelections={props.peers}
     onPresenceChange={props.runtime.publishSelection}
-    resources={props.resources} onError={props.runtime.reportError}
+    resources={props.resources} onResourcePreview={props.previewResource} onError={props.runtime.reportError}
     anchors={props.anchors} activeAnchorId={props.activeAnchorId}
     onAnchorClick={event => props.activateComment(event.anchorId)}
     showHeader={false}

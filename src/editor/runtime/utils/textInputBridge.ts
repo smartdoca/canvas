@@ -1,13 +1,14 @@
 import type { App, IUI } from 'leafer-ui'
 import { InnerEditorEvent } from '@leafer-in/editor'
-import type { CanvasModel, CanvasTextSession, TextSelection } from '../../../model'
+import type { CanvasModel, CanvasTextSession, Json, TextSelection } from '../../../model'
 
-type NativeTextEditor = { editDom?: HTMLDivElement; editTarget?: IUI & { text: string } }
+type NativeTextEditor = { editDom?: HTMLDivElement; editTarget?: IUI & { text: string }; getPlainText?: () => string; getRichText?: () => Json | undefined; projectText?: (text: string, selection?: TextSelection) => void; getSelection?: () => TextSelection | undefined; requestFlush?: () => void; requestUndo?: () => void; requestRedo?: () => void }
 
 /** Keep the native editor's displayed CRDT branch independent during IME composition. */
-export function createTextInputBridge(app: App, getModel: () => CanvasModel | undefined, local: (fn: () => void) => void) {
-  let binding: CanvasTextSession | undefined, native: NativeTextEditor | undefined, composing = false
+export function createTextInputBridge(app: App, getModel: () => CanvasModel | undefined, local: (fn: () => void) => void, standaloneFlush?: () => void) {
+  let binding: CanvasTextSession | undefined, native: NativeTextEditor | undefined, composing = false, flushing = false
   const selection = (): TextSelection | undefined => {
+    if (native?.getSelection) return native.getSelection()
     const dom = native?.editDom, s = window.getSelection()
     if (!dom || !s?.anchorNode || !s.focusNode || !dom.contains(s.anchorNode) || !dom.contains(s.focusNode)) return
     const offset = (node: Node, at: number) => { const r = document.createRange(); r.selectNodeContents(dom); r.setEnd(node, at); return r.toString().length }
@@ -25,21 +26,36 @@ export function createTextInputBridge(app: App, getModel: () => CanvasModel | un
     window.getSelection()?.setBaseAndExtent(...point(s.anchor), ...point(s.focus))
   }
   const flush = () => {
-    if (composing) return
-    if (binding && native?.editDom) local(() => { binding!.commit(native!.editDom!.innerText) })
+    if (composing || !binding || !native?.editDom) return
+    const model = getModel()
+    if (model && !flushing) {
+      flushing = true
+      try {
+        local(() => model.flush())
+        // React can remove the model's view hook before the native editor unloads.
+        // A second commit is a no-op during normal flushes and retains the last
+        // draft when that hook is already gone during unmount.
+        if (binding && native?.editDom) local(() => binding!.commit(native!.getPlainText?.() ?? native!.editDom!.innerText, native!.getRichText ? { richText: native!.getRichText() } : undefined))
+      } finally { flushing = false }
+      return
+    }
+    if (binding && native?.editDom) local(() => { binding!.commit(native!.getPlainText?.() ?? native!.editDom!.innerText, native!.getRichText ? { richText: native!.getRichText() } : undefined) })
   }
   const sync = () => {
     if (!binding || !native?.editDom || composing) return
     const result = binding.sync(selection())
     if (result.deleted) return
-    if (native.editDom.innerText !== result.text) {
+    if (native.projectText) native.projectText(result.text, result.selection)
+    else if (native.editDom.innerText !== result.text) {
       native.editDom.innerText = result.text
       if (result.selection) restoreSelection(result.selection)
     }
     if (native.editTarget) native.editTarget.text = result.text
   }
   const startComposition = () => { composing = true }
-  const endComposition = () => { composing = false; flush(); sync() }
+  // Slate commits composition text in its delegated React handler, after the
+  // native DOM event. Wait until that handler has run before reading its value.
+  const endComposition = () => { const editor = native; window.setTimeout(() => { if (native === editor) { composing = false; flush(); sync() } }, 0) }
   const beforeClose = () => { composing = false; flush(); sync() }
   const close = () => {
     native?.editDom?.removeEventListener('compositionstart', startComposition)
@@ -62,9 +78,12 @@ export function createTextInputBridge(app: App, getModel: () => CanvasModel | un
     native.editDom.addEventListener('compositionstart', startComposition)
     native.editDom.addEventListener('compositionend', endComposition)
     native.editDom.addEventListener('keydown', keydown, true)
+    native.requestFlush = model ? flush : standaloneFlush
     if (model) {
       model.flush() // New native text nodes acquire their stable ID before binding.
       binding = model.startTextSession(native.editTarget.id!)
+      native.requestUndo = () => { model.undo() }
+      native.requestRedo = () => { model.redo() }
     }
   }
   const ids = app.editor.on_([[InnerEditorEvent.OPEN, open], [InnerEditorEvent.BEFORE_CLOSE, beforeClose], [InnerEditorEvent.CLOSE, close]])

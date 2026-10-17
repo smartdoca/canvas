@@ -1,6 +1,6 @@
 {
   "name": "@smartdoca/canvas",
-  "version": "0.4.3",
+  "version": "0.5.0",
   "description": "A focused, local-first vector canvas editor built with React and LeaferJS",
   "license": "MIT",
   "keywords": [
@@ -25,10 +25,11 @@
     "preview": "vite preview",
     "prepack": "yarn run check && yarn build:lib",
     "type-check": "tsc -p tsconfig.app.json --noEmit",
-    "test:model": "node --test tests/model.test.mjs",
+    "test:model": "node --test tests/model.test.mjs tests/rich-presence.test.mjs",
     "test:browser": "playwright test",
     "bench:model": "node tests/performance/model.mjs",
     "bench:browser": "node tests/performance/browser.mjs",
+    "bench:collaboration": "node tests/performance/collaboration.mjs",
     "bench:assets": "node tests/performance/assets.mjs",
     "test": "yarn build:lib && yarn test:model && yarn test:browser",
     "check:examples": "tsc -p tsconfig.examples.json --noEmit"
@@ -38,8 +39,11 @@
   "types": "./dist/types/index.d.ts",
   "files": [
     "dist",
-    "docs",
+    "docs/*.md",
+    "docs/performance",
     "README.md",
+    "README.zh-CN.md",
+    "CHANGELOG.md",
     "examples",
     "LICENSE"
   ],
@@ -72,13 +76,21 @@
     "@leafer-in/arrow": "2.1.0",
     "@leafer-in/editor": "2.1.0",
     "@leafer-in/export": "2.1.0",
+    "@leafer-in/interface": "2.1.0",
     "@leafer-in/resize": "2.1.0",
     "@leafer-in/text-editor": "2.1.0",
     "@leafer-in/view": "2.1.0",
     "@leafer-in/viewport": "2.1.0",
+    "@leafer-ui/core": "2.1.0",
+    "@leafer-ui/draw": "2.1.0",
+    "@leafer-ui/interface": "2.1.0",
+    "@leafer/interface": "2.1.0",
     "cropperjs": "^2.1.1",
     "leafer-ui": "2.1.0",
-    "roughjs": "^4.6.6",
+    "slate": "0.118.1",
+    "slate-dom": "0.118.1",
+    "slate-history": "0.113.1",
+    "slate-react": "0.118.2",
     "yjs": "13.6.27"
   },
   "devDependencies": {

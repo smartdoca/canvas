@@ -8,7 +8,7 @@ interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 export function IconButton({ label, icon, active, danger, className = '', ...props }: IconButtonProps) {
-  return <button data-tooltip={label} title={label} aria-label={label} className={`icon-button ${active ? 'is-active' : ''} ${danger ? 'is-danger' : ''} ${className}`} {...props}>{icon}</button>
+  return <button type="button" data-tooltip={label} title={label} aria-label={label} aria-pressed={active === undefined ? undefined : active} className={`icon-button ${active ? 'is-active' : ''} ${danger ? 'is-danger' : ''} ${className}`} {...props}>{icon}<span className="icon-button-caption">{label.replace(/\s*\(.*\)$/, '')}</span></button>
 }
 
 export function CircleToolIcon() {

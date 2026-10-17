@@ -11,6 +11,7 @@ const registerEvent = (param: RegisterEventFuncParam) => {
         if (param.canEdit?.() === false || app.mode !== 'normal' || app.editor.list.length > 0) {
             return
         }
+        if (e.target !== app && e.target !== app.tree && e.target !== app.ground) return
 
         app.mode = 'draw'
         const styleParams = getTextStyleParams()

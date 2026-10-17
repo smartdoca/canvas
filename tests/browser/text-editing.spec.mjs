@@ -1,6 +1,10 @@
 import { test, expect } from './fixtures.mjs'
 
 async function open(page) {
+  await page.context().route('**/examples/doca/main.jsx', async route => {
+    const response = await route.fetch()
+    await route.fulfill({ response, body: (await response.text()).replaceAll('/dist/index.js', '/src/index.ts').replaceAll('/dist/model.js', '/src/model/index.ts').replaceAll('/dist/io.js', '/src/io/index.ts').replaceAll('/dist/index.css', '/src/index.css') })
+  })
   await page.goto('/examples/doca/')
   await page.waitForFunction(() => window.demo?.handle)
 }
@@ -31,12 +35,13 @@ for (const creation of ['double-click', 'toolbar']) {
     await page.keyboard.press('End')
     await page.keyboard.press('Enter')
     await page.keyboard.insertText('第二行')
-    await expect(input).toHaveCSS('line-height', '21px')
+    await expect(input).toHaveCSS('line-height', '24px')
     await page.evaluate(() => window.demo.handle.flush())
     const created = (await texts(page)).find(node => node.id !== 'text-a')
     expect(created.text.replaceAll('\u200b', '')).toBe('导入用户照片\n第二行')
     await page.keyboard.press('Escape')
     await expect(page.locator('.canvas-app')).toBeFocused()
+    await page.getByRole('button', { name: '更多样式', exact: true }).click()
     await setSlider(page, '行高', 12)
     await setSlider(page, '字体大小', 18)
     await page.evaluate(() => window.demo.handle.flush())

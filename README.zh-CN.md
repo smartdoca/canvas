@@ -17,7 +17,11 @@ import { CanvasEditor } from "@smartdoca/canvas";
 import { CanvasModel } from "@smartdoca/canvas/model";
 import "@smartdoca/canvas/style.css";
 
-const model = new CanvasModel();
+// 挂载前创建一次新的本地文档。
+const model = CanvasModel.initialize(crypto.randomUUID(), {
+  version: 1,
+  scene: { children: [] },
+});
 
 export function Canvas() {
   return <CanvasEditor model={model} hostManaged mode="edit" />;
@@ -25,6 +29,15 @@ export function Canvas() {
 ```
 
 一份文档会话只保留一个 `CanvasModel`。选区或只读变化时不要新建模型。
+
+已有文档使用 `CanvasModel.restore(checkpoint)` 恢复宿主提供的权威 checkpoint。协同宿主只创建一次权威 epoch，并向各会话分发同一 checkpoint。详见[协同接入](docs/COLLABORATION.md)和 [0.5.0 更新记录](CHANGELOG.md)。
+
+## 0.5.0 画布能力
+
+- 思维导图、流程图与连接点、可编辑模板、容器、便笺、卡片和表格；富文本支持段落、列表、局部格式、图片、附件和自定义原子块。
+- 画笔提供 1.5、3、5、8、12、20 六档粗细，修复首笔卡死和落笔后位置漂移。
+- 框选只选择完全包含的内容；删除保留未选中的连线。删除思维导图父主题时递归删除子主题。修复删除、撤销后无法再次选择。
+- 优化大场景投影、远端更新校验和批量选择；`yarn bench:collaboration` 覆盖 1000、5000、10000 元素双页面离线编辑、重复回放、只读与收敛。结果使用模拟宿主传输，见[性能报告](docs/performance/collaboration-2026-10-17.txt)。
 
 ## Props
 
@@ -39,11 +52,13 @@ export function Canvas() {
 | `onChange` | `(value, meta) => void` | `meta.source` 为 `local`、`api` 或 `remote`。只有 `local` 应该保存。 |
 | `sessionId` | `string` | 当前标签的会话。 |
 | `remoteSelections` | `SessionSelection[]` | 临时的远端选区。 |
-| `onPresenceChange` | function | 用于在线状态的本地元素选区。它不是内容写入。 |
+| `onPresenceChange` | function | 本地元素选区、画布指针与可选的 epoch 相对文字选区，不产生内容写入。 |
 | `anchors` | `CanvasAnchorDecoration[]` | 永久的元素评论，独立于选区和在线状态。 |
 | `activeAnchorId` | `string \| null` | 高亮的锚点。 |
 | `onAnchorClick` | function | 锚点装饰被激活。 |
-| `resources` | `CanvasEditorResources` | 远程图片需要 `resolveUrl`。`readImage` 为导出返回原始字节。 |
+| `resources` | `CanvasEditorResources` | 宿主提供 `uploadImage`、`uploadAttachment`、`resolveUrl`、`resolveDownloadUrl`；`readImage` 为导出提供授权字节。 |
+| `onResourcePreview` | `(CanvasResource) => void` | 由宿主预览图片和附件，接收稳定资源信息。 |
+| `richTextExtensions` | `CanvasRichTextExtension[]` | 富文本自定义原子块，序列化 JSON 与可读 label。 |
 | `saveStatus` | `CanvasSaveStatus` | 宿主保存状态。传入后，编辑器显示这个值。 |
 | `onSaveRequest` | function | 包请求宿主保存时调用。 |
 | `locale` | `string` | `zh` 或 `en`。省略为中文。未知代码使用英文。 |

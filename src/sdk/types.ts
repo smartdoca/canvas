@@ -1,7 +1,7 @@
 import type { CSSProperties, FC, ReactNode } from 'react'
 import type { IUIJSONData } from 'leafer-ui'
 import type { CanvasDocument } from '../editor/core/document'
-import type { CanvasModel, ElementAnchor, SessionSelection } from '../model'
+import type { CanvasModel, ElementAnchor, SessionSelection, CanvasPresence } from '../model'
 import type { CanvasExportOptions, CanvasExportResult, CanvasInsertOptions, CanvasInsertResult, CanvasIOOptions } from '../io/types'
 
 export type CanvasValue = CanvasDocument
@@ -41,6 +41,20 @@ export interface CanvasElementExtension {
   properties?: CanvasElementProperty[]
 }
 
+/** Atomic custom blocks embedded in a rich text surface. Persist JSON only. */
+export interface CanvasRichTextElement {
+  id: string
+  type: string
+  label: string
+  data: import('../model').Json
+}
+export interface CanvasRichTextExtension {
+  type: string
+  label: string
+  create: (data?: import('../model').Json) => { label: string; data: import('../model').Json }
+  render: (context: { element: CanvasRichTextElement; selected: boolean; onChange: (data: import('../model').Json, label?: string) => void }) => ReactNode
+}
+
 export interface CanvasSelectionActionContext {
   selection: CanvasElement[]
   getValue: () => CanvasValue
@@ -77,8 +91,14 @@ export interface CanvasImageResource {
   height?: number
 }
 
+export interface CanvasResource extends CanvasImageResource {
+  kind: 'image' | 'attachment'
+  id: string
+}
+
 export interface CanvasEditorResources {
   uploadImage?: (file: Blob, context: CanvasResourceUploadContext) => Promise<CanvasImageResource>
+  uploadAttachment?: (file: Blob, context: CanvasResourceUploadContext) => Promise<CanvasImageResource>
   resolveUrl: (path: string, context: { signal?: AbortSignal }) => string | Promise<string>
   resolveDownloadUrl?: (path: string, context: { signal?: AbortSignal }) => string | Promise<string>
   /** Host authorizes and returns original bytes for self-contained export; converter never fetches URLs. */
@@ -122,7 +142,7 @@ export interface CanvasEditorCapabilities {
   anchorDecorations: boolean
   revealElements: true
   textRangeAnchors: false
-  characterPresence: false
+  characterPresence: boolean
 }
 
 export interface CanvasEditorProps {
@@ -131,7 +151,7 @@ export interface CanvasEditorProps {
   hostManaged?: boolean
   sessionId?: string
   remoteSelections?: SessionSelection[]
-  onPresenceChange?: (selection: { elementIds: string[] } | null) => void
+  onPresenceChange?: (selection: CanvasPresence | null) => void
   /** Permanent element-comment decorations, independent from native selection and presence. */
   anchors?: CanvasAnchorDecoration[]
   activeAnchorId?: string | null
@@ -141,6 +161,7 @@ export interface CanvasEditorProps {
   defaultValue?: CanvasValue
   onChange?: (value: CanvasValue, meta: CanvasChangeMeta) => void
   customShapes?: CustomShapeDefinition[]
+  richTextExtensions?: CanvasRichTextExtension[]
   elementExtensions?: CanvasElementExtension[]
   selectionActions?: CanvasSelectionAction[]
   /** Top host-owned actions; available without selection and with showToolbar=false.
@@ -150,6 +171,8 @@ export interface CanvasEditorProps {
   onImportRequest?: () => void
   onExportRequest?: (options: Pick<CanvasExportOptions, 'format'>) => void
   resources?: CanvasEditorResources
+  /** Host owns preview UI and permissions. The document contains only stable resource metadata. */
+  onResourcePreview?: (resource: CanvasResource) => void | Promise<void>
   /** Called by the built-in image download action. The host owns the download when supplied. */
   onImageDownload?: (context: CanvasImageDownloadContext) => void | Promise<void>
   /** Host-owned save state. When supplied it is the displayed source of truth. */
@@ -215,8 +238,10 @@ export interface CanvasEditorRef {
   addElement: (element: IUIJSONData) => CanvasElement | null
   addCustomShape: (type: string, options?: { x?: number; y?: number; width?: number; height?: number }) => CanvasElement | null
   addExtensionElement: (type: string, bounds?: CanvasElementBounds) => CanvasElement | null
+  insertRichTextElement: (type: string, data?: import('../model').Json) => boolean
   addImage: (path: string, options?: AddImageOptions) => Promise<CanvasElement | null>
   insertImageFile: (file: Blob, options?: CanvasInsertOptions) => Promise<CanvasInsertResult>
+  insertAttachmentFile: (file: Blob, options?: CanvasInsertOptions) => Promise<CanvasInsertResult>
   exportFile: (options: CanvasExportOptions) => Promise<CanvasExportResult>
   find: (query: string, options?: CanvasFindOptions) => CanvasTextMatch[]
   reveal: (match: CanvasTextMatch) => boolean

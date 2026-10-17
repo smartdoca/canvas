@@ -1,0 +1,144 @@
+import { test, expect } from './fixtures.mjs'
+
+const saved = page => page.evaluate(() => JSON.parse(localStorage.getItem('aidcanvas.document') || '{"scene":{"children":[]}}').scene.children)
+async function open(page) {
+  await page.goto('/')
+  await page.locator('.canvas-view canvas').first().waitFor()
+}
+async function draw(page, start = [320, 240], end = [530, 380]) {
+  await page.mouse.move(...start); await page.mouse.down()
+  await page.mouse.move(...end, { steps: 12 }); await page.mouse.up()
+}
+
+test('quick styles, overflow tool lifecycle, undo/redo, and context duplication', async ({ page }) => {
+  await open(page)
+  await page.getByRole('button', { name: '图形 (M)', exact: true }).click()
+  await page.getByRole('button', { name: '椭圆', exact: true }).click()
+  await expect(page.getByRole('menu', { name: '图形 (M)' })).toBeHidden()
+  await draw(page)
+  await page.getByRole('button', { name: '填充', exact: true }).click()
+  await page.getByRole('button', { name: '填充 #eaf1ff', exact: true }).click()
+  await page.getByRole('button', { name: '描边', exact: true }).click()
+  await page.getByRole('button', { name: '描边 #3370ff', exact: true }).click()
+  await expect.poll(async () => (await saved(page)).length).toBe(1)
+  expect((await saved(page))[0]).toMatchObject({ name: 'diagram-node', data: { shape: 'ellipse' } })
+  expect((await saved(page))[0].children[0]).toMatchObject({ stroke: '#3370ff', fill: '#eaf1ff' })
+  await page.locator('.canvas-host').click({ position: { x: 420, y: 310 }, button: 'right' })
+  await page.getByRole('menuitem', { name: '复制' }).click()
+  await expect.poll(async () => (await saved(page)).length).toBe(2)
+  await page.getByRole('button', { name: '撤销 (⌘Z)', exact: true }).click()
+  await expect.poll(async () => (await saved(page)).length).toBe(1)
+  await page.getByRole('button', { name: '重做 (⇧⌘Z)', exact: true }).click()
+  await expect.poll(async () => (await saved(page)).length).toBe(2)
+  await page.reload()
+  await expect.poll(async () => (await saved(page)).length).toBe(2)
+})
+
+test('note places selected, click enters rich editing and survives reload; grid, fit and help are usable', async ({ page }) => {
+  await open(page)
+  await page.getByRole('button', { name: '便笺 (N)', exact: true }).click()
+  await page.locator('.canvas-host').click({ position: { x: 440, y: 300 } })
+  await expect(page.locator('.selection-actions')).toBeVisible()
+  await page.locator('.canvas-host').click({ position: { x: 440, y: 300 } })
+  const input = page.locator('.leafer-text-editor')
+  await expect(input).toBeVisible()
+  await input.fill('想法从这里开始')
+  await page.locator('.canvas-host').click({ position: { x: 700, y: 470 } })
+  await expect.poll(async () => (await saved(page))[0]?.children?.[0]?.text).toBe('想法从这里开始')
+  await page.reload()
+  await expect.poll(async () => (await saved(page))[0]?.children?.[0]?.text).toBe('想法从这里开始')
+  await page.getByRole('button', { name: '主菜单', exact: true }).click()
+  await page.getByRole('menuitemcheckbox', { name: '显示网格' }).click()
+  await expect(page.locator('.canvas-stage')).toHaveClass(/has-grid/)
+  await page.getByRole('button', { name: '放大', exact: true }).click()
+  await expect(page.locator('.zoom-value')).toHaveText('120%')
+  await page.getByRole('button', { name: '缩放选项', exact: true }).click()
+  await page.getByRole('menuitem', { name: '适合画布' }).click()
+  await expect(page.locator('.zoom-value')).toHaveText('100%')
+  await page.getByRole('button', { name: '键盘快捷键', exact: true }).click()
+  await expect(page.getByRole('dialog', { name: '键盘快捷键' })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+})
+
+test('standalone image import is persistent and PNG/SVG exports download actual files', async ({ page }) => {
+  await open(page)
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==', 'base64')
+  await page.locator('input[type="file"]').last().setInputFiles({ name: 'red.png', mimeType: 'image/png', buffer: png })
+  await expect.poll(async () => (await saved(page))[0]?.tag).toBe('Image')
+  await page.reload()
+  await page.locator('.canvas-view canvas').first().waitFor()
+  for (const format of ['PNG', 'SVG']) {
+    await page.getByRole('button', { name: '导出', exact: true }).click()
+    const download = page.waitForEvent('download')
+    await page.getByRole('menuitem', { name: `导出 ${format}`, exact: true }).click()
+    const file = await download
+    expect(file.suggestedFilename()).toMatch(new RegExp(`\\.${format.toLowerCase()}$`))
+    expect(await file.failure()).toBeNull()
+  }
+})
+
+test('host readonly mode hides editing chrome and leaves navigation available', async ({ page }) => {
+  await page.route('**/examples/doca/main.jsx', async route => {
+    const response = await route.fetch()
+    const source = (await response.text()).replaceAll('/dist/index.js', '/src/index.ts').replaceAll('/dist/model.js', '/src/model/index.ts').replaceAll('/dist/io.js', '/src/io/index.ts').replaceAll('/dist/index.css', '/src/index.css')
+    await route.fulfill({ response, body: source })
+  })
+  await page.goto('/examples/doca/')
+  await page.waitForFunction(() => window.demo?.handle)
+  await page.evaluate(() => window.demo.setMode('readonly'))
+  await expect(page.locator('.canvas-toolbar')).toHaveCount(0)
+  await expect(page.locator('.property-wrap')).toHaveCount(0)
+  await page.locator('.canvas-host').click({ position: { x: 500, y: 350 }, button: 'right' })
+  await expect(page.getByRole('menuitem', { name: '删除' })).toHaveCount(0)
+  await page.getByRole('menuitem', { name: '适合画布' }).click()
+  expect(await page.evaluate(() => window.demo.allUpdates.length)).toBe(0)
+})
+
+test('failed local save preserves the drawing and explicit retry saves it', async ({ page }) => {
+  await page.addInitScript(() => {
+    const setItem = Storage.prototype.setItem
+    window.failCanvasSave = true
+    Storage.prototype.setItem = function(key, value) {
+      if (key === 'aidcanvas.document' && window.failCanvasSave) throw new DOMException('Storage unavailable', 'QuotaExceededError')
+      return setItem.call(this, key, value)
+    }
+  })
+  await open(page)
+  await page.getByRole('button', { name: '图形 (M)', exact: true }).click()
+  await draw(page)
+  await expect(page.locator('.save-status')).toHaveText('保存失败')
+  await expect(page.getByRole('button', { name: '撤销 (⌘Z)', exact: true })).toBeEnabled()
+  await page.evaluate(() => { window.failCanvasSave = false })
+  await page.getByRole('button', { name: '主菜单', exact: true }).click()
+  await page.getByRole('menuitem', { name: '保存', exact: false }).click()
+  await expect(page.locator('.save-status')).toHaveText('已保存')
+  expect((await saved(page)).length).toBe(1)
+  await page.reload()
+  expect((await saved(page)).length).toBe(1)
+})
+
+test('mobile toolbar keeps usable targets and inserts a native sticker', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await open(page)
+  const select = await page.getByRole('button', { name: '选择 (V / 1)', exact: true }).boundingBox()
+  expect(Math.round(select.width)).toBeGreaterThanOrEqual(40)
+  expect(Math.round(select.height)).toBeGreaterThanOrEqual(40)
+  await page.getByRole('button', { name: '展开更多工具', exact: true }).click()
+  await page.getByRole('button', { name: '图标与表情', exact: true }).click()
+  await page.getByRole('button', { name: '💡', exact: true }).click()
+  await page.locator('.canvas-host').click({ position: { x: 140, y: 430 } })
+  await expect.poll(async () => (await saved(page))[0]?.text).toBe('💡')
+})
+
+test('retired hand-drawn and primitive controls are absent; modern shapes expose native styles', async ({ page }) => {
+  await open(page)
+  await page.getByRole('button', { name: '图形 (M)', exact: true }).click()
+  await page.locator('.canvas-host').click({ position: { x: 500, y: 300 } })
+  await expect.poll(async () => (await saved(page))[0]?.data?.kind).toBe('diagram-node')
+  await page.getByRole('button', { name: '更多样式', exact: true }).click()
+  await expect(page.getByRole('button', { name: '手绘', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '交叉填充', exact: true })).toHaveCount(0)
+  await expect(page.locator('.board-legacy-grid .toolbar-tool')).toHaveCount(0)
+  expect((await saved(page))[0].data).not.toHaveProperty('roughMode')
+})

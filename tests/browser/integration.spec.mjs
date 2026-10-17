@@ -1,6 +1,10 @@
 import { test, expect } from './fixtures.mjs'
 
 async function open(page) {
+  await page.context().route('**/examples/doca/main.jsx', async route => {
+    const response = await route.fetch()
+    await route.fulfill({ response, body: (await response.text()).replaceAll('/dist/index.js', '/src/index.ts').replaceAll('/dist/model.js', '/src/model/index.ts').replaceAll('/dist/io.js', '/src/io/index.ts').replaceAll('/dist/index.css', '/src/index.css') })
+  })
   await page.goto('/examples/doca/')
   await page.waitForFunction(() => window.demo?.handle)
 }

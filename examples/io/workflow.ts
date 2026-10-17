@@ -1,6 +1,6 @@
-import type { CanvasEditorResources } from 'aidcanvas'
-import { createCanvasImportValue, parseCanvasFile, type CanvasExportResult, type CanvasIOOptions, type CanvasIOWarning } from 'aidcanvas/io'
-import type { ModelValue } from 'aidcanvas/model'
+import type { CanvasEditorResources } from '@smartdoca/canvas'
+import { createCanvasImportValue, parseCanvasFile, type CanvasExportResult, type CanvasIOOptions, type CanvasIOWarning } from '@smartdoca/canvas/io'
+import type { ModelValue } from '@smartdoca/canvas/model'
 
 /** Host workflow, NOT a converter or an operation on the currently open model. */
 export async function importAsNewCanvas(file: File, host: {
