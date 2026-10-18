@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.5 — 2026-10-18
+
+- Remove the code block action from shared rich-text paragraph menus in notes, cards, labels and table cells.
+- Scope rich inline elements and suggestion menus to the canvas root so their styles do not affect host pages.
+
 ## 0.5.4
 
 - Add native atomic inline extensions to rich notes, cards and table cells, with host-owned suggestions and authorized paste resolution.
