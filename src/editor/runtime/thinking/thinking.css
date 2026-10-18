@@ -438,3 +438,11 @@
 [data-aidcanvas] :is(.rich-heading-grid,.rich-quick-grid) { display: grid; grid-template-columns: repeat(5, 32px); justify-content: start; gap: 6px; padding: 3px 0 3px 8px; }
 [data-aidcanvas] :is(.rich-heading-grid,.rich-quick-grid) button { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 28px; min-width: 0; padding: 0; border: 1px solid #dee0e3; font-size: 12px; line-height: 1; text-align: center; }
 [data-aidcanvas] .rich-align-grid { grid-template-columns: repeat(4, 32px); }
+
+.rich-custom-inline { display:inline-block; max-width:100%; box-sizing:border-box; vertical-align:bottom; white-space:nowrap; padding:1px 4px; border-radius:4px; background:#eaf1ff; color:#245bdb; box-decoration-break:clone }
+.rich-custom-inline.is-selected { outline:1px solid #3370ff }
+.rich-custom-inline > [contenteditable=false] { display:inline-block; max-width:100%; vertical-align:bottom; overflow:hidden; text-overflow:ellipsis }
+.rich-inline-suggestions { position:fixed; z-index:100; width:280px; max-height:260px; overflow:auto; border:1px solid #dee0e3; border-radius:8px; background:#fff; box-shadow:0 6px 24px #1f232926; padding:4px; font:14px/1.5 Arial,sans-serif }
+.rich-inline-suggestions:empty { display:none }
+.rich-inline-suggestions button { display:block; width:100%; padding:8px 10px; border:0; border-radius:4px; text-align:left; color:#1f2329; background:transparent; cursor:pointer }
+.rich-inline-suggestions button[aria-selected=true] { background:#eaf1ff; color:#245bdb }

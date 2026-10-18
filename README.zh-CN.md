@@ -59,7 +59,7 @@ export function Canvas() {
 | `resources` | `CanvasEditorResources` | 宿主提供 `uploadImage`、`uploadAttachment`、`resolveUrl`、`resolveDownloadUrl`；`readImage` 为导出提供授权字节。 |
 | `onAttachmentPreview` | `(CanvasResource) => void \| Promise<void>` | 附件预览交给宿主，优先于 `onResourcePreview`。 |
 | `onResourcePreview` | `(CanvasResource) => void` | 由宿主预览图片和附件，接收稳定资源信息。 |
-| `richTextExtensions` | `CanvasRichTextExtension[]` | 富文本自定义原子块，序列化 JSON 与可读 label。 |
+| `richTextExtensions` | `CanvasRichTextExtension[]` | 富文本自定义原子块或 `inline: true` 行内原子节点，序列化 JSON 与可读 label。 |
 | `saveStatus` | `CanvasSaveStatus` | 宿主保存状态。传入后，编辑器显示这个值。 |
 | `onSaveRequest` | function | 包请求宿主保存时调用。 |
 | `locale` | `string` | `zh` 或 `en`。省略为中文。未知代码使用英文。 |
@@ -85,3 +85,5 @@ codec 名称是 `aidcanvas-yjs`。
 - `resources.readImage` 必须返回宿主已经授权的字节。导出器不会自己请求 URL。
 
 `@smartdoca/canvas/io` 负责 PNG 和 SVG 的导入导出。
+
+行内扩展可提供 `suggestions: {trigger, search(query, {signal})}`，以及 `matchPaste(text)` / `paste(text, {signal})`。宿主负责目录查询、用户卡片、文档标题和权限；画布负责候选菜单、活范围、插入、删除、复制和撤销。异步回调不会在目标关闭、删除或只读后插入。原生文本用一个 U+FFFC 标记表示每个原子节点；画布和导出显示保存的 label，纯文本复制显示可读文字。新节点不承诺旧客户端可识别；不迁移、回填或重写现有内容。

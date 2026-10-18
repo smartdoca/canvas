@@ -1,0 +1,7 @@
+# Native rich inline host integration — 2026-10-18
+
+Canvas 0.5.4 adds native inline atoms to `richTextExtensions`, alongside the existing block extensions. The host owns user directories, ACL checks, user cards, stable UUID references and authorized document title resolution. The package owns live ranges, suggestion menu keys, async cancellation, native clipboard/deletion/undo and canvas/readonly/export label rendering. Long labels fit their container, retain the complete title tooltip and full host hover renderer.
+
+Persisted rich paragraphs contain `{type:'inline',inline:{id,type,label,data},children:[{text:''}]}` and the authoritative Text contains one U+FFFC marker per atom. IDs regenerate on fragment paste; plain text copies use readable labels. Unknown extension types keep opaque JSON and their saved label. Existing schema-1 whole-field LWW metadata, model runtime, epochs, checkpoints and transport remain unchanged. The user approved new inline metadata without an older-client rendering guarantee; no conversion, migration or historical field backfill is introduced.
+
+Validation: lint, TypeScript, examples and library build; 30 model/presence tests; rich inline, attachment preview and resource browser regressions across notes/cards/table cells. The Doca host acceptance separately verifies the installed registry artifact, permissions, notifications/references and durable ACK. Example-host peer receipts are not server durability evidence.

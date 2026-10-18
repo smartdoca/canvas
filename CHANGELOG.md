@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.4
+
+- Add native atomic inline extensions to rich notes, cards and table cells, with host-owned suggestions and authorized paste resolution.
+- Preserve inline identity/data through clipboard, undo, checkpoints and peer projection; copy plain text as readable labels. Async insertion stays bound to the original live editable target.
+- Canvas rendering and export show saved labels; native hover previews use the host renderer in readonly and editing views.
+- Retain schema-1 transport and existing content unchanged. New inline metadata has no older-client rendering guarantee.
+
+
 ## 0.5.3 — 2026-10-18
 
 - Add host-owned `onAttachmentPreview(resource)` for canvas and rich attachments, with the existing `onResourcePreview` as the fallback. Read the current prop on every invocation and forward synchronous/asynchronous preview failures to `onError`.

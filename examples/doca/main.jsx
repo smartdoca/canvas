@@ -54,6 +54,21 @@ const resources = {
     return assetUrls.get(path) || pixel
   },
 }
+const richTextExtensions = [{
+  type: 'example:person', label: 'Mention', inline: true,
+  create: data => ({ label: '@' + data.name, data }),
+  render: ({ element }) => <a href={`#person/${element.data.userId}`}>{element.label}</a>,
+  suggestions: { trigger: '@', search: async query => [{ id: 'qa-person', label: 'Canvas QA', data: { userId: 'qa-person', name: 'Canvas QA' } }].filter(item => item.label.toLowerCase().includes(query.toLowerCase())) },
+}, {
+  type: 'example:reference', label: 'Document', inline: true,
+  create: data => ({ label: data.title, data }),
+  render: ({ element }) => <a href={`#document/${element.data.documentId}`}>{element.label}</a>,
+  matchPaste: text => text === 'https://example.test/document/qa',
+  paste: async () => {
+    if (resourceControls.holdReference) await new Promise(resolve => { resourceControls.completeReference = resolve })
+    return { documentId: 'qa-document', title: 'Project document' }
+  },
+}]
 const send = data => { if (connected) channel.postMessage({ ...data, sessionId }) }
 const listenLocal = () => model.onLocalUpdate(update => {
   allUpdates.push(update); outbox.push(update); renderStatus('saving')
@@ -122,7 +137,7 @@ function Host() {
     <button onClick={() => changeConnection(!online)}>{online ? '模拟断线' : '重新连接'}</button>
     <button onClick={() => { const anchor = editor.current.captureAnchor(); if (anchor?.elementIds.length) setAnchors(previous => [...previous, { anchorId: `comment-${previous.length + 1}`, anchor }]) }}>标记选区评论</button>
     <span>{identity.name} · {status}（示例仅确认对端接收）</span>
-  </nav><input ref={fileInput} aria-label="宿主选择图片" hidden type="file" accept=".png,.jpg,.jpeg,.webp,.svg" onChange={e => { if (e.target.files[0]) void insertFile(e.target.files[0]); e.target.value = '' }} /><aside aria-label="宿主评论卡片">{anchors.filter(a => !a.resolved).map(a => <button key={a.anchorId} aria-pressed={activeAnchorId === a.anchorId} onClick={() => { setActiveAnchorId(a.anchorId); editor.current?.revealAnchor(a.anchor) }}>{a.anchorId}</button>)}</aside><section>{mounted && <CanvasEditor ref={editor} model={model} hostManaged mode={mode} sessionId={sessionId} remoteSelections={remote} resources={resources} onAttachmentPreview={resource => { resourceLog.push({ type: 'preview', source: 'attachment', resource }) }} onResourcePreview={resource => { resourceLog.push({ type: 'preview', source: 'resource', resource }) }} onError={error => errors.push(String(error))}
+  </nav><input ref={fileInput} aria-label="宿主选择图片" hidden type="file" accept=".png,.jpg,.jpeg,.webp,.svg" onChange={e => { if (e.target.files[0]) void insertFile(e.target.files[0]); e.target.value = '' }} /><aside aria-label="宿主评论卡片">{anchors.filter(a => !a.resolved).map(a => <button key={a.anchorId} aria-pressed={activeAnchorId === a.anchorId} onClick={() => { setActiveAnchorId(a.anchorId); editor.current?.revealAnchor(a.anchor) }}>{a.anchorId}</button>)}</aside><section>{mounted && <CanvasEditor ref={editor} model={model} hostManaged mode={mode} sessionId={sessionId} remoteSelections={remote} richTextExtensions={richTextExtensions} resources={resources} onAttachmentPreview={resource => { resourceLog.push({ type: 'preview', source: 'attachment', resource }) }} onResourcePreview={resource => { resourceLog.push({ type: 'preview', source: 'resource', resource }) }} onError={error => errors.push(String(error))}
     onImportRequest={() => fileInput.current.click()} onExportRequest={options => void exportFile(options)}
     showToolbar={showToolbar}
     selectionActions={[{ id: 'comment', label: '评论选中元素', icon: <span>♧</span>, allowInReadOnly: true, disabled: !canComment, tooltip: canComment ? '为选中元素添加评论' : '没有评论权限', onClick: ({ selection }) => { window.demo.actionSelection = selection; setAnchors(previous => [...previous, { anchorId: `comment-${previous.length + 1}`, anchor: model.captureAnchor(selection.map(x => x.id)) }]) } }]}

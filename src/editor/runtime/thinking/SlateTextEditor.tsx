@@ -1,3 +1,5 @@
+import { useRichInline, insertInline } from './useRichInline'
+import { InlineElement } from './InlineElement'
 import { RichRowControls } from './RichRowControls'
 import { RichParagraphBlock } from './RichParagraphBlock'
 import { RichTextIcon } from './RichTextIcon'
@@ -19,7 +21,7 @@ import type { Json } from '../../../model'
 import { ancestor, kind, labelOf } from './scene'
 import { TABLE_CLIPBOARD, pasteTableFragment, tableFragmentFromHtml, fitTableContent, insertTableAxis, pasteTableText, tableCells, visibleCell } from './table'
 import { getRichExtensions, resourceRuntime, slateLabel } from './slateRuntime'
-import { cleanRichValue, hasRichFormatting, headingScale, horizontalAlign, plainText, readRich, rebaseRich, richFromHtml, richLayout, safeLink, type RichLeaf, type RichValue } from './richText'
+import { cleanRichValue, hasRichFormatting, headingScale, horizontalAlign, plainText, readRich, rebaseRich, richFromHtml, richLayout, safeLink, childText, type RichLeaf, type RichValue } from './richText'
 import { indentRichBlock, removeRichLink, richLinkRange, setRichLink, withCanvasMarkdown } from './richCommands'
 import { TextAlignmentControl } from './TextAlignmentControl'
 import { ResourceBlock, UploadTasks } from './resources'
@@ -33,9 +35,13 @@ const pointAt = (editor: SlateEditor, offset: number) => {
   for (let index = 0; index < editor.children.length; index++) {
     const block = editor.children[index] as unknown as RichValue[number]
     if (block.resource || block.custom) { if (offset <= 1) return Editor.start(editor, [index]); offset -= 2; continue }
-    for (const [node, path] of Node.texts(block)) {
-      if (offset <= node.text.length) return { path: [index, ...path], offset: Math.max(0, offset) }
-      offset -= node.text.length
+    for (let child = 0; child < block.children.length; child++) {
+      const node = block.children[child], length = childText(node).length
+      if ('inline' in node) {
+        if (offset === 0 && child > 0) return Editor.end(editor, [index, child - 1])
+        if (offset <= 1 && child + 1 < block.children.length) return Editor.start(editor, [index, child + 1])
+      } else if (offset <= length) return { path: [index, child], offset: Math.max(0, offset) }
+      offset -= length
     }
     offset--
   }
@@ -65,6 +71,7 @@ class CanvasSlateEditor extends TextEditor {
   getPlainText = () => {
     if (this.composing && this.editDom) {
       const clone = this.editDom.cloneNode(true) as HTMLElement
+      clone.querySelectorAll('[data-rich-inline]').forEach(node => node.replaceWith('\uFFFC'))
       clone.querySelectorAll('[contenteditable=false],[data-slate-placeholder]').forEach(node => node.remove())
       return [...clone.children].map(block => ((block as HTMLElement).dataset.resourceKind || (block as HTMLElement).dataset.richCustom) ? '\uFFFC' : block.textContent || '').join('\n').replaceAll('\uFEFF', '')
     }
@@ -81,7 +88,7 @@ class CanvasSlateEditor extends TextEditor {
       let result = 0
       for (let i = 0; i < point.path[0]; i++) result += plainText([editor.children[i]]).length + 1
       const block = editor.children[point.path[0]]
-      for (const [leaf, path] of Node.texts(block)) { if (path[0] === point.path[1]) break; result += leaf.text.length }
+      for (const [index, child] of (block as unknown as RichValue[number]).children.entries()) { if (index === point.path[1]) break; result += childText(child).length }
       return result + point.offset
     }
     return { anchor: offset(selection.anchor), focus: offset(selection.focus) }
@@ -121,6 +128,7 @@ class CanvasSlateEditor extends TextEditor {
   insertCustom = (type: string, data?: Json) => {
     const extension = getRichExtensions(this.editor.app).find(item => item.type === type)
     if (!this.slate || !extension || !resourceRuntime(this.editor.app)?.canEdit()) return false
+    if (extension.inline) { insertInline(this.slate, extension, data); ReactEditor.focus(this.slate); return true }
     const custom = { ...extension.create(data), type, id: crypto.randomUUID() }
     Transforms.insertNodes(this.slate, [{ type: 'paragraph', custom, children: [{ text: '' }] }, { type: 'paragraph', children: [{ text: '' }] }] as unknown as Descendant[], { select: true })
     ReactEditor.focus(this.slate); return true
@@ -138,9 +146,16 @@ class CanvasSlateEditor extends TextEditor {
     mount.dataset.textScope = ancestor(text, 'table-cell') ? 'cell' : 'element'
     ;(app.view as HTMLElement).append(mount)
     const editor = this.slate = withCanvasMarkdown(withHistory(withReact(createEditor())))
-    const isVoid = editor.isVoid; editor.isVoid = node => Boolean((node as unknown as RichValue[number]).resource || (node as unknown as RichValue[number]).custom) || isVoid(node)
+    const isInline = editor.isInline; editor.isInline = node => 'inline' in node || isInline(node)
+    const isVoid = editor.isVoid; editor.isVoid = node => Boolean('inline' in node || (node as unknown as RichValue[number]).resource || (node as unknown as RichValue[number]).custom) || isVoid(node)
     const insertFragment = editor.insertFragment
-    editor.insertFragment = fragment => insertFragment(cleanRichValue(fragment).map(p => p.resource ? { ...p, resource: { ...p.resource, id: crypto.randomUUID() } } : p.custom ? { ...p, custom: { ...p.custom, id: crypto.randomUUID() } } : p) as Descendant[])
+    editor.insertFragment = fragment => insertFragment(cleanRichValue(fragment).map(p => p.resource ? { ...p, resource: { ...p.resource, id: crypto.randomUUID() } } : p.custom ? { ...p, custom: { ...p.custom, id: crypto.randomUUID() } } : { ...p, children: p.children.map(child => 'inline' in child ? { ...child, inline: { ...child.inline, id: crypto.randomUUID() } } : child) }) as Descendant[])
+    const setFragmentData = editor.setFragmentData
+    editor.setFragmentData = (data, origin) => {
+      setFragmentData(data, origin)
+      const fragment = cleanRichValue(editor.getFragment())
+      data.setData('text/plain', fragment.map(p => p.resource ? p.resource.name || p.resource.path : p.custom ? p.custom.label : p.children.map(child => 'inline' in child ? child.inline.label : child.text).join('')).join('\n'))
+    }
     const initial = readRich(text)
     this.root = createRoot(mount)
     flushSync(() => this.root!.render(<SlateSurface editor={editor} value={initial} baseSize={Number(text.fontSize || 16)} baseBold={Number(text.fontWeight || 400) >= 600} baseAlign={text.textAlign} t={this.t} runtime={resourceRuntime(app)} extensions={getRichExtensions(app)} elementId={text.id!} valid={() => Boolean(text.leafer && !text.destroyed && this.slate === editor)} onChange={() => {
@@ -157,7 +172,7 @@ class CanvasSlateEditor extends TextEditor {
       fitNoteContent(text)
       const table = ancestor(text, 'table') as Group | undefined
       if (table) fitTableContent(table)
-      if (editor.operations.some(op => (op.type === 'insert_node' || op.type === 'remove_node') && Boolean((op.node as unknown as { resource?: CanvasResource }).resource))) this.requestFlush?.()
+      if (editor.operations.some(op => (op.type === 'insert_node' || op.type === 'remove_node') && Boolean((op.node as unknown as { resource?: CanvasResource; inline?: unknown; custom?: unknown }).resource || (op.node as unknown as { inline?: unknown }).inline || (op.node as unknown as { custom?: unknown }).custom))) this.requestFlush?.()
     }} onPosition={() => this.onUpdate()} onDone={() => this.editor.closeInnerEditor()} onUndo={() => this.requestUndo ? this.requestUndo() : editor.undo()} onRedo={() => this.requestRedo ? this.requestRedo() : editor.redo()} onNavigate={direction => this.navigateCell(direction)} onPaste={event => this.pasteCells(event)} />))
     this.editDom = mount.querySelector<HTMLDivElement>('[data-slate-editor]')!
     this.composing = false
@@ -304,6 +319,7 @@ export function SlateSurface({ editor, value, baseSize, baseBold = false, baseAl
     } }
   })
   const [revision, refresh] = useState(0), [link, setLink] = useState<{ url: string; label: string }>(), [invalidLink, setInvalidLink] = useState(false), linkSelection = useRef<Range>()
+  const inline = useRichInline(editor, extensions, runtime, valid, revision)
   const [palette, setPalette] = useState<'color' | 'backgroundColor'>()
   const paletteRef = useRef<HTMLDivElement>(null)
   useLayoutEffect(() => {
@@ -397,6 +413,7 @@ export function SlateSurface({ editor, value, baseSize, baseBold = false, baseAl
       pending?.selection.unref(); event.target.value = ''; ReactEditor.focus(editor)
     }} />
     <UploadTasks uploads={uploads} t={t} />
+    {inline.menu}
     <Editable className="leafer-text-editor canvas-slate-editable" aria-label={t('rich.edit')} spellCheck={false} scrollSelectionIntoView={() => {
       // Canvas navigation belongs to Leafer. Slate's document scrolling can
       // scroll overflow-hidden stage ancestors and displace every DOM overlay.
@@ -406,6 +423,7 @@ export function SlateSurface({ editor, value, baseSize, baseBold = false, baseAl
       const content = mark.url ? <a href={safeLink(mark.url)} title={mark.url} onClick={event => { event.preventDefault(); if (event.metaKey || event.ctrlKey) window.open(safeLink(mark.url), '_blank', 'noopener,noreferrer') }}>{children}</a> : children
       return <span {...attributes} style={{ fontWeight: mark.bold === false ? 400 : mark.bold ? 700 : undefined, fontStyle: mark.italic ? 'italic' : undefined, textDecoration: [mark.underline || mark.url ? 'underline' : '', mark.strikethrough ? 'line-through' : ''].join(' '), color: mark.color || (mark.url ? '#3370ff' : undefined), backgroundColor: mark.backgroundColor, fontSize: mark.fontSize ? `${mark.fontSize / (baseSize * headingScale(paragraph))}em` : undefined, fontFamily: mark.code ? 'ui-monospace, monospace' : undefined }}>{content}</span>
     }} renderElement={({ attributes, children, element }) => {
+      if ('inline' in element) return <InlineElement attributes={attributes} element={element} editor={editor} extensions={extensions} canEdit={() => valid() && Boolean(runtime?.canEdit())}>{children}</InlineElement>
       const p = element as RichValue[number]
       if (p.resource) return <ResourceBlock attributes={attributes} element={element} editor={editor} baseSize={baseSize} elementId={elementId} align={p.align || baseAlign} runtime={runtime} t={t}>{children}</ResourceBlock>
       if (p.custom) return <CustomBlock attributes={attributes} element={element} editor={editor} extensions={extensions} canEdit={() => valid() && Boolean(runtime?.canEdit())}>{children}</CustomBlock>
@@ -414,6 +432,7 @@ export function SlateSurface({ editor, value, baseSize, baseBold = false, baseAl
       syncSelection()
       const files = [...event.clipboardData.files]
       if (files.length) { event.preventDefault(); event.stopPropagation(); uploads.add(files); return }
+      if (inline.onPaste(event)) return
       onPaste(event)
       if (event.defaultPrevented) return
       if (event.clipboardData.getData('application/x-slate-fragment')) { event.preventDefault(); try { ReactEditor.insertData(editor, event.clipboardData) } catch { Transforms.insertText(editor, event.clipboardData.getData('text/plain')) } return }
@@ -423,6 +442,7 @@ export function SlateSurface({ editor, value, baseSize, baseBold = false, baseAl
     }} onDragOver={event => { if (event.dataTransfer.types.includes('Files')) event.preventDefault() }} onDrop={event => { if (event.dataTransfer.files.length) { event.preventDefault(); event.stopPropagation(); uploads.add([...event.dataTransfer.files]) } }} onKeyDown={event => {
       if (event.nativeEvent.isComposing || event.keyCode === 229) { event.stopPropagation(); return }
       event.stopPropagation()
+      if (inline.onKeyDown(event)) return
       if (event.key === 'Escape') { event.preventDefault(); onDone(); return }
       if (event.key === 'Tab' && onNavigate(event.shiftKey ? -1 : 1)) { event.preventDefault(); return }
       if (event.key === 'Tab' && indentRichBlock(editor, event.shiftKey)) { event.preventDefault(); return }
