@@ -112,6 +112,7 @@ export const en = {
   'menu.group': 'Group',
   'menu.ungroup': 'Ungroup',
   'menu.grid': 'Show grid',
+  'menu.help': 'Help',
   'menu.shortcuts': 'Keyboard shortcuts',
   'menu.close': 'Close',
   'zoom.fit': 'Zoom to fit',

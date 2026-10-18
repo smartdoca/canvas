@@ -57,6 +57,7 @@ export function Canvas() {
 | `activeAnchorId` | `string \| null` | 高亮的锚点。 |
 | `onAnchorClick` | function | 锚点装饰被激活。 |
 | `resources` | `CanvasEditorResources` | 宿主提供 `uploadImage`、`uploadAttachment`、`resolveUrl`、`resolveDownloadUrl`；`readImage` 为导出提供授权字节。 |
+| `onAttachmentPreview` | `(CanvasResource) => void \| Promise<void>` | 附件预览交给宿主，优先于 `onResourcePreview`。 |
 | `onResourcePreview` | `(CanvasResource) => void` | 由宿主预览图片和附件，接收稳定资源信息。 |
 | `richTextExtensions` | `CanvasRichTextExtension[]` | 富文本自定义原子块，序列化 JSON 与可读 label。 |
 | `saveStatus` | `CanvasSaveStatus` | 宿主保存状态。传入后，编辑器显示这个值。 |
@@ -67,6 +68,10 @@ export function Canvas() {
 | `selectionActions`、`hostActions` | `CanvasSelectionAction[]` | 选区操作，以及没有选区时仍可用的操作。 |
 | `onReady` | `(handle) => void` | 得到 `CanvasEditorRef`。 |
 | `className`、`style`、`theme` | | 布局和 `--aidcanvas-*` 主题变量。 |
+
+底部控件和小地图默认在右侧额外预留 `64px`，避让宿主悬浮按钮。可通过 `theme={{ '--aidcanvas-bottom-right-offset': '0px' }}` 取消留白，也可传入其他 CSS 长度适配宿主布局。
+
+文件元素通过上方工具栏预览、下载，只读状态也可操作。预览使用与 slatetsx 一致的展开图标。附件优先调用最新的 `onAttachmentPreview`，未传时调用 `onResourcePreview`；图片继续使用 `onResourcePreview`。回调收到稳定的 path 和元数据；预览界面和权限由宿主处理。回调可返回 Promise，失败交给 `onError`，不会写入文档。下载仍需 `resources.resolveDownloadUrl` 授权。
 
 ## 协同
 

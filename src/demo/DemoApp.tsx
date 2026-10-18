@@ -30,6 +30,7 @@ export function DemoApp() {
   const input = useRef<HTMLInputElement>(null)
   const errorTimer = useRef<ReturnType<typeof setTimeout>>()
   const [preview, setPreview] = useState<{ resource: CanvasResource; url: string }>()
+  const previewResource = async (resource: CanvasResource) => setPreview({ resource, url: await demoResources.resolveUrl(resource.path, {}) })
   const [error, setError] = useState('')
   const reportError = (key: 'status.importFailed' | 'status.exportFailed' | 'status.operationFailed') => {
     setError(translate(locale, key))
@@ -45,7 +46,8 @@ export function DemoApp() {
     <CanvasEditor ref={ref} locale={locale} resources={demoResources} elementExtensions={[badgeExtension]}
       storageKey={params.get('document') ? `aidcanvas.document.${params.get('document')}` : undefined}
       headerActions={error ? <span className="demo-error" role="alert">{error}</span> : undefined}
-      onResourcePreview={async resource => setPreview({ resource, url: await demoResources.resolveUrl(resource.path, {}) })}
+      onAttachmentPreview={previewResource}
+      onResourcePreview={previewResource}
       onError={() => reportError('status.operationFailed')}
       onImportRequest={() => input.current?.click()}
       onExportRequest={async options => {

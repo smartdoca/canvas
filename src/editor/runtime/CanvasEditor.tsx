@@ -257,6 +257,12 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
     return () => { window.removeEventListener('keydown', close); window.removeEventListener('pointerdown', dismiss) }
   }, [contextMenu, shortcutsOpen])
 
+  useEffect(() => {
+    if (!shortcutsOpen) return
+    const menuButton = stageRef.current?.closest('.canvas-app')?.querySelector<HTMLButtonElement>('.view-popover > button')
+    return () => { menuButton?.focus() }
+  }, [shortcutsOpen])
+
   const fitView = useCallback((selectionOnly = false) => {
     const current = appRef.current
     if (!current) return
@@ -949,7 +955,10 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
           } else await download()
         } finally { uploadControllersRef.current.delete(controller) }
       },
-      preview: resource => { void Promise.resolve(propsRef.current.onResourcePreview?.(resource)).catch(error => propsRef.current.onError?.(error)) },
+      preview: resource => {
+        const callback = resource.kind === 'attachment' ? propsRef.current.onAttachmentPreview || propsRef.current.onResourcePreview : propsRef.current.onResourcePreview
+        void (async () => { try { await callback?.(resource) } catch (error) { propsRef.current.onError?.(error) } })()
+      },
       error: error => propsRef.current.onError?.(error),
       upload: async (file, signal, onProgress, requestedKind) => {
         const controller = new AbortController(), abort = () => controller.abort()
@@ -1041,6 +1050,9 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
       })
     }
     instance.tree.on(PropertyEvent.CHANGE, (event: PropertyEvent) => {
+      // Root transforms and size belong to the viewport, not scene content.
+      // Do not scan connectors, invalidate snapshots or schedule a content flush.
+      if (event.target === instance.tree) { scheduleSelectionPosition(); return }
       if (!restoringRef.current && !resourceMutationRef.current && propsRef.current.mode !== 'readonly') {
         const target = event.target as IUI, group = mindMap(target)
         if (isCanvasContainer(target) && ['width', 'height'].includes(event.attrName)) syncContainerGeometry(target)
@@ -1062,7 +1074,6 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
       }
       commit()
     })
-    instance.tree.on(PropertyEvent.LEAFER_CHANGE, commit)
     instance.tree.on(ChildEvent.ADD, commit)
     instance.tree.on(ChildEvent.REMOVE, commit)
     instance.editor.on(EditorMoveEvent.MOVE, () => {
@@ -1921,6 +1932,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
   const selectionJSON = selected.map(item => toPersistedCanvasScene(item.toJSON() as SceneNode))
   const availableActions = (actions: CanvasEditorProps['selectionActions']) => (actions || []).filter(action => (!isReadOnly || action.allowInReadOnly) && (!action.visible || action.visible(selectionJSON)))
   const externalActions = availableActions(props.selectionActions)
+  const selectedAttachment = selected.length === 1 && kind(selected[0]) === 'attachment' ? selected[0].data?.resource as CanvasResource | undefined : undefined
   const topActions = availableActions(props.hostActions)
   const renderHostAction = (action: NonNullable<CanvasEditorProps['selectionActions']>[number]) => {
     const disabled = typeof action.disabled === 'function' ? action.disabled(selectionJSON) : action.disabled
@@ -1933,7 +1945,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
   const displayedSaveState = props.saveStatus === 'clean' ? 'saved' : props.saveStatus || saveState
 
   return <CanvasI18nProvider locale={props.locale} messages={messages}>
-  <div data-aidcanvas="" lang={resolveLocale(props.locale) === 'en' ? 'en' : 'zh-CN'} tabIndex={0} onFocus={() => setFocused(true)} onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget)) setFocused(false) }} onPointerDown={e => { if (!(e.target as HTMLElement).closest('button,input,textarea,[contenteditable]')) e.currentTarget.focus() }} onDoubleClickCapture={e => { if (isReadOnly) e.stopPropagation() }} className={`canvas-app thinking-canvas${shapesOpen ? ' is-shapes-open' : ''}${shortcutsOpen || outlineOpen ? ' is-drawer-open' : ''}${isReadOnly ? ' is-readonly' : ''}${props.className ? ` ${props.className}` : ''}`} style={{ ...props.theme, ...props.style }}>
+  <div data-aidcanvas="" lang={resolveLocale(props.locale) === 'en' ? 'en' : 'zh-CN'} tabIndex={0} onFocus={() => setFocused(true)} onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget)) setFocused(false) }} onPointerDown={e => { if (!(e.target as HTMLElement).closest('button,input,textarea,[contenteditable]')) e.currentTarget.focus() }} onDoubleClickCapture={e => { if (isReadOnly) e.stopPropagation() }} className={`canvas-app thinking-canvas${shapesOpen ? ' is-shapes-open' : ''}${outlineOpen ? ' is-drawer-open' : ''}${isReadOnly ? ' is-readonly' : ''}${props.className ? ` ${props.className}` : ''}`} style={{ ...props.theme, ...props.style }}>
     {toast && <div className="toast">{toast}</div>}
     {props.showHeader !== false && <header className="app-header">
       <div className="header-actions board-header-panel">
@@ -1947,17 +1959,17 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
         <span className="board-edit-state"><BoardIcon name="pen" size={15} />{t(isReadOnly ? 'board.readonly' : 'board.editing')}</span>
         <span className="header-panel-divider" />
         <IconButton label={t('board.outline')} icon={<BoardIcon name="outline" />} active={outlineOpen} onClick={() => { setOutlineOpen(!outlineOpen); setShortcutsOpen(false) }} />
-        <Popover label={t('menu.main')} icon={<BoardIcon name="dots" />} className="view-popover" fitViewport>
+        <Popover label={t('menu.main')} icon={<BoardIcon name="menu" />} className="view-popover" fitViewport>
           <div className="menu-heading">{props.title ?? t('board.title')}</div>
           <button type="button" className="menu-item" role="menuitem" onClick={save}><Save />{t('header.save')}<kbd>⌘ S</kbd></button>
           {!isReadOnly && <button type="button" className="menu-item" role="menuitem" disabled={!props.onImportRequest} onClick={props.onImportRequest}><FolderOpen />{t('header.import')}<kbd>⌘ O</kbd></button>}
           {!managed() && <button type="button" className="menu-item" role="menuitem" onClick={() => downloadText('canvas.canvas', JSON.stringify(getValue()), 'application/json')}><Download />{t('header.exportJson')}</button>}
           <div className="menu-separator" />
           <button type="button" className="menu-item" role="menuitem" onClick={() => fitView()}><FullSelection />{t('zoom.fit')}<kbd>⇧ 1</kbd></button>
-          <button type="button" className="menu-item" role="menuitemcheckbox" aria-checked={grid} onClick={() => setGrid(!grid)}><span className="menu-check">{grid && <Check />}</span>{t('menu.grid')}<kbd>'</kbd></button>
-          <button type="button" className="menu-item" role="menuitemcheckbox" aria-checked={minimapOpen} onClick={() => setMinimapOpen(!minimapOpen)}><BoardIcon name="fit" size={16} />{t('board.minimap')}</button>
+          <button type="button" className="menu-item" role="menuitemcheckbox" aria-checked={grid} onClick={() => setGrid(previous => !previous)}><span className="menu-check">{grid && <Check />}</span>{t('menu.grid')}<kbd>'</kbd></button>
+          <button type="button" className="menu-item" role="menuitemcheckbox" aria-checked={minimapOpen} onClick={() => setMinimapOpen(previous => !previous)}><span className="menu-check">{minimapOpen && <Check />}</span>{t('board.minimap')}</button>
           <div className="menu-separator" />
-          <button type="button" className="menu-item" role="menuitem" onClick={() => { setShortcutsOpen(true); setOutlineOpen(false) }}><span className="menu-key-icon">⌘</span>{t('menu.shortcuts')}<kbd>?</kbd></button>
+          <button type="button" className="menu-item" role="menuitem" onClick={() => { setShortcutsOpen(true); setOutlineOpen(false) }}><BoardIcon name="help" size={16} />{t('menu.help')}<kbd>?</kbd></button>
         </Popover>
       </div>
     </header>}
@@ -1987,11 +1999,13 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
             onExtensionValueChange={(type, key, value) => setExtensionValues(previous => ({ ...previous, [type]: { ...previous[type], [key]: value } }))} />
         </div>}
 
-        {selectionPosition && selected.length > 0 && selected.every(item => item.leafer) && !ancestor(selected[0], 'table-cell') && activeKey === 'init' && (!isReadOnly || externalActions.length > 0) && <div ref={selectionActionsRef} className="selection-actions" style={{ left: selectionPosition.x, top: selectionPosition.y }}>
+        {selectionPosition && selected.length > 0 && selected.every(item => item.leafer) && !ancestor(selected[0], 'table-cell') && activeKey === 'init' && (!isReadOnly || selectedAttachment || externalActions.length > 0) && <div ref={selectionActionsRef} className="selection-actions" style={{ left: selectionPosition.x, top: selectionPosition.y }}>
           {!isReadOnly && <>
           <ThinkingContextTools key={selected.map(item => item.id).join()} selection={selected} onMindAction={changeMind} onLayout={changeMindLayout} onTheme={changeMindTheme} onStyle={changeThinkingStyle} onMoreStyles={() => setStyleOpen(!styleOpen)} />
           <IconButton label={t('selection.duplicate')} icon={<Copy />} onClick={duplicate} />
-          {selected.length === 1 && kind(selected[0]) === 'attachment' && <><IconButton label={t('resource.download')} icon={<Download />} onClick={() => { const runtime = resourceRuntime(app); void runtime?.download(selected[0].data!.resource as CanvasResource).catch(runtime.error) }} /><IconButton label={t('resource.preview')} icon={<FolderOpen />} onClick={() => resourceRuntime(app)?.preview(selected[0].data!.resource as CanvasResource)} /></>}
+          </>}
+          {selectedAttachment && <><IconButton label={t('resource.preview')} icon={<BoardIcon name="preview" />} onClick={() => resourceRuntime(app)?.preview(selectedAttachment)} /><IconButton label={t('resource.download')} icon={<Download />} onClick={() => { const runtime = resourceRuntime(app); void runtime?.download(selectedAttachment).catch(runtime.error) }} /></>}
+          {!isReadOnly && <>
           {selectedImage && <IconButton label={t('selection.editImage')} icon={<EditTwo />} onClick={() => setImageEditorTarget(selectedImage)} />}
           {selectedImage && <IconButton label={t('selection.downloadImage')} icon={<Download />} onClick={() => void downloadSelectedImage()} />}
           {selectedEditablePath && <IconButton label={selectedEditablePath.name === 'path' ? t('selection.editPencil') : t('selection.editShape')} icon={<EditTwo />} onClick={() => setShapeEditorTarget(selectedEditablePath)} />}
@@ -2015,7 +2029,6 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
             </Popover>
             <IconButton label={t('zoom.in')} icon={<BoardIcon name="plus" size={18} />} onClick={() => zoom('in')} />
           </div>
-          <IconButton label={t('menu.shortcuts')} icon={<BoardIcon name="help" size={19} />} active={shortcutsOpen} onClick={() => { setShortcutsOpen(!shortcutsOpen); setOutlineOpen(false) }} />
         </div>}
         {contextMenu && <div className="canvas-context-menu canvas-popover-content" tabIndex={-1} role="menu" aria-label={t('menu.context')} style={{ left: contextMenu.x, top: contextMenu.y }} onClick={() => setContextMenu(null)} onKeyDown={event => {
           if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return
@@ -2062,7 +2075,9 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
     {outlineOpen && app && <MindOutline app={app} onReveal={id => { const item = findItem(app.tree, id); if (item) app.editor.select(item); editorHandleRef.current?.revealElements([id], { padding: 120, maxZoom: 1 }) }} onClose={() => setOutlineOpen(false)} />}
     {galleryOpen && !isReadOnly && <TemplateGallery onInsert={insertTemplate} onClose={() => setGalleryOpen(false)} />}
     {shortcutsOpen && <div className="shortcuts-backdrop" onClick={() => setShortcutsOpen(false)}>
-      <section className="shortcuts-dialog" role="dialog" aria-modal="false" aria-label={t('menu.shortcuts')} onClick={event => event.stopPropagation()}>
+      <section className="shortcuts-dialog" role="dialog" aria-modal="true" aria-label={t('menu.shortcuts')} onClick={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()} onKeyDown={event => {
+        if (event.key === 'Tab') { event.preventDefault(); event.currentTarget.querySelector('button')?.focus() }
+      }}>
         <header><strong>{t('menu.shortcuts')}</strong><button autoFocus aria-label={t('menu.close')} onClick={() => setShortcutsOpen(false)}>×</button></header>
         <div className="shortcuts-grid">{([
           ['toolbar.select', 'V'], ['toolbar.hand', 'H / Space'], ['toolbar.pencil', 'P'], ['toolbar.eraser', 'E'], ['toolbar.arrow', 'A'], ['toolbar.text', 'T'], ['toolbar.note', 'N'], ['shape.rounded', 'R'], ['shape.rect', 'S'], ['shape.diamond', 'D'], ['shape.ellipse', 'O'], ['toolbar.line', 'L'], ['toolbar.frame', 'F'], ['board.shapes', 'M'], ['mind.addChild', 'Tab'], ['mind.addSibling', 'Enter'], ['mind.addParent', '⇧ Tab'], ['mind.collapse', '⌘ .'], ['toolbar.undo', '⌘ Z'], ['toolbar.redo', '⇧ ⌘ Z'], ['menu.group', '⌘ G'], ['zoom.fit', '⇧ 1'], ['zoom.selection', '⇧ 2'],

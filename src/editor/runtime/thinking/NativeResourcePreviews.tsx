@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
-import { MoveEvent, PropertyEvent, ZoomEvent, type App, type Text } from 'leafer-ui'
+import { MoveEvent, PropertyEvent, ZoomEvent, type App, type IUI, type Text } from 'leafer-ui'
 import { EditorEvent, InnerEditorEvent } from '@leafer-in/editor'
 import type { CanvasElement, CanvasResource } from '../../../sdk/types'
 import { useCanvasI18n } from '../../../i18n/context'
-import { allItems, ancestor, kind } from './scene'
+import { allItems, kind } from './scene'
 import { richLayout } from './richText'
 import { RESOURCE_DRAG, resourceRuntime } from './slateRuntime'
 import { BoardIcon } from './BoardIcon'
@@ -39,13 +39,22 @@ export function NativeResourcePreviews({ app, readonly }: { app: App; readonly: 
   }, [app])
   const runtime = resourceRuntime(app), selected = new Set(app.editor.list)
   const stage = (app.view as HTMLElement).closest('.canvas-stage')!.getBoundingClientRect()
-  const targets = !app.editor.innerEditing && selected.size ? allItems(app).filter(item => item.tag === 'Text' && item.visible !== false && (selected.has(item) || ['note', 'table', 'table-cell', 'card'].some(type => selected.has(ancestor(item, type)!)))).flatMap(item => (richLayout(item as Text)?.media || []).flatMap(media => {
+  const texts = new Set<Text>()
+  const visit = (item: IUI) => {
+    if (item.skipJSON) return
+    if (item.tag === 'Text' && item.visible !== false) texts.add(item as Text)
+    item.children?.forEach(visit)
+  }
+  if (!app.editor.innerEditing) selected.forEach(item => {
+    if (item.tag === 'Text' || ['note', 'table', 'table-cell', 'card'].some(type => kind(item) === type || item.name === type)) visit(item)
+  })
+  const targets = [...texts].flatMap(item => (richLayout(item)?.media || []).flatMap(media => {
     const clipped = Boolean(richContainer(item as Text)), boxWidth = Number(item.width), boxHeight = Number(item.height)
     if (clipped && (media.x >= boxWidth || media.y >= boxHeight || media.x + media.width <= 0 || media.y + media.height <= 0)) return []
     const clipPath = clipped ? `inset(${Math.max(0, -media.y) / media.height * 100}% ${Math.max(0, media.x + media.width - boxWidth) / media.width * 100}% ${Math.max(0, media.y + media.height - boxHeight) / media.height * 100}% ${Math.max(0, -media.x) / media.width * 100}%)` : undefined
     const start = app.tree.getClientPointByWorld(item.getWorldPoint({ x: media.x, y: media.y })), end = app.tree.getClientPointByWorld(item.getWorldPoint({ x: media.x + media.width, y: media.y + media.height }))
     return [{ item, media, clipPath, x: start.x - stage.left, y: start.y - stage.top, width: end.x - start.x, height: end.y - start.y }]
-  })) : []
+  }))
   return <>
     {targets.map(({ item, media, clipPath, x, y, width, height }) => <div key={`${item.id}:${media.resource.id}`} className="native-rich-resource" data-native-resource={media.resource.id} style={{ position: 'absolute', left: x, top: y, width, height, clipPath, zIndex: 8 }} draggable={!readonly} onDragStart={event => { if (readonly || !runtime?.canEdit()) { event.preventDefault(); return }; event.dataTransfer.setData(RESOURCE_DRAG, JSON.stringify({ elementId: item.id, resourceId: media.resource.id })); event.dataTransfer.effectAllowed = 'move' }} onPointerDown={event => { event.stopPropagation() }} onClick={event => { if (readonly || !runtime?.canEdit() || (event.target as HTMLElement).closest('button')) return; app.editor.select(item); app.editor.openInnerEditor(item, true); (app.editor.innerEditor as unknown as { selectResource?: (id: string) => void }).selectResource?.(media.resource.id) }}>
       {media.resource.kind === 'attachment' && <button type="button" aria-label={t('resource.download')} title={t('resource.download')} onPointerDown={event => event.stopPropagation()} onClick={() => { void runtime?.download(media.resource).catch(runtime.error) }}><BoardIcon name="export" size={16} /></button>}

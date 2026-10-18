@@ -9,16 +9,36 @@ import { resourceRuntime } from './slateRuntime'
 /** The native drawing owns appearance; these transparent controls own task input. */
 export function NativeTaskCheckboxes({ app, readonly, activeKey, onChange }: { app: App; readonly: boolean; activeKey: string; onChange: () => void }) {
   const t = useCanvasI18n(), [, paint] = useState(0)
+  const [texts, setTexts] = useState<Text[]>([])
   useEffect(() => {
     let frame: number | undefined
-    const refresh = () => { if (frame === undefined) frame = requestAnimationFrame(() => { frame = undefined; paint(n => n + 1) }) }
-    const ids = [app.on_(MoveEvent.MOVE, refresh), app.on_(ZoomEvent.ZOOM, refresh), app.tree.on_(PropertyEvent.CHANGE, refresh), app.tree.on_(ChildEvent.ADD, refresh), app.tree.on_(ChildEvent.REMOVE, refresh), app.editor.on_(InnerEditorEvent.OPEN, refresh), app.editor.on_(InnerEditorEvent.CLOSE, refresh)]
+    let contentDirty = true, hasTasks = false
+    const refresh = () => {
+      if (!contentDirty && !hasTasks) return
+      if (frame === undefined) frame = requestAnimationFrame(() => {
+        frame = undefined
+        // Task membership changes with content; panning only repositions known tasks.
+        if (contentDirty) {
+          contentDirty = false
+          const next = allItems(app).filter((item): item is Text => item.tag === 'Text' && Boolean(item.data?.richText) && readRich(item as Text).some(p => p.block === 'task'))
+          hasTasks = next.length > 0; setTexts(next)
+        } else paint(n => n + 1)
+      })
+    }
+    const invalidate = () => { contentDirty = true; refresh() }
+    const change = (event: PropertyEvent) => {
+      if ((event.target as Text).tag === 'Text' && ['data', 'text'].includes(event.attrName)) invalidate()
+      else refresh()
+    }
+    const ids = [app.on_(MoveEvent.MOVE, refresh), app.on_(ZoomEvent.ZOOM, refresh), app.tree.on_(PropertyEvent.CHANGE, change), app.tree.on_(ChildEvent.ADD, invalidate), app.tree.on_(ChildEvent.REMOVE, invalidate), app.editor.on_(InnerEditorEvent.OPEN, refresh), app.editor.on_(InnerEditorEvent.CLOSE, refresh)]
+    refresh()
     return () => { app.off_(ids); if (frame !== undefined) cancelAnimationFrame(frame) }
   }, [app])
   if (activeKey !== 'init' && !readonly) return null
+  if (!texts.length) return null
   const stage = (app.view as HTMLElement).closest('.canvas-stage')!.getBoundingClientRect()
-  return <>{allItems(app).filter((item): item is Text => item.tag === 'Text').filter(text => {
-    if (text.textEditing) return false
+  return <>{texts.filter(text => {
+    if (text.leafer !== app.tree || text.textEditing) return false
     for (let item: import('leafer-ui').IUI | undefined = text; item; item = item.parent) if (item.visible === false || item.opacity === 0) return false
     return true
   }).flatMap(text => {

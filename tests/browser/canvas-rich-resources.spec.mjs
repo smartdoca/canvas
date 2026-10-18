@@ -105,7 +105,7 @@ test('canvas paste and drop files use host storage once; media and host custom e
   const nodes = await scene(page); expect(await page.evaluate(() => window.demo.resourceLog.filter(e => e.type === 'upload').length)).toBe(2)
   const file = nodes.find(n => n.name === 'attachment'); expect(file).toMatchObject({ x: 400, y: 320 })
   await page.evaluate(id => window.demo.handle.select([id]), file.id); await expect(page.locator('.graph-port.is-selected')).toHaveCount(4)
-  await page.getByRole('button', { name: '预览附件', exact: true }).click(); expect(await page.evaluate(() => window.demo.resourceLog.at(-1).type)).toBe('preview')
+  await page.locator('.selection-actions').getByRole('button', { name: '预览附件', exact: true }).click(); expect(await page.evaluate(() => window.demo.resourceLog.at(-1).type)).toBe('preview')
   const image = nodes.find(n => n.tag === 'Image'); await page.evaluate(id => window.demo.handle.select([id]), image.id); await expect(page.locator('.graph-port.is-selected')).toHaveCount(4)
   await expect(page.locator(`.graph-port.is-selected[data-node-id="${image.id}"]`)).toHaveCount(4)
   const port = page.locator('.graph-port.is-selected').and(page.getByRole('button', { name: '从右侧创建连线', exact: true })), b = await port.boundingBox(), target = await point(page, 400, 358)

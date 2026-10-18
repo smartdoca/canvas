@@ -114,6 +114,7 @@ export const zh: Record<MessageKey, string> = {
   'menu.group': '编组',
   'menu.ungroup': '取消编组',
   'menu.grid': '显示网格',
+  'menu.help': '帮助',
   'menu.shortcuts': '键盘快捷键',
   'menu.close': '关闭',
   'zoom.fit': '适合画布',
