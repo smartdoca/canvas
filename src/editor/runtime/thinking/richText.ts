@@ -135,15 +135,17 @@ export type RichMedia = { resource: CanvasResource; x: number; y: number; width:
 export type RichCheckbox = { index: number; checked: boolean; x: number; y: number; size: number }
 export type RichLayout = { carets: { offset: number; x: number; y: number; height: number }[]; media: RichMedia[]; checkboxes: RichCheckbox[]; glyphs: RichGlyph[]; decorations: { x: number; y: number; width: number; height: number; color: string }[]; rows: { x: number; y: number; width: number; height: number; data: { char: string; x: number; width: number }[] }[]; width: number; height: number }
 let measure: CanvasRenderingContext2D | null
-const cache = new WeakMap<Text, { key: string; result: RichLayout }>()
+const cache = new WeakMap<Text, { key: string; result: RichLayout; formatted: boolean }>()
 export function richLayout(text: Text, force = false): RichLayout | undefined {
   const payload = text.data?.richText
   if (!payload && !force) return
-  const value = readRich(text)
-  if (!hasRichFormatting(value) && !force) return
   const autoWidth = text.__.__autoWidth, maxWidth = autoWidth ? Infinity : Number(text.width || 1)
   const key = JSON.stringify([payload, text.text, maxWidth, text.height, text.fontFamily, text.fontSize, text.fontWeight, text.italic, text.fill, text.lineHeight, text.textAlign, text.verticalAlign, richScroll(text)])
-  if (cache.get(text)?.key === key) return cache.get(text)!.result
+  const cached = cache.get(text)
+  if (cached?.key === key) return force || cached.formatted ? cached.result : undefined
+  const value = readRich(text)
+  const formatted = hasRichFormatting(value)
+  if (!formatted && !force) return
   measure ||= document.createElement('canvas').getContext('2d')
   if (!measure) return
   const carets: RichLayout['carets'] = [], media: RichMedia[] = [], checkboxes: RichCheckbox[] = [], glyphs: RichGlyph[] = [], rows: RichLayout['rows'] = [], decorations: RichLayout['decorations'] = []
@@ -211,7 +213,7 @@ export function richLayout(text: Text, force = false): RichLayout | undefined {
   const vertical = (text.verticalAlign === 'middle' ? spare / 2 : text.verticalAlign === 'bottom' ? spare : 0) - (richContainer(text) ? Math.min(richScroll(text), Math.max(0, y - Number(text.height))) : 0)
   carets.forEach(caret => caret.y += vertical); media.forEach(m => m.y += vertical); checkboxes.forEach(c => c.y += vertical); glyphs.forEach(g => g.y += vertical); rows.forEach(row => row.y += vertical); decorations.forEach(d => d.y += vertical)
   const result = { carets, media, checkboxes, glyphs, decorations, rows, width: widest, height: y }
-  cache.set(text, { key, result }); return result
+  cache.set(text, { key, result, formatted }); return result
 }
 
 const enhanced = new WeakSet<Text>()

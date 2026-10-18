@@ -1,0 +1,46 @@
+{
+  "date": "2026-10-18",
+  "scenario": {
+    "elements": 10000,
+    "frames": 100,
+    "operation": "pan tree.x by -6 for 50 frames, then +6 for 50 frames; wait 200ms",
+    "environment": "Local macOS / Chrome 155; simulated example host; requestAnimationFrame limited",
+    "notes": "One local sample per case. Frame time is a navigation observation, not a production collaboration or server ACK benchmark."
+  },
+  "before": [
+    {
+      "rich": false,
+      "mean": 16.49100000023842,
+      "p95": 17.5,
+      "max": 18.399999976158142,
+      "serializations": 1,
+      "writes": 0
+    },
+    {
+      "rich": true,
+      "mean": 16.677000000476838,
+      "p95": 18.300000071525574,
+      "max": 20.59999990463257,
+      "serializations": 1,
+      "writes": 0
+    }
+  ],
+  "after": [
+    {
+      "rich": false,
+      "mean": 16.423000000715255,
+      "p95": 17.5,
+      "max": 17.700000047683716,
+      "serializations": 0,
+      "writes": 0
+    },
+    {
+      "rich": true,
+      "mean": 16.475,
+      "p95": 17.700000047683716,
+      "max": 18,
+      "serializations": 0,
+      "writes": 0
+    }
+  ]
+}

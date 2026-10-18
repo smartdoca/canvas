@@ -52,6 +52,7 @@ For an existing document, use `CanvasModel.restore(checkpoint)` with the authori
 | `activeAnchorId` | `string \| null` | Highlighted anchor. |
 | `onAnchorClick` | function | An anchor decoration was activated. |
 | `resources` | `CanvasEditorResources` | Host `uploadImage`, `uploadAttachment`, `resolveUrl`, `resolveDownloadUrl`; `readImage` authorizes image bytes for export. |
+| `onAttachmentPreview` | `(CanvasResource) => void \| Promise<void>` | Host-owned attachment preview, taking precedence over `onResourcePreview` for attachments. |
 | `onResourcePreview` | `(CanvasResource) => void` | Host-owned preview for rich and canvas media; receives stable metadata. |
 | `saveStatus` | `CanvasSaveStatus` | Host save state. When set, it is what the editor displays. |
 | `onSaveRequest` | function | Called when the package asks the host to save. |
@@ -61,6 +62,8 @@ For an existing document, use `CanvasModel.restore(checkpoint)` with the authori
 | `selectionActions`, `hostActions` | `CanvasSelectionAction[]` | Selection actions, and actions that stay available without a selection. |
 | `onReady` | `(handle) => void` | Receives `CanvasEditorRef`. |
 | `className`, `style`, `theme` | | Layout and `--aidcanvas-*` theme variables. |
+
+The bottom controls and minimap reserve an extra `64px` on the right for floating host buttons. Set `theme={{ '--aidcanvas-bottom-right-offset': '0px' }}` to remove that space, or provide another CSS length to match the host layout.
 
 ## Collaboration
 
@@ -85,6 +88,7 @@ Marquee selection requires complete containment. A partly enclosed group contrib
 ```tsx
 <CanvasEditor
   resources={{ uploadImage, uploadAttachment, resolveUrl, resolveDownloadUrl, readImage }}
+  onAttachmentPreview={resource => host.openFilePreview(resource)}
   onResourcePreview={resource => host.openFilePreview(resource)}
 />
 // Host commands also include insertImageFile(file) and insertAttachmentFile(file).
@@ -99,7 +103,7 @@ File paste/drop uses those callbacks in both rich content and the canvas. Failed
 
 For text cursors, forward the complete `CanvasPresence` from `onPresenceChange` to the authenticated room and pass it back with the server-owned identity as `SessionSelection`. The optional `text` member carries `{ epochId, elementId, anchor, focus }`, with Yjs relative positions encoded as JSON strings. Do not flatten it to `elementIds`. Presence is transient; it contains no typed content, is never persisted, and clears on blur/readonly. `model.captureTextPresence` and `resolveTextPresence` expose the same mapping for host adapters. `characterPresence` is available with a model.
 
-Images and attachments select on click. Use an explicit preview action, image context menu or attachment download icon. Downloads require the host's `resolveDownloadUrl`. Drag media out of a selected note (or the active rich editor) to move it to the canvas. Moving reuses its stable resource path and commits source removal plus destination insertion together; canceling or dropping inside its source container preserves the original.
+Images and attachments select on click. Use the file toolbar for attachment preview and download, including readonly views. Its preview action uses the expand icon, matching slatetsx. `onAttachmentPreview` receives stable resource metadata; when absent, attachments use `onResourcePreview`. Images use `onResourcePreview`. Both callbacks can return promises; failures go to `onError`. Preview does not resolve an asset URL or write content. Downloads require the host's `resolveDownloadUrl`. Drag media out of a selected note (or the active rich editor) to move it to the canvas. Moving reuses its stable resource path and commits source removal plus destination insertion together; canceling or dropping inside its source container preserves the original.
 
 Presence also includes optional `cursor: { x, y }` in scene coordinates for remote canvas pointers. Pointer movement is throttled, temporary and uses the same host presence channel.
 

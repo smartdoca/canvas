@@ -171,6 +171,10 @@ export interface CanvasEditorProps {
   onImportRequest?: () => void
   onExportRequest?: (options: Pick<CanvasExportOptions, 'format'>) => void
   resources?: CanvasEditorResources
+  /** Host-owned attachment preview. Takes precedence over onResourcePreview for attachments.
+   * Receives stable resource metadata; preview UI and authorization stay with the host.
+   */
+  onAttachmentPreview?: (resource: CanvasResource) => void | Promise<void>
   /** Host owns preview UI and permissions. The document contains only stable resource metadata. */
   onResourcePreview?: (resource: CanvasResource) => void | Promise<void>
   /** Called by the built-in image download action. The host owns the download when supplied. */

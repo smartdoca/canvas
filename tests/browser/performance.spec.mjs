@@ -1,6 +1,70 @@
 import { test, expect } from './fixtures.mjs'
 import { writeFile } from 'node:fs/promises'
 
+test('large-board navigation reuses snapshots and never recomputes connector endpoints', async ({ page }) => {
+  await page.goto('/examples/performance/?count=5000'); await page.waitForFunction(() => window.perf)
+  const result = await page.evaluate(async () => {
+    const { Leafer } = await import('/node_modules/.vite/deps/leafer-ui.js')
+    const { makeDiagram, makeConnector } = await import('/src/editor/runtime/thinking/scene.ts')
+    const app = Leafer.list.list.find(item => item.isApp), { handle, model, frame, updates } = window.perf
+    const source = makeDiagram('rounded', 350, 200), target = makeDiagram('rounded', 700, 200)
+    const line = makeConnector({ x: 510, y: 230 }, { x: 700, y: 230 }, 'elbow', source.id, target.id)
+    app.tree.addMany([source, target, line]); await frame(); handle.flush(); await frame()
+    const before = JSON.stringify(model.getValue()), writes = updates.length, from = { ...line.data.from }
+    let serializations = 0, endpointReads = 0
+    const json = app.tree.toJSON, bounds = source.getBounds
+    app.tree.toJSON = function (...args) { serializations++; return json.apply(this, args) }
+    source.getBounds = function (...args) { if (args[0] === 'box' && args[1] === 'page') endpointReads++; return bounds.apply(this, args) }
+    for (let i = 0; i < 24; i++) { app.tree.x += 3; app.tree.y -= 2; await frame() }
+    app.tree.zoom(1.1); await frame()
+    await new Promise(resolve => setTimeout(resolve, 180)); handle.flush()
+    const navigation = { serializations, endpointReads, writes: updates.length - writes, unchanged: before === JSON.stringify(model.getValue()) }
+    source.x += 50; await frame(); handle.flush()
+    const edit = { serializations, endpointReads, moved: Math.abs(line.data.from.x - from.x) > 1, persisted: model.getValue().scene.children.find(item => item.id === source.id).x === source.x }
+    app.tree.toJSON = json; source.getBounds = bounds
+    return { navigation, edit }
+  })
+  expect(result.navigation).toEqual({ serializations: 0, endpointReads: 0, writes: 0, unchanged: true })
+  expect(result.edit.serializations).toBeGreaterThan(0); expect(result.edit.endpointReads).toBeGreaterThan(0)
+  expect(result.edit.moved).toBe(true); expect(result.edit.persisted).toBe(true)
+})
+
+test('task controls follow navigation without inspecting unrelated offscreen rich text', async ({ page }) => {
+  await page.goto('/examples/performance/?count=5000'); await page.waitForFunction(() => window.perf)
+  await page.evaluate(async () => {
+    const { Leafer, Text } = await import('/node_modules/.vite/deps/leafer-ui.js')
+    const app = Leafer.list.list.find(item => item.isApp)
+    app.tree.add(new Text({ id: 'pan-task', x: 400, y: 300, width: 300, height: 100, fontSize: 16, text: '待办', data: { richText: { version: 1, value: [{ type: 'paragraph', block: 'task', children: [{ text: '待办' }] }] } } }))
+    const unrelated = app.tree.children.find(item => item.id === 'n-4995')
+    unrelated.data = { richText: { version: 1, value: [{ type: 'paragraph', children: [{ text: unrelated.text, bold: true }] }] } }
+    await window.perf.frame(); window.perf.handle.flush(); await window.perf.frame()
+  })
+  const checkbox = page.locator('.native-task-checkbox')
+  await expect(checkbox).toHaveCount(1)
+  const before = await checkbox.boundingBox()
+  const reads = await page.evaluate(async () => {
+    const { Leafer } = await import('/node_modules/.vite/deps/leafer-ui.js')
+    const app = Leafer.list.list.find(item => item.isApp), payload = app.tree.children.find(item => item.id === 'n-4995').data.richText
+    const value = payload.value; let reads = 0
+    Object.defineProperty(payload, 'value', { configurable: true, enumerable: true, get() { reads++; return value } })
+    for (let i = 0; i < 12; i++) { app.tree.x += 5; app.tree.y += 2; await window.perf.frame() }
+    Object.defineProperty(payload, 'value', { configurable: true, enumerable: true, writable: true, value })
+    return reads
+  })
+  expect(reads).toBe(0)
+  await expect.poll(async () => (await checkbox.boundingBox()).x - before.x).toBeCloseTo(60)
+  expect((await checkbox.boundingBox()).y - before.y).toBeCloseTo(24)
+  await checkbox.click(); await expect(checkbox).toHaveAttribute('aria-checked', 'true')
+  await page.evaluate(() => window.perf.handle.flush())
+  expect(await page.evaluate(() => window.perf.model.getValue().scene.children.find(item => item.id === 'pan-task').data.richText.value[0].checked)).toBe(true)
+  await page.evaluate(() => window.perf.model.patch('pan-task', { data: { richText: { version: 1, value: [{ type: 'paragraph', children: [{ text: '待办' }] }] } } }))
+  await expect(checkbox).toHaveCount(0)
+  await page.evaluate(() => window.perf.handle.undo())
+  await expect(checkbox).toHaveCount(1)
+  await page.evaluate(() => window.perf.model.remove(['pan-task']))
+  await expect(checkbox).toHaveCount(0)
+})
+
 test('10000 element selection, navigation, resize and 60 seconds idle create zero content or storage writes', async ({ page }) => {
   await page.addInitScript(() => {
     window.largeStorageWrites = 0

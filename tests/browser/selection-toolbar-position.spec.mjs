@@ -33,7 +33,7 @@ async function placement(page) {
 async function follows(page, anchor) {
   await expect.poll(async () => {
     const actual = await placement(page)
-    return Math.max(Math.abs(actual.x - anchor.x), Math.abs(actual.y - anchor.y))
+    return Math.max(Math.abs(actual.x - anchor.x), Math.abs(actual.y - anchor.y), Math.abs(actual.bar.width - anchor.bar.width), Math.abs(actual.bar.height - anchor.bar.height))
   }).toBeLessThan(1)
 }
 
@@ -77,10 +77,16 @@ test('narrow toolbar keeps its initial tool clearance and then moves with the ca
   // Re-select after revealing to establish the initial placement in this viewport.
   await page.evaluate(() => { window.demo.handle.select([]); window.demo.handle.select(['toolbar-pad']) })
   const bar = page.locator('.selection-actions'), tools = page.locator('.toolbar-wrap')
+  // Reveal/selection place the toolbar on the next animation frame. Verify the
+  // initial 20px clearance before capturing the anchor used by real wheel events.
+  await expect.poll(async () => Math.abs((await placement(page)).y + 20)).toBeLessThan(1)
   await expect.poll(async () => (await bar.boundingBox()).x - (await tools.boundingBox()).x - (await tools.boundingBox()).width).toBeGreaterThanOrEqual(8)
   expect((await bar.boundingBox()).x + (await bar.boundingBox()).width).toBeLessThanOrEqual(382)
   const anchor = await placement(page)
   await page.mouse.move(350, 650); await pan(page, 600, 0, anchor)
   expect((await placement(page)).bar.right).toBeLessThan(0)
   await pan(page, -600, 0, anchor)
+  await pan(page, -600, 0, anchor)
+  expect((await placement(page)).bar.x).toBeGreaterThan(390)
+  await pan(page, 600, 0, anchor)
 })

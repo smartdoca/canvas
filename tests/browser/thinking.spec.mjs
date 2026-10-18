@@ -33,7 +33,7 @@ test('Feishu board chrome: white full canvas, left tools, template entry and res
     await expect(page.locator('.property-wrap')).toHaveCount(0)
     await expect(page.getByRole('button', { name: '模板库', exact: true })).toBeVisible()
     const nav = await page.locator('.board-bottom-controls').boundingBox()
-    expect(nav.x).toBeGreaterThan(80); expect(nav.x + nav.width).toBeLessThanOrEqual(viewport.width)
+    expect(nav.x).toBeGreaterThan(toolbar.x + toolbar.width); expect(nav.x + nav.width).toBeLessThanOrEqual(viewport.width - 64)
   }
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.screenshot({ path: info.outputPath('feishu-empty.png') })
