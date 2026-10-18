@@ -8,11 +8,14 @@ import { isRichList, listMarker, LIST_GAP, LIST_INDENT, LIST_MARKER, taskCheckbo
 // Canvas-sized adaptation of slatetsx's RichText leaves. The original native Text
 // stays authoritative for search and character CRDTs; formatting lives in schema-1 data.
 export type RichLeaf = { text: string; bold?: boolean; italic?: boolean; underline?: boolean; strikethrough?: boolean; code?: boolean; color?: string; backgroundColor?: string; fontSize?: number; url?: string }
-export type RichParagraph = { type: 'paragraph'; custom?: CanvasRichTextElement; resource?: CanvasResource; align?: 'left' | 'center' | 'right' | 'justify'; block?: 'heading' | 'quote' | 'bullet' | 'number' | 'task' | 'code'; level?: number; indent?: number; listOrder?: number; checked?: boolean; children: RichLeaf[] }
+export type RichInline = Omit<RichLeaf, 'text'> & { type: 'inline'; inline: CanvasRichTextElement; children: [{ text: '' }]; text?: never }
+export type RichChild = RichLeaf | RichInline
+export const childText = (child: RichChild) => 'inline' in child ? RESOURCE_MARKER : child.text
+export type RichParagraph = { type: 'paragraph'; custom?: CanvasRichTextElement; resource?: CanvasResource; align?: 'left' | 'center' | 'right' | 'justify'; block?: 'heading' | 'quote' | 'bullet' | 'number' | 'task' | 'code'; level?: number; indent?: number; listOrder?: number; checked?: boolean; children: RichChild[] }
 export type RichValue = RichParagraph[]
 export const horizontalAlign = (value?: string): NonNullable<RichParagraph['align']> => value === 'both' || value === 'justify' ? 'justify' : value === 'center' || value === 'right' ? value : 'left'
 type RichPayload = { version: 1; value: RichValue }
-export const plainText = (value: RichValue | Descendant[]) => (value as RichValue).map(p => (p.resource || p.custom) ? RESOURCE_MARKER : p.children.map(leaf => leaf.text).join('')).join('\n')
+export const plainText = (value: RichValue | Descendant[]) => (value as RichValue).map(p => (p.resource || p.custom) ? RESOURCE_MARKER : p.children.map(childText).join('')).join('\n')
 export const fromPlain = (text: string): RichValue => text.split('\n').map(line => ({ type: 'paragraph', children: [{ text: line }] }))
 const safeColor = (value?: string) => value && CSS.supports('color', value) && !/var\(|url\(/i.test(value) ? value : undefined
 export function safeLink(input?: string): string | undefined {
@@ -27,9 +30,9 @@ export function cleanCustom(value?: CanvasRichTextElement): CanvasRichTextElemen
   try { const data = JSON.parse(JSON.stringify(value.data ?? null)); return { id: value.id, type: value.type, label: value.label, data } } catch { return }
 }
 export function cleanRichValue(value: Descendant[] | RichValue): RichValue {
-  const leaves = (children: unknown[]): RichLeaf[] => children.flatMap(child => {
+  const leaves = (children: unknown[]): RichChild[] => children.flatMap<RichChild>(child => {
     if (!child || typeof child !== 'object') return []
-    const node = child as RichLeaf & { children?: unknown[] }
+    const node = child as RichChild & { children?: unknown[] }; if ('inline' in node && cleanCustom(node.inline)) return [{ type: 'inline', inline: cleanCustom(node.inline)!, children: [{ text: '' }] }]
     return Array.isArray(node.children) ? leaves(node.children) : typeof node.text === 'string' ? [node] : []
   })
   const paragraphs = (value as (RichParagraph & { list?: string; indentation?: number; title?: string; quote?: boolean })[]).map(p => {
@@ -40,7 +43,7 @@ export function cleanRichValue(value: Descendant[] | RichValue): RichValue {
   return paragraphs.filter(p => p && typeof p === 'object' && Array.isArray(p.children)).map(p => ({ type: 'paragraph', ...(cleanCustom(p.custom) ? { custom: cleanCustom(p.custom) } : {}), ...(cleanResource(p.resource) ? { resource: cleanResource(p.resource) } : {}), ...(p.align && ['left', 'center', 'right', 'justify'].includes(p.align) ? { align: p.align } : {}),
     ...(p.block && ['heading', 'quote', 'bullet', 'number', 'task', 'code'].includes(p.block) ? { block: p.block } : {}),
     ...(p.level ? { level: Math.max(1, Math.min(6, Number(p.level) || 1)) } : {}), ...(p.indent ? { indent: Math.max(0, Math.min(8, Math.floor(Number(p.indent) || 0))) } : {}), ...(p.block === 'number' && Number.isSafeInteger(p.listOrder) && p.listOrder! > 0 ? { listOrder: p.listOrder } : {}), ...(typeof p.checked === 'boolean' ? { checked: p.checked } : {}),
-    children: p.resource || p.custom ? [{ text: '' }] : (leaves(p.children).length ? leaves(p.children) : [{ text: '' }]).map(leaf => ({
+    children: p.resource || p.custom ? [{ text: '' }] : (leaves(p.children).length ? leaves(p.children) : [{ text: '' }]).map(leaf => 'inline' in leaf ? leaf : ({
     text: String(leaf.text || ''), ...Object.fromEntries(['bold', 'italic', 'underline', 'strikethrough', 'code'].filter(key => typeof leaf[key as keyof RichLeaf] === 'boolean').map(key => [key, leaf[key as keyof RichLeaf]])),
     ...(safeColor(leaf.color) ? { color: leaf.color } : {}), ...(safeColor(leaf.backgroundColor) ? { backgroundColor: leaf.backgroundColor } : {}),
     ...(Number.isFinite(leaf.fontSize) ? { fontSize: Math.min(96, Math.max(10, Number(leaf.fontSize))) } : {}),
@@ -104,17 +107,18 @@ export function rebaseRich(value: RichValue, next: string): RichValue {
   let prefix = 0, suffix = 0
   while (prefix < previous.length && prefix < next.length && previous[prefix] === next[prefix]) prefix++
   while (suffix < previous.length - prefix && suffix < next.length - prefix && previous[previous.length - 1 - suffix] === next[next.length - 1 - suffix]) suffix++
-  const chars: (RichLeaf & { resource?: CanvasResource; custom?: CanvasRichTextElement })[] = []
-  value.forEach((p, index) => { if (index) chars.push({ text: '\n' }); if (p.custom) chars.push({ text: RESOURCE_MARKER, custom: p.custom }); else if (p.resource) chars.push({ text: RESOURCE_MARKER, resource: p.resource }); else p.children.forEach(leaf => { for (let i = 0; i < leaf.text.length; i++) chars.push({ ...leaf, text: leaf.text[i] }) }) })
-  const style = { ...chars[Math.max(0, prefix - 1)] || { text: '' } }; delete style.resource; delete style.custom
+  const chars: (RichLeaf & { resource?: CanvasResource; custom?: CanvasRichTextElement; inline?: CanvasRichTextElement })[] = []
+  value.forEach((p, index) => { if (index) chars.push({ text: '\n' }); if (p.custom) chars.push({ text: RESOURCE_MARKER, custom: p.custom }); else if (p.resource) chars.push({ text: RESOURCE_MARKER, resource: p.resource }); else p.children.forEach(leaf => { if ('inline' in leaf) { chars.push({ text: RESOURCE_MARKER, inline: leaf.inline } as RichLeaf); return }; for (let i = 0; i < leaf.text.length; i++) chars.push({ ...leaf, text: leaf.text[i] }) }) })
+  const style = { ...chars[Math.max(0, prefix - 1)] || { text: '' } }; delete style.resource; delete style.custom; delete style.inline
   chars.splice(prefix, previous.length - prefix - suffix, ...next.slice(prefix, next.length - suffix).split('').map(text => ({ ...style, text })))
   const result: RichValue = [{ type: 'paragraph', children: [] }]
   chars.forEach(leaf => {
     if (leaf.text === '\n') { result.push({ type: 'paragraph', children: [] }); return }
     if (leaf.custom && leaf.text === RESOURCE_MARKER) { result.at(-1)!.custom = leaf.custom; return }
     if (leaf.resource && leaf.text === RESOURCE_MARKER) { result.at(-1)!.resource = leaf.resource; return }
+    if (leaf.inline && leaf.text === RESOURCE_MARKER) { result.at(-1)!.children.push({ type: 'inline', inline: leaf.inline, children: [{ text: '' }] }); return }
     const children = result.at(-1)!.children, last = children.at(-1)
-    if (last && JSON.stringify({ ...last, text: '' }) === JSON.stringify({ ...leaf, text: '' })) last.text += leaf.text
+    if (last && !('inline' in last) && JSON.stringify({ ...last, text: '' }) === JSON.stringify({ ...leaf, text: '' })) last.text += leaf.text
     else children.push({ ...leaf })
   })
   result.forEach((p, i) => { if (!p.children.length) p.children.push({ text: '' }); if (value[i]) { const block = { ...value[i] }; delete block.resource; delete block.custom; Object.assign(p, { ...block, children: p.children }) } })
@@ -122,7 +126,7 @@ export function rebaseRich(value: RichValue, next: string): RichValue {
 }
 export function readRich(text: Text): RichValue {
   const payload = text.data?.richText as RichPayload | undefined
-  if (payload?.version !== 1 || !Array.isArray(payload.value) || !payload.value.length || !payload.value.every(p => Array.isArray(p.children) && p.children.length && p.children.every(leaf => typeof leaf.text === 'string'))) return fromPlain(String(text.text || ''))
+  if (payload?.version !== 1 || !Array.isArray(payload.value) || !payload.value.length || !payload.value.every(p => Array.isArray(p.children) && p.children.length && p.children.every(leaf => typeof leaf.text === 'string' || ('inline' in leaf && Boolean(cleanCustom(leaf.inline)))))) return fromPlain(String(text.text || ''))
   return rebaseRich(cleanRichValue(payload.value), String(text.text || ''))
 }
 export function alignTextContent(text: Text, align: 'left' | 'center' | 'right' | 'justify') {
@@ -130,7 +134,7 @@ export function alignTextContent(text: Text, align: 'left' | 'center' | 'right' 
   if (text.data?.richText) text.data = { ...text.data, richText: { version: 1, value: readRich(text).map(p => ({ ...p, align })) } }
 }
 
-export type RichGlyph = { offset?: number; text: string; x: number; y: number; width: number; size: number; font: string; color: string; background?: string; underline: boolean; strike: boolean; url?: string }
+export type RichGlyph = { offset?: number; text: string; x: number; y: number; width: number; size: number; font: string; color: string; background?: string; underline: boolean; strike: boolean; url?: string; inline?: CanvasRichTextElement }
 export type RichMedia = { resource: CanvasResource; x: number; y: number; width: number; height: number }
 export type RichCheckbox = { index: number; checked: boolean; x: number; y: number; size: number }
 export type RichLayout = { carets: { offset: number; x: number; y: number; height: number }[]; media: RichMedia[]; checkboxes: RichCheckbox[]; glyphs: RichGlyph[]; decorations: { x: number; y: number; width: number; height: number; color: string }[]; rows: { x: number; y: number; width: number; height: number; data: { char: string; x: number; width: number }[] }[]; width: number; height: number }
@@ -186,15 +190,24 @@ export function richLayout(text: Text, force = false): RichLayout | undefined {
       }
       const offset = Number.isFinite(maxWidth) ? align === 'center' ? (maxWidth - x) / 2 : align === 'right' ? maxWidth - x : 0 : 0
       pending.forEach(glyph => { glyph.x += offset; glyph.y = baseline; glyphs.push(glyph); carets.push({ offset: glyph.offset!, x: glyph.x, y, height }) })
-      carets.push({ offset: pending.length ? pending.at(-1)!.offset! + pending.at(-1)!.text.length : characterOffset, x: pending.length ? pending.at(-1)!.x + pending.at(-1)!.width : offset + inset, y, height })
+      carets.push({ offset: pending.length ? pending.at(-1)!.offset! + (pending.at(-1)!.inline ? 1 : pending.at(-1)!.text.length) : characterOffset, x: pending.length ? pending.at(-1)!.x + pending.at(-1)!.width : offset + inset, y, height })
       if (firstRow && p.block === 'task') checkboxes.push({ index, checked: Boolean(p.checked), x: indent, y: y + (height - prefixSize * LIST_MARKER) / 2, size: prefixSize * LIST_MARKER })
       if (prefix && firstRow) glyphs.push({ text: prefix, x: indent + markerWidth - prefixWidth, y: baseline, width: markerWidth, size: prefixSize, font: `${prefixSize}px ${text.fontFamily || 'Arial'}`, color: '#3370ff', underline: false, strike: false })
       firstRow = false
-      rows.push({ x: offset, y: baseline, width: x, height, data: pending.map(g => ({ char: g.text, x: g.x, width: g.width })) })
+      rows.push({ x: offset, y: baseline, width: x, height, data: pending.map(g => ({ char: g.inline ? RESOURCE_MARKER : g.text, x: g.x, width: g.width })) })
       widest = Math.max(widest, x); y += height; x = inset; rowSize = sizeBase; pending = []
     }
     p.children.forEach(leaf => {
       const size = leaf.fontSize || sizeBase, font = `${leaf.italic || text.italic ? 'italic ' : ''}${leaf.bold === false ? 400 : leaf.bold || p.block === 'heading' ? 700 : text.fontWeight || 400} ${size}px ${leaf.code || p.block === 'code' ? 'ui-monospace, monospace' : text.fontFamily || 'Arial'}`
+      if ('inline' in leaf) {
+        let label = leaf.inline.label || leaf.inline.type
+        const limit = Math.max(size, maxWidth - inset - 10)
+        if (measure!.measureText(label).width > limit) { const characters = Array.from(label); while (characters.length && measure!.measureText(characters.join('') + '…').width > limit) characters.pop(); label = characters.join('') + '…' }
+        const width = measure!.measureText(label).width + 10
+        if (x > inset && x + width > maxWidth && text.textWrap !== 'none') finish(true)
+        pending.push({ offset: characterOffset, text: label, x, y: 0, width, size, font, color: '#245bdb', background: '#eaf1ff', underline: false, strike: false, inline: leaf.inline })
+        characterOffset++; x += width; rowSize = Math.max(rowSize, size); return
+      }
       if (!leaf.text) rowSize = Math.max(rowSize, size)
       measure!.font = font
       for (const char of leaf.text) {

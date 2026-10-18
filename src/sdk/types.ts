@@ -41,7 +41,7 @@ export interface CanvasElementExtension {
   properties?: CanvasElementProperty[]
 }
 
-/** Atomic custom blocks embedded in a rich text surface. Persist JSON only. */
+/** Atomic custom elements embedded in a rich text surface. Persist JSON only. */
 export interface CanvasRichTextElement {
   id: string
   type: string
@@ -51,6 +51,16 @@ export interface CanvasRichTextElement {
 export interface CanvasRichTextExtension {
   type: string
   label: string
+  /** Inline atoms occupy one native text marker. Omitted extensions remain blocks. */
+  inline?: boolean
+  /** Optional host-owned directory lookup. The editor owns the live replacement range. */
+  suggestions?: {
+    trigger: string
+    search: (query: string, context: { signal: AbortSignal }) => Promise<{ id: string; label: string; data: import('../model').Json }[]>
+  }
+  /** Return undefined for unhandled text. Pending paste never moves to a different target. */
+  matchPaste?: (text: string) => boolean
+  paste?: (text: string, context: { signal: AbortSignal }) => Promise<import('../model').Json | undefined>
   create: (data?: import('../model').Json) => { label: string; data: import('../model').Json }
   render: (context: { element: CanvasRichTextElement; selected: boolean; onChange: (data: import('../model').Json, label?: string) => void }) => ReactNode
 }
