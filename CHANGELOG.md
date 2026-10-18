@@ -5,6 +5,7 @@
 - Add host-owned `onAttachmentPreview(resource)` for canvas and rich attachments, with the existing `onResourcePreview` as the fallback. Read the current prop on every invocation and forward synchronous/asynchronous preview failures to `onError`.
 - Use the expand preview icon in the file toolbar, matching slatetsx. Keep attachment preview and authorized download available from that toolbar in readonly mode.
 - Avoid whole-scene serialization and connector recomputation during pan/zoom. Reuse task candidates and rich-text layout caches; inspect only selected rich content for resource overlays.
+- Keep narrow element toolbar width and wrapping stable while panning outside either viewport edge.
 - Move help, grid and minimap controls into the top-right menu. Show help in a centered modal and reserve a configurable 64px space beside bottom-right host controls.
 
 ## 0.5.2 — 2026-10-17

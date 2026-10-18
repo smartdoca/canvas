@@ -92,3 +92,32 @@ test('rich attachment preview uses the attachment prop and preserves the rich do
   expect(await scene(page)).toEqual(before); expect(await page.evaluate(() => window.demo.allUpdates.length)).toBe(updates)
   await expect(page.locator('.attachment-actions, .native-attachment-actions')).toHaveCount(0)
 })
+
+test('narrow file toolbar keeps its size and follows the file beyond both viewport edges', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 }); await open(page); await insert(page)
+  await page.evaluate(() => {
+    const id = window.demo.model.getValue().scene.children[0].id
+    window.demo.handle.revealElements([id], { padding: 100, maxZoom: .35 })
+    window.demo.handle.select([]); window.demo.handle.select([id])
+  })
+  const placement = () => page.evaluate(() => {
+    const host = document.querySelector('.canvas-host').getBoundingClientRect(), bar = document.querySelector('.selection-actions').getBoundingClientRect()
+    const origin = window.demo.handle.clientToScene({ x: host.x, y: host.y }), next = window.demo.handle.clientToScene({ x: host.x + 1, y: host.y + 1 }), scale = 1 / (next.x - origin.x)
+    const file = window.demo.model.getValue().scene.children[0]
+    return { x: bar.x + bar.width / 2 - host.x - (file.x + file.width / 2 - origin.x) * scale, y: bar.bottom - host.y - (file.y - origin.y) * scale, width: bar.width, height: bar.height, left: bar.x, right: bar.right }
+  })
+  await expect.poll(async () => Math.abs((await placement()).y + 20)).toBeLessThan(1)
+  const anchor = await placement(), before = await scene(page)
+  await page.mouse.move(350, 650)
+  for (const [dx, edge] of [[600, 'left'], [-600], [-600, 'right'], [600]]) {
+    for (let step = 0; step < 4; step++) {
+      const origin = await page.evaluate(() => window.demo.handle.clientToScene({ x: 200, y: 200 }))
+      await page.mouse.wheel(dx, 0)
+      await expect.poll(() => page.evaluate(() => window.demo.handle.clientToScene({ x: 200, y: 200 }))).not.toEqual(origin)
+      await expect.poll(async () => { const actual = await placement(); return Math.max(...['x', 'y', 'width', 'height'].map(key => Math.abs(actual[key] - anchor[key]))) }).toBeLessThan(1)
+    }
+    if (edge === 'left') expect((await placement()).right).toBeLessThan(0)
+    if (edge === 'right') expect((await placement()).left).toBeGreaterThan(390)
+  }
+  expect(await scene(page)).toEqual(before)
+})

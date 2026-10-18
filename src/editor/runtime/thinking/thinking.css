@@ -99,7 +99,7 @@
 [data-aidcanvas].thinking-canvas .template-mini-icon { display: flex; align-items: center; color: #64b65b; }
 [data-aidcanvas].thinking-canvas .tone-1 { color: #9254de; }[data-aidcanvas].thinking-canvas .tone-2 { color: #5eab67; }[data-aidcanvas].thinking-canvas .tone-3 { color: #d58d60; }[data-aidcanvas].thinking-canvas .tone-4 { color: #64b65b; }[data-aidcanvas].thinking-canvas .tone-5 { color: #7e60d7; }[data-aidcanvas].thinking-canvas .tone-6 { color: #547bd1; }[data-aidcanvas].thinking-canvas .tone-7 { color: #e9b73e; }
 [data-aidcanvas].thinking-canvas .template-more { width: 100%; margin: 10px 0 0; padding: 3px; color: #3370ff; border: 0; background: transparent; font-size: 12px; cursor: pointer; }
-[data-aidcanvas].thinking-canvas .selection-actions { min-height: 42px; max-width: calc(100% - 90px); padding: 4px 5px; gap: 1px; border: 1px solid #dee0e3; border-radius: 6px; box-shadow: 0 4px 18px #1f23291c; background: #fff; transform: translate(-50%, 0); z-index: 35; }
+[data-aidcanvas].thinking-canvas .selection-actions { width: max-content; min-height: 42px; max-width: calc(100% - 90px); padding: 4px 5px; gap: 1px; border: 1px solid #dee0e3; border-radius: 6px; box-shadow: 0 4px 18px #1f23291c; background: #fff; transform: translate(-50%, 0); z-index: 35; }
 [data-aidcanvas].thinking-canvas .selection-actions .icon-button { width: 30px; height: 30px; border-radius: 4px; color: #41454c; flex-shrink: 0; }
 [data-aidcanvas].thinking-canvas .selection-actions .icon-button:hover { background: #f2f3f5; }
 [data-aidcanvas].thinking-canvas .selection-actions .icon-button.is-toggled { color: #3370ff; background: #eaf1ff; }
