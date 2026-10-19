@@ -35,7 +35,7 @@ test('ports create snapped connectors, endpoints rebind, bend cancels and moves 
   await open(page)
   const ids = await page.evaluate(async () => { const { makeDiagram } = await import('/src/editor/runtime/thinking/scene.ts'); return [300, 680, 1020].map(x => { const item = makeDiagram('rounded', x, 320); const id = window.demo.handle.addElement(item.toJSON()).id; item.destroy(); return id }) })
   await page.evaluate(() => window.demo.handle.flush())
-  await select(page, ids[0]); await expect(page.locator('.graph-port.is-selected')).toHaveCount(4)
+  await select(page, ids[0]); await expect(page.locator('.graph-port.is-selected')).toHaveCount(12)
   const before = await page.evaluate(() => window.demo.allUpdates.length)
   await drag(page, page.getByRole('button', { name: '从右侧创建连线', exact: true }), await hostPoint(page, 680, 360))
   let edge = (await scene(page)).find(node => node.data?.kind === 'connector')

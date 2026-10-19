@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.6 — 2026-10-20
+
+- Keep empty diagram label carets vertically aligned with the text that follows, and align rich list markers with the first text baseline.
+- Require a drag before connector ports show or create a line; ignore clicks and small pointer jitter.
+- Accept Cmd+A or Ctrl+A for canvas selection without treating Ctrl+Cmd+A and other mixed modifiers as select-all.
+- Expand connection ports from four to twelve, follow ellipse and diamond outlines, refresh port positions after resizing, and preserve pointer-selected ports when drawing connectors.
+- Recognize name-only diagram wrappers and synchronize their body, text box and outline during corner resizing. Repair existing mismatched legacy geometry without misclassifying explicit containers or dropping custom paths.
+- Select canvas images on the first click and preview selected images through the host on the next click; add authorized PNG image copying to canvas and rich-image context menus, including readonly canvas views.
+- Add regressions for the reported interactions, all ten diagram shapes, multi-selection resizing, legacy geometry, undo/redo and reopening.
+
 ## 0.5.5 — 2026-10-18
 
 - Remove the code block action from shared rich-text paragraph menus in notes, cards, labels and table cells.

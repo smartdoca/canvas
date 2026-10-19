@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { MoveEvent, PointerEvent, PropertyEvent, ZoomEvent, type App, type Frame, type IUI, type Path } from 'leafer-ui'
+import { LayoutEvent, MoveEvent, PointerEvent, PropertyEvent, ZoomEvent, type App, type Frame, type IUI, type Path } from 'leafer-ui'
 import { EditorEvent, InnerEditorEvent } from '@leafer-in/editor'
 import { useCanvasI18n } from '../../../i18n/context'
 import { allItems, ancestor, connectableNode, connectionPorts, connectorGeometry, connectorLocalPoint, connectorPagePoint, connectorLabel, endpoint, isConnector, kind, labelOf, makeConnector, makeDiagram, mindDescendants, mindDirectionOf, moveConnectorSegment, nearestPort, pickConnectable, refreshConnectors, setConnectorPath, orthogonalConnectorPoints, type AnchorPoint } from './scene'
 import { getStyleParamsFromLocalStorage } from '../utils/styleLocalStorage'
 import { BoardIcon } from './BoardIcon'
 
-type Draft = { type: 'create' | 'source' | 'target' | 'bend' | 'segment' | 'vertex'; node?: IUI; line?: IUI; anchor?: AnchorPoint; from: AnchorPoint; to: AnchorPoint; start: AnchorPoint; target?: IUI; targetAnchor?: AnchorPoint; bend?: number; offset?: number; curveOffset?: AnchorPoint; moved: boolean; clicking?: boolean; index?: number; points?: AnchorPoint[]; vertices?: AnchorPoint[]; handlePoint?: AnchorPoint; guides?: { axis: 'x' | 'y'; value: number }[] }
+type Draft = { type: 'create' | 'source' | 'target' | 'bend' | 'segment' | 'vertex'; node?: IUI; line?: IUI; anchor?: AnchorPoint; from: AnchorPoint; to: AnchorPoint; start: AnchorPoint; target?: IUI; targetAnchor?: AnchorPoint; bend?: number; offset?: number; curveOffset?: AnchorPoint; moved: boolean; index?: number; points?: AnchorPoint[]; vertices?: AnchorPoint[]; handlePoint?: AnchorPoint; guides?: { axis: 'x' | 'y'; value: number }[] }
 export function GraphHandles({ app, activeKey, selection, onComplete, onMindAction }: { app: App; activeKey: string; selection: IUI[]; onComplete: (items: IUI[]) => void; onMindAction: (action: 'child' | 'collapse') => void }) {
   const t = useCanvasI18n(), root = useRef<HTMLDivElement>(null), draftRef = useRef<Draft>(), [draftState, setDraft] = useState<Draft>(), [hovered, setHovered] = useState<IUI>(), [, redraw] = useState(0)
   const [picker, setPicker] = useState<{ line: IUI; point: AnchorPoint }>()
@@ -47,6 +47,10 @@ export function GraphHandles({ app, activeKey, selection, onComplete, onMindActi
     if (activeKey !== 'init') { update(); setPicker(undefined); return }
     const host = (app.view as HTMLElement).closest<HTMLElement>('.canvas-host')!
     const paint = () => redraw(n => n + 1)
+    let layoutFrame: number | undefined
+    const paintLayout = () => {
+      if (layoutFrame === undefined) layoutFrame = requestAnimationFrame(() => { layoutFrame = undefined; paint() })
+    }
     const clientPoint = (line: IUI, point: AnchorPoint) => app.tree.getClientPointByWorld(app.tree.getWorldPoint(connectorPagePoint(app, line, point)))
     const hitLabel = (event: { clientX: number; clientY: number }) => {
       const point = pagePoint(event)
@@ -82,6 +86,7 @@ export function GraphHandles({ app, activeKey, selection, onComplete, onMindActi
       const page = pagePoint(event), point = current.line ? connectorLocalPoint(app, current.line, page) : page, target = pickConnectable(app, page)
       if (current.line?.data?.mode === 'straight' && current.type === 'bend') return
       current.moved ||= Math.hypot(event.clientX - current.start.x, event.clientY - current.start.y) > 4
+      if (!current.moved) return
       if (current.type === 'segment' || current.type === 'vertex') {
         const points = current.points!.map(p => ({ ...p })), index = current.index!, origin = connectorLocalPoint(app, current.line!, pagePoint({ clientX: current.start.x, clientY: current.start.y }))
         current.guides = []
@@ -146,17 +151,12 @@ export function GraphHandles({ app, activeKey, selection, onComplete, onMindActi
       const current = draftRef.current
       if (!current) return
       event.preventDefault(); event.stopImmediatePropagation()
-      if (!current.moved && current.type === 'create' && !current.clicking) { current.clicking = true; update(current); return }
-      if (!current.moved && current.type !== 'create') { update(); return }
+      if (!current.moved) { update(); return }
       finish(current)
     }
     const down = (event: globalThis.PointerEvent) => {
       if ((event.target as Element).closest('.graph-handle,.graph-create-picker')) return
       if (picker) setPicker(undefined)
-      if (draftRef.current?.clicking) {
-        if (!host.contains(event.target as globalThis.Node)) { update(); return }
-        event.preventDefault(); event.stopImmediatePropagation(); finish(draftRef.current); return
-      }
       if (event.button !== 0 || !host.contains(event.target as globalThis.Node) || app.editor.innerEditing) return
       const node = pickConnectable(app, pagePoint(event))
       if (node && ['mind-node', 'diagram-node', 'note', 'card', 'connector-label'].includes(kind(node) || node.name || '')) {
@@ -192,7 +192,9 @@ export function GraphHandles({ app, activeKey, selection, onComplete, onMindActi
     }
     const selected = () => { if (picker && !app.editor.list.includes(picker.line)) setPicker(undefined); paint() }
     const editing = () => { update(); setPicker(undefined); setHoveredLine(undefined); paint() }
-    const ids = [app.on_(MoveEvent.MOVE, paint), app.on_(ZoomEvent.ZOOM, paint), app.tree.on_(PropertyEvent.CHANGE, paint), app.editor.on_(EditorEvent.SELECT, selected), app.editor.on_(InnerEditorEvent.CLOSE, paint), app.editor.on_(InnerEditorEvent.OPEN, editing),
+    // Property events can precede transform/layout invalidation. Refresh once
+    // layout settles so resized ports never stay at their previous positions.
+    const ids = [app.on_(MoveEvent.MOVE, paint), app.on_(ZoomEvent.ZOOM, paint), app.tree.on_(PropertyEvent.CHANGE, paint), app.tree.on_(LayoutEvent.AFTER, paintLayout), app.editor.on_(EditorEvent.SELECT, selected), app.editor.on_(InnerEditorEvent.CLOSE, paint), app.editor.on_(InnerEditorEvent.OPEN, editing),
       app.on_(PointerEvent.MOVE, (event: PointerEvent) => {
         if (draftRef.current || app.editor.innerEditing) return
         const node = ancestor(event.target as IUI, 'table-cell') ? undefined : connectableNode(event.target as IUI)
@@ -202,7 +204,7 @@ export function GraphHandles({ app, activeKey, selection, onComplete, onMindActi
     const cancel = () => update()
     document.addEventListener('dblclick', double, true); document.addEventListener('pointercancel', cancel, true); window.addEventListener('blur', cancel)
     document.addEventListener('pointermove', move, true); document.addEventListener('pointerup', up, true); document.addEventListener('pointerdown', down, true); window.addEventListener('keydown', key, true)
-    return () => { host.style.cursor = ''; document.removeEventListener('dblclick', double, true); document.removeEventListener('pointercancel', cancel, true); window.removeEventListener('blur', cancel); app.off_(ids); document.removeEventListener('pointermove', move, true); document.removeEventListener('pointerup', up, true); document.removeEventListener('pointerdown', down, true); window.removeEventListener('keydown', key, true) }
+    return () => { if (layoutFrame !== undefined) cancelAnimationFrame(layoutFrame); host.style.cursor = ''; document.removeEventListener('dblclick', double, true); document.removeEventListener('pointercancel', cancel, true); window.removeEventListener('blur', cancel); app.off_(ids); document.removeEventListener('pointermove', move, true); document.removeEventListener('pointerup', up, true); document.removeEventListener('pointerdown', down, true); window.removeEventListener('keydown', key, true) }
   }, [activeKey, app, finish, onComplete, pagePoint, picker, update])
 
   if (activeKey !== 'init' || app.editor.innerEditing) return null
@@ -217,6 +219,7 @@ export function GraphHandles({ app, activeKey, selection, onComplete, onMindActi
   const displayLine = line || (attached(hoveredLine) ? hoveredLine : undefined)
   const draft = draftState && (!draftState.node || attached(draftState.node)) && (!draftState.line || attached(draftState.line)) ? draftState : undefined
   const begin = (event: React.PointerEvent, type: Draft['type'], node?: IUI, anchor?: AnchorPoint, index?: number) => {
+    if (event.button !== 0) return
     if (node && !attached(node) || line && !attached(line)) return
     event.preventDefault(); event.stopPropagation(); event.currentTarget.setPointerCapture(event.pointerId); app.editor.closeInnerEditor(); setPicker(undefined)
     const from = node ? endpoint(node, { x: 0, y: 0 }, anchor) : { ...line!.data!.from }, to = node ? { ...from } : { ...line!.data!.to }
@@ -229,7 +232,7 @@ export function GraphHandles({ app, activeKey, selection, onComplete, onMindActi
   }
   const lineGeometry = line?.data?.from && line.data.to ? connectorGeometry(line.data.from, line.data.to, line.data) : undefined
   const primarySegment = lineGeometry?.points.slice(1).reduce((best, point, index) => { const first = lineGeometry.points[index], distance = Math.hypot((first.x + point.x) / 2 - lineGeometry.middle.x, (first.y + point.y) / 2 - lineGeometry.middle.y); return Math.hypot(point.x - first.x, point.y - first.y) >= 28 && distance < best.distance ? { index, distance } : best }, { index: -1, distance: Infinity }).index
-  const preview = draft && connectorGeometry(draft.from, draft.to, { ...(draft.line?.data || { mode: getStyleParamsFromLocalStorage().connectorMode || 'elbow' }), ...(draft.bend === undefined ? {} : { bend: draft.bend }), ...(draft.offset === undefined ? {} : { offset: draft.offset }), ...(draft.curveOffset === undefined ? {} : { curveOffset: draft.curveOffset }), ...(draft.vertices === undefined ? {} : { vertices: draft.vertices }), ...(draft.type === 'source' ? { sourceId: draft.target?.id || '' } : draft.type === 'target' ? { targetId: draft.target?.id || '' } : {}), sourceAnchor: draft.type === 'source' ? draft.targetAnchor : draft.anchor || draft.line?.data?.sourceAnchor, targetAnchor: draft.type === 'target' || draft.type === 'create' ? draft.targetAnchor : draft.line?.data?.targetAnchor })
+  const preview = draft?.moved && connectorGeometry(draft.from, draft.to, { ...(draft.line?.data || { mode: getStyleParamsFromLocalStorage().connectorMode || 'elbow' }), ...(draft.bend === undefined ? {} : { bend: draft.bend }), ...(draft.offset === undefined ? {} : { offset: draft.offset }), ...(draft.curveOffset === undefined ? {} : { curveOffset: draft.curveOffset }), ...(draft.vertices === undefined ? {} : { vertices: draft.vertices }), ...(draft.type === 'source' ? { sourceId: draft.target?.id || '' } : draft.type === 'target' ? { targetId: draft.target?.id || '' } : {}), sourceAnchor: draft.type === 'source' ? draft.targetAnchor : draft.anchor || draft.line?.data?.sourceAnchor, targetAnchor: draft.type === 'target' || draft.type === 'create' ? draft.targetAnchor : draft.line?.data?.targetAnchor })
   const lineDraft = line && draft?.line === line ? draft : undefined
   const handleGeometry = lineDraft && preview ? preview : lineGeometry
   const handles = handleGeometry ? [{ type: 'source' as const, point: lineDraft?.from || line!.data!.from }, { type: 'target' as const, point: lineDraft?.to || line!.data!.to }, ...(line!.data!.mode !== 'straight' && (line!.data!.mode === 'curve' || handleGeometry.points.length === 2) ? [{ type: 'bend' as const, point: handleGeometry.middle }] : [])] : []
@@ -244,7 +247,7 @@ export function GraphHandles({ app, activeKey, selection, onComplete, onMindActi
       const convert = (p: AnchorPoint) => stagePoint(draft.line ? connectorPagePoint(app, draft.line, p) : p), a = convert({ [guide.axis]: guide.value, [other]: lo } as AnchorPoint), b = convert({ [guide.axis]: guide.value, [other]: hi } as AnchorPoint)
       return <line className="graph-align-guide" key={index} x1={a.x} y1={a.y} x2={b.x} y2={b.y} />
     })}</svg><span className="graph-align-label" style={(() => { const p = stagePoint(draft.line ? connectorPagePoint(app, draft.line, draft.handlePoint || draft.to) : draft.to); return { left: p.x + 16, top: p.y + 16 } })()}>{t('connector.aligned')}</span></> : null}
-    {nodes.map(node => connectionPorts.map((port, index) => { const p = stagePoint(endpoint(node, port, port)); return <button type="button" key={`${node.id}-${index}`} data-node-id={node.id} className={`graph-handle graph-port${node === selected ? ' is-selected' : ''}`} aria-label={t('connector.startPort', { side: t((['connector.top', 'connector.right', 'connector.bottom', 'connector.left'] as const)[index]) })} style={{ left: p.x, top: p.y }} onPointerDown={event => begin(event, 'create', node, port)} /> }))}
+    {nodes.map(node => connectionPorts.map((port, index) => { const p = stagePoint(endpoint(node, port, port)), side = port.y === 0 ? 'top' : port.x === 1 ? 'right' : port.y === 1 ? 'bottom' : 'left'; return <button type="button" key={`${node.id}-${index}`} data-node-id={node.id} data-port-x={port.x} data-port-y={port.y} className={`graph-handle graph-port${node === selected ? ' is-selected' : ''}`} aria-label={`${t('connector.startPort', { side: t(`connector.${side}`) })}${index < 4 ? '' : ` (${(side === 'top' || side === 'bottom' ? port.x : port.y) * 100}%)`}`} style={{ left: p.x, top: p.y }} onPointerDown={event => begin(event, 'create', node, port)} /> }))}
     {handles.map(handle => { const p = stagePoint(connectorPagePoint(app, line!, handle.point)); return <button type="button" key={handle.type} className={`graph-handle graph-endpoint is-${handle.type}`} aria-label={t(handle.type === 'source' ? 'connector.dragStart' : handle.type === 'target' ? 'connector.dragEnd' : 'connector.dragBend')} style={{ left: p.x, top: p.y }} onPointerDown={event => begin(event, handle.type)} /> })}
     {line && !['straight', 'curve'].includes(String(line.data?.mode)) && (() => {
       const geometry = connectorGeometry(line.data!.from, line.data!.to, line.data)

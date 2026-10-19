@@ -6,7 +6,11 @@ import { createElementId } from '../../../model'
 export type MindLayout = 'right' | 'left' | 'balanced' | 'down'
 export type RouteMode = 'elbow' | 'straight' | 'curve'
 export type AnchorPoint = { x: number; y: number }
-export const connectionPorts: AnchorPoint[] = [{ x: .5, y: 0 }, { x: 1, y: .5 }, { x: .5, y: 1 }, { x: 0, y: .5 }]
+// Keep the four midpoint indices stable for legacy template routes.
+export const connectionPorts: AnchorPoint[] = [
+  { x: .5, y: 0 }, { x: 1, y: .5 }, { x: .5, y: 1 }, { x: 0, y: .5 },
+  ...[.25, .75].flatMap(at => [{ x: at, y: 0 }, { x: 1, y: at }, { x: at, y: 1 }, { x: 0, y: at }]),
+]
 export type DiagramShape = 'rounded' | 'rect' | 'ellipse' | 'diamond' | 'parallelogram' | 'cylinder' | 'triangle' | 'hexagon' | 'cloud' | 'document'
 export const branchColors = ['#3370ff', '#36a872', '#e5a329', '#9254de', '#e76560', '#28a6a6']
 export const branchFills = ['#eaf1ff', '#e5f6ee', '#fff4d9', '#f2eafb', '#ffeceb', '#e3f5f5']
@@ -337,6 +341,19 @@ export function makeDiagram(shape: DiagramShape, x: number, y: number, text = ''
   return frame
 }
 
+/** The wrapper, visible outline and text box share one diagram size. */
+export function syncDiagramGeometry(node: IUI) {
+  const width = Number(node.width), height = Number(node.height)
+  const body = node.children?.find(child => kind(child) === 'diagram-body' || child.name === 'diagram-body')
+  const path = shapePath(node.data?.shape as DiagramShape, width, height)
+  if (body?.path && !path) {
+    // Imported outlines can predate shape names; keep their actual path.
+    body.scaleResize(width / Math.max(.001, Number(body.width)), height / Math.max(.001, Number(body.height)))
+    body.set({ width, height })
+  } else body?.set({ width, height, path: path || undefined })
+  labelOf(node)?.set({ width: Math.max(1, width - 28), height: Math.max(1, height - 24) })
+}
+
 export function makeTable(x: number, y: number, rows = 3, columns = 3, labels: string[] = []) {
   const group = new Group({ id: id(), name: 'board-table', x, y, editable: true, hitSelf: false, data: { kind: 'table', rows, columns } })
   for (let row = 0; row < rows; row++) for (let column = 0; column < columns; column++) {
@@ -354,7 +371,15 @@ export function extendTable(group: Group, axis: 'row' | 'column') {
 
 export function endpoint(item: IUI, toward: { x: number; y: number }, anchor?: AnchorPoint) {
   const bounds = item.getBounds('box', 'page')
-  if (anchor) return item.getPagePoint(item.getWorldPoint({ x: Number(item.width || 1) * anchor.x, y: Number(item.height || 1) * anchor.y }))
+  if (anchor) {
+    let x = anchor.x, y = anchor.y
+    const dx = x - .5, dy = y - .5, shape = item.data?.shape || (item.name === 'ellipse' ? 'ellipse' : undefined)
+    // Anchors describe a side and direction; curved/diagonal outlines must not
+    // expose ports at the corners of their rectangular bounding box.
+    const distance = shape === 'ellipse' ? Math.hypot(dx, dy) : shape === 'diamond' ? Math.abs(dx) + Math.abs(dy) : 0
+    if (distance) { x = .5 + dx / distance / 2; y = .5 + dy / distance / 2 }
+    return item.getPagePoint(item.getWorldPoint({ x: Number(item.width || 1) * x, y: Number(item.height || 1) * y }))
+  }
   const cx = bounds.x + bounds.width / 2, cy = bounds.y + bounds.height / 2
   const dx = toward.x - cx, dy = toward.y - cy
   const rx = Math.max(bounds.width / 2, 1), ry = Math.max(bounds.height / 2, 1), shape = item.data?.shape

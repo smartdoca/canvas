@@ -71,7 +71,7 @@ export function Canvas() {
 
 底部控件和小地图默认在右侧额外预留 `64px`，避让宿主悬浮按钮。可通过 `theme={{ '--aidcanvas-bottom-right-offset': '0px' }}` 取消留白，也可传入其他 CSS 长度适配宿主布局。
 
-文件元素通过上方工具栏预览、下载，只读状态也可操作。预览使用与 slatetsx 一致的展开图标。附件优先调用最新的 `onAttachmentPreview`，未传时调用 `onResourcePreview`；图片继续使用 `onResourcePreview`。回调收到稳定的 path 和元数据；预览界面和权限由宿主处理。回调可返回 Promise，失败交给 `onError`，不会写入文档。下载仍需 `resources.resolveDownloadUrl` 授权。
+画布图片首次点击选中，选中后再次点击调用 `onResourcePreview` 预览；拖动、调整大小和组合键点击不会触发预览。富文本编辑中的图片同样先选中、再次点击预览。右键图片可“复制图片”，将 PNG 图片内容写入系统剪贴板；资源图片复制需通过 `resolveDownloadUrl` 授权，并要求浏览器支持图片剪贴板。文件元素通过上方工具栏预览、下载，只读状态也可操作。预览使用与 slatetsx 一致的展开图标。附件优先调用最新的 `onAttachmentPreview`，未传时调用 `onResourcePreview`；图片继续使用 `onResourcePreview`。回调收到稳定的 path 和元数据；预览界面和权限由宿主处理。回调可返回 Promise，失败交给 `onError`，不会写入文档。下载仍需 `resources.resolveDownloadUrl` 授权。
 
 ## 协同
 

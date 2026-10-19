@@ -27,7 +27,7 @@ export function ThinkingTools({ app, activeKey, onComplete }: { app: App; active
       if (preset) item = makeContainer(preset, dragged ? containerBounds(preset, start, point) : containerBounds(preset, point), t)
       if (activeKey.startsWith('connector:')) {
         const target = pickConnectable(app, point), end = target === source ? undefined : target
-        const sourceAnchor = source && nearestPort(source, point), targetAnchor = end && nearestPort(end, start)
+        const sourceAnchor = source && nearestPort(source, start), targetAnchor = end && nearestPort(end, point)
         const from = source ? endpoint(source, point, sourceAnchor) : start, to = end ? endpoint(end, start, targetAnchor) : point
         item = makeConnector(from, to, activeKey.split(':')[1] as RouteMode, source?.id, end?.id)
         item.data = { ...item.data, sourceAnchor, targetAnchor }; setConnectorPath(item as Path, from, to)
@@ -105,8 +105,8 @@ export function ThinkingTools({ app, activeKey, onComplete }: { app: App; active
   const toStage = (point: AnchorPoint) => { const p = app.tree.getClientPointByWorld(app.tree.getWorldPoint(point)); return { x: p.x - box.left, y: p.y - box.top } }
   if (activeKey.startsWith('connector:')) {
     const target = pickConnectable(app, preview.point), end = target === preview.source ? undefined : target
-    const anchor = preview.source && nearestPort(preview.source, preview.point)
-    const targetAnchor = end && nearestPort(end, preview.start)
+    const anchor = preview.source && nearestPort(preview.source, preview.start)
+    const targetAnchor = end && nearestPort(end, preview.point)
     const from = preview.source ? endpoint(preview.source, preview.point, anchor) : preview.start, to = end ? endpoint(end, preview.start, targetAnchor) : preview.point
     const path = connectorGeometry(from, to, { mode: activeKey.split(':')[1], sourceAnchor: anchor, targetAnchor }).path, origin = toStage({ x: 0, y: 0 })
     return <svg className="thinking-insert-preview"><path d={path} transform={`translate(${origin.x} ${origin.y}) scale(${app.tree.scaleX || 1} ${app.tree.scaleY || 1})`} fill="none" stroke="#3370ff" strokeWidth="1.5" /></svg>

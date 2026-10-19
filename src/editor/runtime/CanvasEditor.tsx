@@ -44,6 +44,8 @@ import { GraphHandles } from './thinking/GraphHandles'
 import { LibraryDragDrop } from './thinking/LibraryDragDrop'
 import { TableInteractions } from './thinking/TableInteractions'
 import { NativeResourcePreviews } from './thinking/NativeResourcePreviews'
+import { copyImageToClipboard } from './thinking/imageClipboard'
+import { nativeImageResource, nativeImageSource } from './thinking/nativeImage'
 import { NativeTaskCheckboxes } from './thinking/NativeTaskCheckboxes'
 import { CanvasResources } from './thinking/CanvasResources'
 import { cleanResource } from './thinking/resourceData'
@@ -55,7 +57,7 @@ import { containerContents, isAutoLayout, isCanvasContainer, isContainerPart, la
 import { BoardIcon } from './thinking/BoardIcon'
 import { BoardMinimap, MindOutline, ShapesLibrary, TemplateGallery, TemplatePicture, TemplateStarter, ThinkingContextTools } from './thinking/ThinkingPanels'
 import { createTemplate, type TemplateId } from './thinking/templates'
-import { addMindNode, ancestor, fitConnectorLabel, isConnector, kind, labelOf, layoutMindMap, makeConnector, makeDiagram, mindMap, mindNode, mindNodes, mindDirectionOf, refreshConnectors, refreshMindEdges, removeItems, rememberConnectorLabelPosition, rememberMindPositions, syncMovedMindBranch, isMindPositioning, shapePath, setConnectorPath, setMindTheme, type MindLayout, type MindTheme, type DiagramShape } from './thinking/scene'
+import { addMindNode, ancestor, fitConnectorLabel, isConnector, kind, labelOf, layoutMindMap, makeConnector, makeDiagram, mindMap, mindNode, mindNodes, mindDirectionOf, refreshConnectors, refreshMindEdges, removeItems, rememberConnectorLabelPosition, rememberMindPositions, syncMovedMindBranch, syncDiagramGeometry, isMindPositioning, shapePath, setConnectorPath, setMindTheme, type MindLayout, type MindTheme } from './thinking/scene'
 import { notePlugin } from './plugins/note'
 import { SPECIAL_SHAPES } from './plugins/specialShape/const'
 import type { Plugins } from './plugins/plugins'
@@ -109,6 +111,21 @@ function normalizeSelectableItems(items: IUI[], deep = true) {
   items.forEach((item) => {
     // Native editor helpers share the scene tree but are not canvas content.
     if (item.skipJSON) return
+    // Name-only diagram wrappers must use the same resize lifecycle as newer
+    // nodes. Otherwise only the outer Frame grows, exposing a second fill and
+    // leaving its body/text at the old size. Explicit containers keep their role.
+    const body = item.children?.find(child => kind(child) === 'diagram-body' || child.name === 'diagram-body')
+    const diagram = kind(item) === 'diagram-node' || !kind(item) && (item.name === 'diagram-node' || item.name === 'frame' && !item.data?.containerType)
+    if (body && diagram) {
+      const legacy = kind(item) !== 'diagram-node' || item.name !== 'diagram-node', missingBodyKind = kind(body) !== 'diagram-body'
+      if (legacy) {
+        const shape = item.data?.shape || (!body.path ? body.tag === 'Ellipse' ? 'ellipse' : body.tag === 'Rect' ? body.cornerRadius ? 'rounded' : 'rect' : undefined : undefined)
+        item.set({ name: 'diagram-node', fill: 'transparent', stroke: 'transparent', data: { ...item.data, kind: 'diagram-node', ...(shape ? { shape } : {}) } })
+        item.children!.filter(child => child instanceof LeaferText && child.name === FRAME_TITLE_NAME && !child.data?.containerPart && child.text === 'Frame').forEach(child => child.remove())
+      }
+      if (missingBodyKind) body.data = { ...body.data, kind: 'diagram-body' }
+      if (legacy || missingBodyKind) syncDiagramGeometry(item)
+    }
     // Every persisted scene item in this canvas is selectable.
     const derived = ['mind-edge', 'diagram-body', 'template-edge', 'container-decoration'].includes(kind(item)) && !['label', 'axis-label'].includes(item.data?.containerPart)
     const structuredGroup = kind(item) === 'mindmap'
@@ -142,7 +159,7 @@ function normalizeSelectableItems(items: IUI[], deep = true) {
     if (item.tag === 'Image' || item.name === 'image') {
       item.lockRatio = item.data?.imageSizeMode !== 'free'
     }
-    if (item instanceof Frame && item.name === 'frame') {
+    if (isCanvasContainer(item)) {
       const fill = typeof item.fill === 'string' ? item.fill.replace(/\s/g, '').toLowerCase() : item.fill
       item.hitFill = item.fill == null || fill === 'transparent' || fill === 'rgba(0,0,0,0)' ? 'none' : 'path'
       item.hitStroke = 'path'
@@ -408,7 +425,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
     const frames: Frame[] = []
     const visit = (items: IUI[]) => items.forEach((item) => {
       if (item.skipJSON) return
-      if (item instanceof Frame && item.name === 'frame') frames.push(item)
+      if (isCanvasContainer(item)) frames.push(item)
       if ('children' in item && Array.isArray(item.children)) visit(item.children as IUI[])
     })
     visit([...current.tree.children] as IUI[])
@@ -935,12 +952,13 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
       },
       download: async (resource, element) => {
         const resolver = propsRef.current.resources?.resolveDownloadUrl
+        const local = element && !(element.data as Record<string, unknown> | undefined)?.resourcePath && !managed()
         const controller = new AbortController(); uploadControllersRef.current.add(controller)
         try {
           const fileName = resource.name || resource.path.split('/').at(-1) || 'download'
           const download = async (url?: string) => {
-            if (!resolver) throw new Error('DOWNLOAD_AUTHORIZATION_REQUIRED')
-            const response = await fetch(url || await resolver(resource.path, { signal: controller.signal }), { signal: controller.signal })
+            if (!local && !resolver) throw new Error('DOWNLOAD_AUTHORIZATION_REQUIRED')
+            const response = await fetch(url || (local ? resource.path : await resolver!(resource.path, { signal: controller.signal })), { signal: controller.signal })
             if (!response.ok) throw new Error('DOWNLOAD_FAILED')
             const blob = await response.blob(); controller.signal.throwIfAborted()
             const objectUrl = URL.createObjectURL(blob), anchor = document.createElement('a')
@@ -949,10 +967,30 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
           }
           if (element && resource.kind === 'image' && propsRef.current.onImageDownload) {
             const resolve = resolver || propsRef.current.resources?.resolveUrl
-            if (!resolve) throw new Error('DOWNLOAD_AUTHORIZATION_REQUIRED')
-            const url = await resolve(resource.path, { signal: controller.signal })
-            await propsRef.current.onImageDownload({ element, path: resource.path, fileName, url, download: () => download(url) })
+            if (!local && !resolve) throw new Error('DOWNLOAD_AUTHORIZATION_REQUIRED')
+            const url = local ? resource.path : await resolve!(resource.path, { signal: controller.signal })
+            await propsRef.current.onImageDownload({ element, path: local ? undefined : resource.path, fileName, url, download: () => download(url) })
           } else await download()
+        } finally { uploadControllersRef.current.delete(controller) }
+      },
+      copyImage: async (resource, element) => {
+        const controller = new AbortController(); uploadControllersRef.current.add(controller)
+        try {
+          await copyImageToClipboard(async () => {
+            const local = element && !(element.data as Record<string, unknown> | undefined)?.resourcePath && !managed()
+            const resolver = propsRef.current.resources?.resolveDownloadUrl
+            if (!local && !resolver) throw new Error('DOWNLOAD_AUTHORIZATION_REQUIRED')
+            const url = local ? resource.path : await resolver!(resource.path, { signal: controller.signal })
+            controller.signal.throwIfAborted()
+            const response = await fetch(url, { signal: controller.signal })
+            if (!response.ok) throw new Error('IMAGE_COPY_FAILED')
+            return response.blob()
+          }, controller.signal)
+        } catch (error) {
+          if (!controller.signal.aborted) {
+            notify(tRef.current('resource.copyImageFailed'))
+            propsRef.current.onError?.(error)
+          }
         } finally { uploadControllersRef.current.delete(controller) }
       },
       preview: resource => {
@@ -1063,11 +1101,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
         if (event.attrName === 'stroke' && kind(target) === 'mind-node' && group && !isMindPositioning(group)) refreshMindEdges(group)
         if (['x', 'y', 'width', 'height', 'scaleX', 'scaleY', 'rotation'].includes(event.attrName) && !['mind-edge', 'connector', 'template-edge', 'diagram-body'].includes(kind(target)) && (!group || !isMindPositioning(group))) {
           if (kind(target) === 'mind-node' && ['x', 'y'].includes(event.attrName)) syncMovedMindBranch(target as Frame)
-          if (kind(target) === 'diagram-node' && ['width', 'height'].includes(event.attrName)) {
-            const width = Number(target.width), height = Number(target.height)
-            target.children?.[0]?.set({ width, height, path: shapePath(target.data?.shape as DiagramShape, width, height) || undefined })
-            labelOf(target)?.set({ width: width - 28, height: height - 24 })
-          }
+          if (kind(target) === 'diagram-node' && ['width', 'height'].includes(event.attrName)) syncDiagramGeometry(target)
           // Leafer marks the transform dirty after emitting this event.
           queueConnectorRefresh()
         }
@@ -1244,6 +1278,13 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
       const modifier = event.metaKey || event.ctrlKey
       const nativeModifier = /Mac|iPhone|iPad/.test(navigator.platform) ? event.metaKey : event.ctrlKey
       const key = event.key.toLowerCase()
+      if (key === 'a' && modifier) {
+        // Own this shortcut before Leafer/browser handlers, including rejecting
+        // mixed modifiers so Ctrl+Cmd+A cannot select the scene accidentally.
+        event.preventDefault(); event.stopImmediatePropagation()
+        if (event.metaKey !== event.ctrlKey && !event.altKey && !event.shiftKey) appRef.current?.editor.select((appRef.current?.tree.children || []).filter(item => !item.skipJSON))
+        return
+      }
       if (!modifier && (key === '?' || event.shiftKey && key === '/')) { event.preventDefault(); setShortcutsOpen(open => !open); return }
       if (!modifier && event.shiftKey && event.code === 'Digit1') { event.preventDefault(); fitView(); return }
       if (!modifier && event.shiftKey && event.code === 'Digit2') { event.preventDefault(); fitView(true); return }
@@ -1260,7 +1301,6 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
         stageRef.current?.classList.add('is-panning')
       }
       if (propsRef.current.mode === 'readonly') {
-        if (modifier && key === 'a') { event.preventDefault(); appRef.current?.editor.select((appRef.current?.tree.children || []).filter(item => !item.skipJSON)) }
         return
       }
       if (modifier && !nativeModifier && key === 'v' && clipboardRef.current.length) { event.preventDefault(); pasteSelection() }
@@ -1289,7 +1329,6 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
         event.preventDefault()
         appRef.current.editor.openInnerEditor()
       }
-      if (modifier && key === 'a') { event.preventDefault(); appRef.current?.editor.select((appRef.current?.tree.children || []).filter(item => !item.skipJSON)) }
       if (!modifier && (key === 'v' || key === '1' || key === 'escape')) activateTool('init')
       if (!modifier && key === 'h') activateTool('hand')
       if (!modifier && ['r', 's', 'o', 'd'].includes(key)) { activateTool(`diagram:${({ r: 'rounded', s: 'rect', o: 'ellipse', d: 'diamond' } as Record<string, string>)[key]}`); return }
@@ -1604,10 +1643,6 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
 
   const selectedImage = selected.length === 1 && (selected[0].tag === 'Image' || selected[0].name === 'image') ? selected[0] : null
   const selectedEditablePath = selected.length === 1 && ['special-shape', 'path'].includes(selected[0].name || '') ? selected[0] : null
-  const getImageSource = (item: IUI) => {
-    const fill = item.fill && typeof item.fill === 'object' && !Array.isArray(item.fill) ? item.fill as unknown as { url?: string } : undefined
-    return String((item as unknown as { url?: string }).url || item.data?.sourceUrl || fill?.url || '')
-  }
   const downloadSelectedImage = async () => {
     if (!selectedImage) return
     const resourcePath = typeof selectedImage.data?.resourcePath === 'string' ? selectedImage.data.resourcePath : undefined
@@ -1615,7 +1650,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
     try {
       const url = resourcePath && propsRef.current.resources?.resolveDownloadUrl
         ? await propsRef.current.resources.resolveDownloadUrl(resourcePath, {})
-        : getImageSource(selectedImage)
+        : nativeImageSource(selectedImage)
       const download = async () => {
         if (resourcePath && !propsRef.current.resources?.resolveDownloadUrl) throw new Error('资源图片下载必须由宿主授权或提供 resolveDownloadUrl')
         const response = await fetch(url)
@@ -2038,7 +2073,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
           const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : (index + (event.key === 'ArrowUp' ? -1 : 1) + buttons.length) % buttons.length
           buttons[next]?.focus()
         }}>
-          {selectedImage && <button type="button" className="menu-item" role="menuitem" onClick={() => void downloadSelectedImage()}>{t('selection.downloadImage')}</button>}
+          {selectedImage && <><button type="button" className="menu-item" role="menuitem" onClick={() => { void resourceRuntime(app)?.copyImage(nativeImageResource(selectedImage), selectedImage.toJSON()) }}>{t('resource.copyImage')}</button><button type="button" className="menu-item" role="menuitem" onClick={() => void downloadSelectedImage()}>{t('selection.downloadImage')}</button></>}
           {!isReadOnly && <>
             {mindNode(selected[0]) && <><button type="button" className="menu-item" role="menuitem" onClick={() => changeMind('child')}>{t('mind.addChild')}<kbd>Tab</kbd></button><button type="button" className="menu-item" role="menuitem" onClick={() => changeMind('sibling')}>{t('mind.addSibling')}<kbd>Enter</kbd></button><button type="button" className="menu-item" role="menuitem" onClick={() => changeMind('parent')}>{t('mind.addParent')}<kbd>⇧ Tab</kbd></button><button type="button" className="menu-item" role="menuitem" onClick={() => changeMind('collapse')}>{t('mind.collapse')}<kbd>⌘ .</kbd></button><div className="menu-separator" /></>}
             <button className="menu-item" role="menuitem" disabled={!selected.length} onClick={duplicate}>{t('selection.duplicate')}<kbd>⌘ D</kbd></button>
@@ -2053,7 +2088,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
           <button className="menu-item" role="menuitem" onClick={() => app?.editor.select(app.tree.children.filter(item => !item.skipJSON))}>{t('menu.selectAll')}<kbd>⌘ A</kbd></button>
           <button className="menu-item" role="menuitem" onClick={() => fitView()}>{t('zoom.fit')}<kbd>⇧ 1</kbd></button>
         </div>}
-        {app && <NativeResourcePreviews app={app} readonly={isReadOnly} />}
+        {app && <NativeResourcePreviews app={app} readonly={isReadOnly} activeKey={activeKey} />}
         {app && <NativeTaskCheckboxes app={app} readonly={isReadOnly} activeKey={activeKey} onChange={flushContent} />}
         {app && !isReadOnly && <><ThinkingTools app={app} activeKey={activeKey} onComplete={completeThinking} /><ToolPlacementPreview app={app} activeKey={activeKey} /><CanvasResources app={app} onInsert={insertCanvasResource} onExtract={extractCanvasResource} /><RichObjectInteractions app={app} activeKey={activeKey} selection={selected} onComplete={completeThinking} /><GraphHandles app={app} activeKey={activeKey} selection={selected} onComplete={completeThinking} onMindAction={changeMind} /><TableInteractions app={app} activeKey={activeKey} selection={selected} onComplete={completeThinking} /><LibraryDragDrop app={app} onComplete={completeLibraryDrag} /></>}
         {app && app.tree.children.length === 0 && !isReadOnly && activeKey === 'init' && <>{templatePreview ? <div className="template-ghost-preview"><TemplatePicture type={templatePreview} /></div> : <div className="board-empty-hint"><span className="board-desktop-hint">{t('board.emptyHint')}</span><span className="board-touch-hint">{t('board.touchHint')}</span><button type="button" onClick={() => setGalleryOpen(true)}><BoardIcon name="templates" size={21} />{t('board.template')}</button></div>}{starterOpen && <TemplateStarter onPreview={setTemplatePreview} onInsert={insertTemplate} onMore={() => setGalleryOpen(true)} onClose={() => { setStarterOpen(false); setTemplatePreview(null) }} />}</>}
@@ -2084,7 +2119,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
         ] as [MessageKey, string][]).map(([key, shortcut]) => <div key={key}><span>{t(key).replace(/ \(.*\)/, '')}</span><kbd>{shortcut}</kbd></div>)}</div>
       </section>
     </div>}
-    {imageEditorTarget && <ImageEditorModal sourceUrl={getImageSource(imageEditorTarget)} onCancel={() => setImageEditorTarget(null)} onConfirm={applyImageEdit} />}
+    {imageEditorTarget && <ImageEditorModal sourceUrl={nativeImageSource(imageEditorTarget)} onCancel={() => setImageEditorTarget(null)} onConfirm={applyImageEdit} />}
     {shapeEditorTarget && <SpecialShapeEditorModal title={shapeEditorTarget.name === 'path' ? t('shapeEditor.pencilTitle') : t('shapeEditor.title')} path={getEditablePath(shapeEditorTarget)} onCancel={() => setShapeEditorTarget(null)} onConfirm={applyPathEdit} />}
   </div>
   </CanvasI18nProvider>

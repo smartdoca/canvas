@@ -41,7 +41,7 @@ export function containerType(key: string): ContainerType | undefined {
   const type = key.startsWith('container:') ? key.slice(10) : ''
   return Object.hasOwn(containerPresets, type) ? type as ContainerType : undefined
 }
-export const isCanvasContainer = (item: IUI | undefined | null): item is Frame => item instanceof Frame && item.name === 'frame'
+export const isCanvasContainer = (item: IUI | undefined | null): item is Frame => item instanceof Frame && item.name === 'frame' && (!item.data?.kind || item.data.kind === 'container')
 export const isContainerPart = (item: IUI) => item.name === 'frame-title' || Boolean(item.data?.containerPart)
 export const containerContents = (frame: IUI) => (frame.children || []).filter(item => !isContainerPart(item))
 export const isAutoLayout = (frame: IUI) => ['horizontal', 'vertical'].includes(frame.data?.containerType)

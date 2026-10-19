@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { MoveEvent, PropertyEvent, ZoomEvent, type App, type IUI, type Text } from 'leafer-ui'
+import { MoveEvent, PointerEvent as LeaferPointerEvent, PropertyEvent, ZoomEvent, type App, type IUI, type Text } from 'leafer-ui'
 import { EditorEvent, InnerEditorEvent } from '@leafer-in/editor'
 import type { CanvasElement, CanvasResource } from '../../../sdk/types'
 import { useCanvasI18n } from '../../../i18n/context'
@@ -8,26 +8,51 @@ import { richLayout } from './richText'
 import { RESOURCE_DRAG, resourceRuntime } from './slateRuntime'
 import { BoardIcon } from './BoardIcon'
 import { richContainer } from './richBounds'
+import { isNativeImage, nativeImageResource } from './nativeImage'
 
 /** Native media actions share host authorization with Slate media. */
-export function NativeResourcePreviews({ app, readonly }: { app: App; readonly: boolean }) {
+export function NativeResourcePreviews({ app, readonly, activeKey }: { app: App; readonly: boolean; activeKey: string }) {
   const t = useCanvasI18n(), [menu, setMenu] = useState<{ resource: CanvasResource; x: number; y: number; element?: CanvasElement }>(), [, paint] = useState(0)
+  useEffect(() => {
+    if (activeKey !== 'init') return
+    const host = (app.view as HTMLElement).closest<HTMLElement>('.canvas-host')!
+    let click: { item: IUI; x: number; y: number; moved: boolean } | undefined
+    const down = (event: PointerEvent) => {
+      click = undefined
+      if (event.button !== 0 || event.shiftKey || event.ctrlKey || event.metaKey || event.altKey || app.editor.innerEditing || !(event.target instanceof HTMLElement) || !host.contains(event.target) || event.target.closest('.canvas-slate-mount,button,input')) return
+      const item = app.tree.pick(app.tree.getWorldPointByClient(event)).target as IUI
+      if (isNativeImage(item) && app.editor.list.length === 1 && app.editor.list[0] === item) click = { item, x: event.clientX, y: event.clientY, moved: false }
+    }
+    const move = (event: PointerEvent) => { if (click && Math.hypot(event.clientX - click.x, event.clientY - click.y) > 4) click.moved = true }
+    const cancel = () => { click = undefined }
+    const up = (event: LeaferPointerEvent) => {
+      const current = click; cancel()
+      if (!current || current.moved || event.dragging || event.moving) return
+      const item = current.item
+      if (event.target !== item && event.target !== app.editor.editBox.rect) return
+      if (item.leafer && app.editor.list.length === 1 && app.editor.list[0] === item) resourceRuntime(app)?.preview(nativeImageResource(item))
+    }
+    const ids = [app.on_(LeaferPointerEvent.UP, up)]
+    document.addEventListener('pointerdown', down, true); document.addEventListener('pointermove', move, true); document.addEventListener('pointercancel', cancel, true); window.addEventListener('blur', cancel)
+    return () => { app.off_(ids); document.removeEventListener('pointerdown', down, true); document.removeEventListener('pointermove', move, true); document.removeEventListener('pointercancel', cancel, true); window.removeEventListener('blur', cancel) }
+  }, [activeKey, app])
   useEffect(() => {
     const host = (app.view as HTMLElement).closest<HTMLElement>('.canvas-host')!
     const context = (event: MouseEvent) => {
       if (!host.contains(event.target as Node) || (event.target as HTMLElement).closest('.canvas-slate-mount')) return
       const world = app.tree.getWorldPointByClient(event)
+      const picked = app.tree.pick(world).target
       for (const item of allItems(app).filter(item => item.visible !== false).reverse()) {
         const p = item.getInnerPoint(world)
         if (p.x < 0 || p.y < 0 || p.x > Number(item.width) || p.y > Number(item.height)) continue
         let resource: CanvasResource | undefined
         if (kind(item) === 'attachment') resource = item.data?.resource
-        else if (item.tag === 'Image' && item.data?.resourcePath) resource = { kind: 'image', id: item.id!, path: item.data.resourcePath, name: item.data.fileName }
+        else if (isNativeImage(item) && item === picked) resource = nativeImageResource(item)
         else if (item.tag === 'Text') resource = richLayout(item as Text)?.media.find(m => p.x >= m.x && p.y >= m.y && p.x <= m.x + m.width && p.y <= m.y + m.height)?.resource
         if (!resource) continue
         event.preventDefault(); event.stopImmediatePropagation()
         const stage = host.closest('.canvas-stage')!.getBoundingClientRect()
-        setMenu({ resource, ...(item.tag === 'Image' ? { element: item.toJSON() as CanvasElement } : {}), x: Math.max(8, Math.min(stage.width - 140, event.clientX - stage.left)), y: Math.max(8, Math.min(stage.height - 44, event.clientY - stage.top)) }); return
+        setMenu({ resource, ...(isNativeImage(item) ? { element: item.toJSON() as CanvasElement } : {}), x: Math.max(8, Math.min(stage.width - 140, event.clientX - stage.left)), y: Math.max(8, Math.min(stage.height - 88, event.clientY - stage.top)) }); return
       }
     }
     const close = (event: PointerEvent) => { if (!(event.target as HTMLElement).closest('.native-resource-menu')) setMenu(undefined) }
@@ -59,6 +84,6 @@ export function NativeResourcePreviews({ app, readonly }: { app: App; readonly: 
     {targets.map(({ item, media, clipPath, x, y, width, height }) => <div key={`${item.id}:${media.resource.id}`} className="native-rich-resource" data-native-resource={media.resource.id} style={{ position: 'absolute', left: x, top: y, width, height, clipPath, zIndex: 8 }} draggable={!readonly} onDragStart={event => { if (readonly || !runtime?.canEdit()) { event.preventDefault(); return }; event.dataTransfer.setData(RESOURCE_DRAG, JSON.stringify({ elementId: item.id, resourceId: media.resource.id })); event.dataTransfer.effectAllowed = 'move' }} onPointerDown={event => { event.stopPropagation() }} onClick={event => { if (readonly || !runtime?.canEdit() || (event.target as HTMLElement).closest('button')) return; app.editor.select(item); app.editor.openInnerEditor(item, true); (app.editor.innerEditor as unknown as { selectResource?: (id: string) => void }).selectResource?.(media.resource.id) }}>
       {media.resource.kind === 'attachment' && <button type="button" aria-label={t('resource.download')} title={t('resource.download')} onPointerDown={event => event.stopPropagation()} onClick={() => { void runtime?.download(media.resource).catch(runtime.error) }}><BoardIcon name="export" size={16} /></button>}
     </div>)}
-    {menu && <div className="native-resource-menu canvas-popover-content" role="menu" style={{ position: 'absolute', left: menu.x, top: menu.y, zIndex: 40 }}><button type="button" className="menu-item" role="menuitem" onClick={() => { setMenu(undefined); void runtime?.download(menu.resource, menu.element).catch(runtime.error) }}>{t('resource.download')}</button></div>}
+    {menu && <div className="native-resource-menu canvas-popover-content" role="menu" style={{ position: 'absolute', left: menu.x, top: menu.y, zIndex: 40 }}>{menu.resource.kind === 'image' && <button type="button" className="menu-item" role="menuitem" onClick={() => { setMenu(undefined); void runtime?.copyImage(menu.resource, menu.element).catch(runtime.error) }}>{t('resource.copyImage')}</button>}<button type="button" className="menu-item" role="menuitem" onClick={() => { setMenu(undefined); void runtime?.download(menu.resource, menu.element).catch(runtime.error) }}>{t('resource.download')}</button></div>}
   </>
 }

@@ -24,6 +24,8 @@ export const zh: Record<MessageKey, string> = {
   'resource.file': '上传文件',
   'resource.preview': '预览附件',
   'resource.download': '下载',
+  'resource.copyImage': '复制图片',
+  'resource.copyImageFailed': '复制图片失败',
   'resource.close': '关闭预览',
   'resource.failed': '上传失败',
   'resource.retry': '重试',

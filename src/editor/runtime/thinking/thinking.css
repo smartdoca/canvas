@@ -252,9 +252,10 @@
 [data-aidcanvas].thinking-canvas .rich-link-form button[type=submit] { color: #fff; background: #3370ff; }
 [data-aidcanvas].thinking-canvas .rich-link-form input[aria-invalid=true] { border-color: #e76560; }
 [data-aidcanvas].thinking-canvas .canvas-slate-editable a { color: inherit; text-decoration: inherit; }
-[data-aidcanvas].thinking-canvas .rich-list-row { display: flex; align-items: flex-start; gap: var(--rich-list-gap); }
+[data-aidcanvas].thinking-canvas .rich-list-row { display: flex; align-items: baseline; gap: var(--rich-list-gap); }
 [data-aidcanvas].thinking-canvas .rich-block-prefix { flex-shrink: 0; box-sizing: border-box; user-select: none; }
 [data-aidcanvas].thinking-canvas .rich-list-marker { color: #3370ff; text-align: right; }
+[data-aidcanvas].thinking-canvas .rich-list-row.is-task { align-items: flex-start; }
 [data-aidcanvas].thinking-canvas .rich-list-content { flex: 1; min-width: 0; }
 [data-aidcanvas].thinking-canvas .rich-list-content.is-done { color: #8f959e; text-decoration: line-through; }
 [data-aidcanvas].thinking-canvas .rich-task-checkbox { display: grid; place-items: center; padding: 0; border: .09375em solid #bbbfc4; border-radius: .25em; color: #fff; background: #fff; cursor: pointer; }

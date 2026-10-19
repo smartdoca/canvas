@@ -22,6 +22,8 @@ export const en = {
   'resource.file': 'Upload files',
   'resource.preview': 'Preview resource',
   'resource.download': 'Download',
+  'resource.copyImage': 'Copy image',
+  'resource.copyImageFailed': 'Could not copy image',
   'resource.close': 'Close preview',
   'resource.failed': 'Upload failed',
   'resource.retry': 'Retry',

@@ -43,6 +43,20 @@ class CanvasPlainTextEditor extends TextEditor {
     this.editDom.contentEditable = 'plaintext-only'
   }
 
+  override onUpdate() {
+    super.onUpdate()
+    const text = this.editTarget, dom = this.editDom
+    // An empty flex editor has no line box, so its caret ignores vertical
+    // alignment. Use the same block flow for empty and populated labels.
+    dom.style.display = 'block'
+    dom.style.whiteSpace = text.textWrap === 'none' || text.__.__autoWidth ? 'pre' : 'pre-wrap'
+    const lineHeight = Number(text.__.__lineHeight || text.fontSize) * this.textScale
+    const rows = Math.max(1, text.__.__textDrawData?.rows.length || 0)
+    const padding = parseFloat(dom.style.paddingTop) || 0
+    const spare = Math.max(0, parseFloat(dom.style.height) - padding - (parseFloat(dom.style.paddingBottom) || 0) - rows * lineHeight)
+    dom.style.paddingTop = `${padding + (text.verticalAlign === 'middle' ? spare / 2 : text.verticalAlign === 'bottom' ? spare : 0)}px`
+  }
+
   protected override onInput() { this.editTarget.text = this.getPlainText() }
 
   protected override onKeydown(event: KeyboardEvent) {
