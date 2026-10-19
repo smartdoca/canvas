@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Transforms } from 'slate'
 import { ReactEditor, useFocused, useSelected, type RenderElementProps } from 'slate-react'
 import type { CanvasResource } from '../../../sdk/types'
@@ -12,6 +12,7 @@ export function UploadTasks({ uploads, t }: { uploads: ReturnType<typeof useReso
 }
 export function ResourceBlock({ attributes, children, element, editor, runtime, t, baseSize, align, elementId }: RenderElementProps & { editor: ReactEditor; baseSize: number; elementId: string; align?: string; runtime?: ResourceRuntime; t: (key: MessageKey) => string }) {
   const [menu, setMenu] = useState(false)
+  const click = useRef<{ x: number; y: number; preview: boolean }>()
   const resource = (element as unknown as { resource: CanvasResource }).resource, [url, setUrl] = useState<string>(), selected = useSelected(), focused = useFocused()
   useEffect(() => {
     if (!runtime || resource.kind !== 'image') return
@@ -27,10 +28,10 @@ export function ResourceBlock({ attributes, children, element, editor, runtime, 
   }, [menu])
   const download = () => { setMenu(false); void runtime?.download(resource).catch(runtime.error) }
   return <div {...attributes} className={`rich-resource-block${selected && focused ? ' is-selected' : ''}`} data-resource-kind={resource.kind} style={{ marginLeft: align === 'right' || align === 'center' ? 'auto' : undefined, marginRight: align === 'center' ? 'auto' : undefined, width: resource.kind === 'image' ? `min(100%, ${(resource.width || 240) / baseSize}em)` : undefined }}>
-    <div contentEditable={false} draggable={runtime?.canEdit()} title={t('resource.dragOut')} onDragStart={event => { if (!runtime?.canEdit()) { event.preventDefault(); return }; event.dataTransfer.setData(RESOURCE_DRAG, JSON.stringify({ elementId, resourceId: resource.id })); event.dataTransfer.effectAllowed = 'move' }} onContextMenu={event => { event.preventDefault(); event.stopPropagation(); setMenu(true) }} onPointerDown={event => { event.stopPropagation(); if ((event.target as HTMLElement).closest('button')) return; Transforms.select(editor, ReactEditor.findPath(editor, element)); ReactEditor.focus(editor) }}>
+    <div contentEditable={false} draggable={runtime?.canEdit()} title={t('resource.dragOut')} onDragStart={event => { click.current = undefined; if (!runtime?.canEdit()) { event.preventDefault(); return }; event.dataTransfer.setData(RESOURCE_DRAG, JSON.stringify({ elementId, resourceId: resource.id })); event.dataTransfer.effectAllowed = 'move' }} onContextMenu={event => { event.preventDefault(); event.stopPropagation(); setMenu(true) }} onPointerDown={event => { event.stopPropagation(); click.current = undefined; if ((event.target as HTMLElement).closest('button')) return; click.current = { x: event.clientX, y: event.clientY, preview: selected && focused && event.button === 0 && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey }; Transforms.select(editor, ReactEditor.findPath(editor, element)); ReactEditor.focus(editor) }} onPointerMove={event => { if (click.current && Math.hypot(event.clientX - click.current.x, event.clientY - click.current.y) > 4) click.current = undefined }} onPointerCancel={() => { click.current = undefined }} onClick={() => { if (resource.kind === 'image' && click.current?.preview) runtime?.preview(resource); click.current = undefined }}>
       {resource.kind === 'image' && url ? <img src={url} alt={resource.name || ''} draggable={false} style={{ aspectRatio: `${resource.width || 4}/${resource.height || 3}` }} /> : <div className="rich-file-chip"><span className="resource-file-icon">{resource.name?.split('.').at(-1)?.slice(0, 4).toUpperCase() || 'FILE'}</span><span>{resource.name || resource.path}<small>{resource.size === undefined ? '' : `${Math.ceil(resource.size / 1024)} KB`}</small></span></div>}
       {resource.kind === 'attachment' && <button type="button" className="rich-resource-download" aria-label={t('resource.download')} title={t('resource.download')} onPointerDown={event => { event.preventDefault(); event.stopPropagation() }} onClick={download}><BoardIcon name="export" size={16} /></button>}
-      {menu && <div role="menu" className="rich-resource-menu" onPointerDown={event => event.stopPropagation()}><button type="button" role="menuitem" onClick={download}>{t('resource.download')}</button></div>}
+      {menu && <div role="menu" className="rich-resource-menu" onPointerDown={event => event.stopPropagation()}>{resource.kind === 'image' && <button type="button" role="menuitem" onClick={() => { setMenu(false); void runtime?.copyImage(resource).catch(runtime.error) }}>{t('resource.copyImage')}</button>}<button type="button" role="menuitem" onClick={download}>{t('resource.download')}</button></div>}
       {selected && focused && <button className="rich-resource-preview" type="button" aria-label={t('resource.preview')} onPointerDown={event => { event.preventDefault(); event.stopPropagation() }} onClick={() => runtime?.preview(resource)}>{t('resource.preview')}</button>}
     </div>{children}
   </div>

@@ -4,6 +4,8 @@ const saved = page => page.evaluate(() => JSON.parse(localStorage.getItem('aidca
 async function open(page) { await page.goto('/'); await page.locator('.canvas-view canvas').first().waitFor() }
 async function selectImage(page) {
   const node = (await saved(page)).find(n => n.tag === 'Image'), host = await page.locator('.canvas-host').boundingBox()
+  // A selected image now previews on the next click; explicitly deselect before selecting for edits.
+  await page.mouse.click(host.x + host.width - 32, host.y + 100)
   await page.mouse.click(host.x + node.x + node.width / 2, host.y + node.y + node.height / 2)
 }
 

@@ -13,6 +13,7 @@ export interface ResourceRuntime {
   upload: (file: File, signal: AbortSignal, onProgress: (progress: number) => void, kind?: 'image' | 'attachment') => Promise<import('../../../sdk/types').CanvasResource>
   resolve: (path: string, signal: AbortSignal) => Promise<string>
   download: (resource: import('../../../sdk/types').CanvasResource, element?: import('../../../sdk/types').CanvasElement) => Promise<void>
+  copyImage: (resource: import('../../../sdk/types').CanvasResource, element?: import('../../../sdk/types').CanvasElement) => Promise<void>
   preview: (resource: import('../../../sdk/types').CanvasResource) => void
   error: (error: unknown) => void
 }

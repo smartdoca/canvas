@@ -64,15 +64,18 @@ test('row styles, individual alignment and task checkbox size persist and reach 
   await page.screenshot({ path: info.outputPath('row-styles.png') }); await peer.close()
 })
 
-for (const kind of ['image', 'attachment']) for (const active of [false, true]) test(`${active ? 'active editor ' : 'selected note '}${kind}: select without preview, authorized download, drag out, undo and peer convergence`, async ({ page, context }, info) => {
+for (const kind of ['image', 'attachment']) for (const active of [false, true]) test(`${active ? 'active editor ' : 'selected note '}${kind}: select then preview images, authorized download, drag out, undo and peer convergence`, async ({ page, context }, info) => {
   await open(page)
   const resource = { id: crypto.randomUUID(), kind, path: 'stable-asset-id', name: kind === 'image' ? 'idea.png' : 'idea.txt', width: 120, height: 80 }
   const { id, labelId } = await seed(page, [paragraph('说明'), { type: 'paragraph', resource, children: [{ text: '' }] }, paragraph('结尾')])
   const peer = await context.newPage(); await peer.goto(await page.evaluate(() => window.demo.link)); await peer.waitForFunction(() => window.demo?.handle)
   await edit(page, labelId)
+  await page.keyboard.press('ControlOrMeta+Home')
   const block = page.locator(`[data-resource-kind=${kind}] > div[contenteditable=false]`)
-  await block.click(); await block.click()
+  await block.click()
   expect(await page.evaluate(() => window.demo.resourceLog.filter(e => e.type === 'preview').length)).toBe(0)
+  await block.click()
+  expect(await page.evaluate(() => window.demo.resourceLog.filter(e => e.type === 'preview').length)).toBe(kind === 'image' ? 1 : 0)
   await page.evaluate(() => { window.demo.resourceControls.denyDownload = true })
   if (kind === 'image') { await block.click({ button: 'right' }); await page.getByRole('menuitem', { name: '下载', exact: true }).click() }
   else await page.locator('.rich-resource-download').click()

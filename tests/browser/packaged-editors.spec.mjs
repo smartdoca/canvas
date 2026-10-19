@@ -68,3 +68,31 @@ test('built package registers Slate notes and restores their text and formatting
   await page.keyboard.press('Escape'); await page.evaluate(() => window.demo.handle.flush())
   expect(await text(page, 'packaged-rich')).toEqual(saved)
 })
+
+test('built package selects images before preview and copies authorized image pixels', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  await page.evaluate(async () => {
+    window.demo.model.remove(window.demo.model.getValue().scene.children.map(n => n.id))
+    const canvas = document.createElement('canvas'); canvas.width = 48; canvas.height = 32
+    const c = canvas.getContext('2d'); c.fillStyle = '#3370ff'; c.fillRect(0, 0, 48, 32)
+    const blob = await new Promise(resolve => canvas.toBlob(resolve))
+    await window.demo.handle.insertImageFile(new File([blob], 'packaged.png', { type: 'image/png' }), { x: 340, y: 240, width: 180 })
+    window.demo.handle.flush(); window.demo.handle.select([])
+  })
+  const host = page.locator('.canvas-host')
+  const before = await page.evaluate(() => JSON.stringify(window.demo.model.getValue()))
+  await host.click({ position: { x: 420, y: 290 } })
+  expect(await page.evaluate(() => window.demo.resourceLog.filter(e => e.type === 'preview').length)).toBe(0)
+  await host.click({ position: { x: 420, y: 290 } })
+  expect(await page.evaluate(() => window.demo.resourceLog.filter(e => e.type === 'preview').length)).toBe(1)
+  await page.evaluate(() => navigator.clipboard.writeText('before-packaged-image-copy'))
+  await host.click({ position: { x: 420, y: 290 }, button: 'right' })
+  await page.getByRole('menuitem', { name: '复制图片', exact: true }).click()
+  await expect.poll(() => page.evaluate(async () => {
+    const items = await navigator.clipboard.read()
+    if (!items[0]?.types.includes('image/png')) return null
+    const bitmap = await createImageBitmap(await items[0].getType('image/png'))
+    const size = [bitmap.width, bitmap.height]; bitmap.close(); return size
+  })).toEqual([48, 32])
+  expect(await page.evaluate(() => JSON.stringify(window.demo.model.getValue()))).toBe(before)
+})

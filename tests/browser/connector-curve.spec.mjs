@@ -152,7 +152,7 @@ test('growth flywheel inserts four curved arrows, supports zoomed editing and fo
   expect(svgPaths.some(path => { const values = path.match(/-?\d+(?:\.\d+)?(?:e[+-]?\d+)?/gi)?.map(Number); return values?.length === expected.length && values.every((value, at) => Math.abs(value - expected[at]) < .01) })).toBe(true)
 })
 
-test('drawing a curve previews the committed geometry at zoom with both ports attached', async ({ page }) => {
+for (const quarter of [false, true]) test(`drawing a curve previews the committed geometry at zoom with both ports attached (${quarter ? 'quarter' : 'midpoint'} ports)`, async ({ page }) => {
   await open(page)
   const ids = await page.evaluate(async () => {
     const { makeDiagram } = await import('/src/editor/runtime/thinking/scene.ts')
@@ -163,16 +163,16 @@ test('drawing a curve previews the committed geometry at zoom with both ports at
   })
   await page.getByRole('button', { name: '连线 (A)', exact: true }).click()
   await page.locator('.connector-choices').getByRole('button', { name: '曲线', exact: true }).click()
-  const points = await page.evaluate(() => {
+  const points = await page.evaluate(quarter => {
     const origin = window.demo.handle.clientToScene({ x: 0, y: 0 }), unit = window.demo.handle.clientToScene({ x: 1, y: 1 })
-    return [{ x: 510, y: 290 }, { x: 580, y: 500 }].map(point => ({ x: (point.x - origin.x) / (unit.x - origin.x), y: (point.y - origin.y) / (unit.y - origin.y) }))
-  })
+    return (quarter ? [{ x: 510, y: 270 }, { x: 540, y: 500 }] : [{ x: 510, y: 290 }, { x: 580, y: 500 }]).map(point => ({ x: (point.x - origin.x) / (unit.x - origin.x), y: (point.y - origin.y) / (unit.y - origin.y) }))
+  }, quarter)
   await page.mouse.move(points[0].x, points[0].y); await page.mouse.down()
   await page.mouse.move(points[1].x, points[1].y, { steps: 12 })
   const preview = await page.locator('.thinking-insert-preview path').getAttribute('d')
   await page.mouse.up()
   const edge = (await scene(page)).children.find(node => node.data?.kind === 'connector')
   expect(edge.data.sourceId).toBe(ids[0]); expect(edge.data.targetId).toBe(ids[1])
-  expect(edge.data.sourceAnchor).toEqual({ x: 1, y: .5 }); expect(edge.data.targetAnchor).toEqual({ x: .5, y: 0 })
+  expect(edge.data.sourceAnchor).toEqual({ x: 1, y: quarter ? .25 : .5 }); expect(edge.data.targetAnchor).toEqual({ x: quarter ? .25 : .5, y: 0 })
   expect(edge.path).toBe(preview)
 })
