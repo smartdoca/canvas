@@ -17,6 +17,7 @@ async function open(page, mimeType = 'image/png') {
 async function click(page, x = 420, y = 290, options) { await page.locator('.canvas-host').click({ position: { x, y }, ...options }) }
 async function readClipboard(page) {
   return page.evaluate(async () => {
+    try {
     const items = await navigator.clipboard.read()
     if (!items[0]?.types.includes('image/png')) return { types: items[0]?.types }
     const blob = await items[0].getType('image/png')
@@ -24,6 +25,7 @@ async function readClipboard(page) {
     canvas.width = bitmap.width; canvas.height = bitmap.height
     const c = canvas.getContext('2d'); c.drawImage(bitmap, 0, 0); bitmap.close()
     return { types: items[0].types, width: canvas.width, height: canvas.height, pixel: [...c.getImageData(20, 20, 1, 1).data], bytes: [...new Uint8Array(await blob.arrayBuffer())] }
+    } catch (error) { if (error.name === 'InvalidStateError') return { pending: true }; throw error }
   })
 }
 
@@ -66,6 +68,7 @@ for (const [mime, readonly] of [['image/png', false], ['image/jpeg', false], ['i
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
   const image = await open(page, mime), before = await value(page), updates = await page.evaluate(() => window.demo.allUpdates.length)
   if (readonly) await page.evaluate(() => window.demo.setMode('readonly'))
+  await page.evaluate(() => navigator.clipboard.writeText('before-image-copy'))
   await click(page, 420, 290, { button: 'right' })
   await page.getByRole('menuitem', { name: '复制图片', exact: true }).click()
   await expect.poll(() => readClipboard(page)).toMatchObject({ types: ['image/png'], width: 48, height: 32 })
@@ -95,6 +98,7 @@ test('rich-image context menu copies image bytes through the same host authoriza
   await page.locator('.canvas-host').dblclick({ position: { x: 380, y: 206 } })
   const img = page.locator('[data-resource-kind=image] img'); await expect(img).toBeVisible()
   const before = await value(page), updates = await page.evaluate(() => window.demo.allUpdates.length)
+  await page.evaluate(() => navigator.clipboard.writeText('before-rich-image-copy'))
   await img.click({ button: 'right' }); await page.getByRole('menuitem', { name: '复制图片', exact: true }).click()
   await expect.poll(() => readClipboard(page)).toMatchObject({ types: ['image/png'], width: 48, height: 32 })
   expect(await value(page)).toEqual(before); expect(await page.evaluate(() => window.demo.allUpdates.length)).toBe(updates)

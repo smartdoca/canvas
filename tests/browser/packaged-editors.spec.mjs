@@ -85,6 +85,7 @@ test('built package selects images before preview and copies authorized image pi
   expect(await page.evaluate(() => window.demo.resourceLog.filter(e => e.type === 'preview').length)).toBe(0)
   await host.click({ position: { x: 420, y: 290 } })
   expect(await page.evaluate(() => window.demo.resourceLog.filter(e => e.type === 'preview').length)).toBe(1)
+  await page.evaluate(() => navigator.clipboard.writeText('before-packaged-image-copy'))
   await host.click({ position: { x: 420, y: 290 }, button: 'right' })
   await page.getByRole('menuitem', { name: '复制图片', exact: true }).click()
   await expect.poll(() => page.evaluate(async () => {
