@@ -233,9 +233,15 @@ test('same-cell offline multiline edits merge on reconnect without remote echo a
   const merged = await textOf(page); for (const part of ['方向', '甲', '行A', '乙', '行B']) expect(merged).toContain(part)
   expect(await Promise.all([page, peer].map(tab => tab.evaluate(() => window.demo.allUpdates.length)))).toEqual(counts)
   await expect(page.locator('[data-slate-editor]')).toHaveText(merged.replaceAll('\n', ''))
-  await page.keyboard.press('Meta+z')
-  await expect.poll(async () => (await textOf(page)).includes('甲')).toBe(false)
-  expect(await textOf(page)).toContain('乙'); expect(await textOf(page)).toContain('行B')
+  // Presence/auto-flush may split this typing burst into several local
+  // transactions. Undo each one, checking that no peer text is ever removed.
+  for (let step = 0; step < 6 && (await textOf(page)).includes('甲'); step++) {
+    const previous = await textOf(page)
+    await page.keyboard.press('Meta+z')
+    await expect.poll(() => textOf(page)).not.toBe(previous)
+    expect(await textOf(page)).toContain('乙'); expect(await textOf(page)).toContain('行B')
+  }
+  expect(await textOf(page)).not.toContain('甲')
   await page.keyboard.press('Escape'); await peer.keyboard.press('Escape'); await Promise.all([page, peer].map(tab => tab.evaluate(() => window.demo.handle.flush())))
   await expect.poll(async () => JSON.stringify(await scene(page)) === JSON.stringify(await scene(peer))).toBe(true)
   await peer.close()
