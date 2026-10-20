@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.7 — 2026-10-20
+
+- Apply quick stroke widths and dashed/dotted lines to diagram bodies and table cells, matching the full style panel.
+- Keep trackpad panning continuous over connection ports, rich media and table/object controls.
+- Open mention suggestions immediately with loading feedback, cancel stale searches and reuse completed queries within the editor session.
+- Delete the semantic note/card/diagram when an object deletion command targets its active rich label, preserving inline content through undo.
+- Bake custom-path sizes only after actual resizing; discard deferred gesture work after history/model restoration so it cannot clear redo.
+- Keep the top-right view menu available in embedded canvases without the package header. Add dot/grid patterns and background colors alongside minimap and outline controls as view state.
+- Anchor the table move handle to the table's top-left corner, including outside the viewport.
+
 ## 0.5.6 — 2026-10-20
 
 - Keep empty diagram label carets vertically aligned with the text that follows, and align rich list markers with the first text baseline.

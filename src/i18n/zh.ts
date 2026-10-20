@@ -1,6 +1,13 @@
 import type { MessageKey } from './en'
 
 export const zh: Record<MessageKey, string> = {
+  'board.pattern': '背景图案',
+  'board.pattern.dots': '点阵',
+  'board.pattern.lines': '网格',
+  'board.background': '背景色',
+  'rich.suggestionsLoading': '正在查找…',
+  'rich.suggestionsEmpty': '没有匹配结果',
+  'rich.suggestionsError': '加载失败，请重新输入',
   'rich.rowControls': '行操作',
   'rich.insertContent': '插入内容',
 

@@ -214,6 +214,8 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
   const selectionActionsRef = useRef<HTMLDivElement>(null)
   const selectionPlacementRef = useRef<{ items: IUI[]; layout: string; offsetX: number; below: boolean }>()
   const movedFrameItemsRef = useRef(new Set<IUI>())
+  const scaledShapeItemsRef = useRef(new Set<IUI>())
+  const restoreGenerationRef = useRef(0)
   const editorHandleRef = useRef<CanvasEditorRef>()
   const uploadControllersRef = useRef(new Set<AbortController>())
   const propsRef = useRef(props)
@@ -242,6 +244,8 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
   const [imageEditorTarget, setImageEditorTarget] = useState<IUI | null>(null)
   const [shapeEditorTarget, setShapeEditorTarget] = useState<IUI | null>(null)
   const [grid, setGrid] = useState(false)
+  const [gridPattern, setGridPattern] = useState<'dots' | 'lines'>('dots')
+  const [backgroundColor, setBackgroundColor] = useState<string>()
   const [galleryOpen, setGalleryOpen] = useState(false)
   const [starterOpen, setStarterOpen] = useState(true)
   const [templatePreview, setTemplatePreview] = useState<TemplateId | null>(null)
@@ -662,13 +666,15 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
       const node = mindNode(item) || ancestor(item, 'diagram-node') || ancestor(item, 'table-cell') || ancestor(item, 'note') || ancestor(item, 'card')
       const label = item instanceof LeaferText ? item : node ? labelOf(node) : labelOf(item)
       if (key === 'notePreset') { applyNotePreset(item, String(value)); setStyleParamsToLocalStorage({ ...getStyleParamsFromLocalStorage(), notePreset: value }); return }
-      if (kind(item) === 'table') { item.children?.forEach(cell => { if (['fill', 'stroke'].includes(key)) cell.set({ [key]: value }); else { const text = labelOf(cell); if (text) { if (key === 'textAlign') alignTextContent(text, value as 'left' | 'center' | 'right' | 'justify'); else text.set({ [key === 'fontColor' ? 'fill' : key]: value }) } } }); return }
+      const strokeTarget = node && kind(node) === 'diagram-node' ? node.children?.[0] || node : node || item
+      const dashPattern = value === 'dashed' ? [8, 5] : value === 'dotted' ? [2, 4] : []
+      if (kind(item) === 'table') { item.children?.forEach(cell => { if (key === 'lineDash') cell.set({ dashPattern }); else if (['fill', 'stroke', 'strokeWidth'].includes(key)) cell.set({ [key]: value }); else { const text = labelOf(cell); if (text) { if (key === 'textAlign') alignTextContent(text, value as 'left' | 'center' | 'right' | 'justify'); else text.set({ [key === 'fontColor' ? 'fill' : key]: value }) } } }); return }
       if (key === 'textAlign' && label) { alignTextContent(label, value as 'left' | 'center' | 'right' | 'justify'); return }
       if (key === 'resetRoute' && isConnector(item)) { const data = { ...item.data }; delete data.vertices; delete data.bend; delete data.offset; delete data.curveOffset; item.data = data; setConnectorPath(item as Path, data.from, data.to); return }
       if (['routeMode', 'startHead', 'endHead'].includes(key) && isConnector(item)) { item.data = { ...item.data, [key === 'routeMode' ? 'mode' : key]: value }; setConnectorPath(item as Path, item.data.from, item.data.to); return }
-      if (key === 'lineDash') { item.dashPattern = value === 'dashed' ? [8, 5] : value === 'dotted' ? [2, 4] : undefined; return }
+      if (key === 'lineDash') { strokeTarget.set({ dashPattern }); return }
       if (['fontSize', 'fontWeight', 'italic', 'fontColor', 'textAlign', 'verticalAlign'].includes(key) && label) label.set({ [key === 'fontColor' ? 'fill' : key]: value })
-      else if (node && kind(node) === 'diagram-node' && ['fill', 'stroke'].includes(key)) node.children?.[0]?.set({ [key]: value })
+      else if (['fill', 'stroke', 'strokeWidth'].includes(key)) strokeTarget.set({ [key]: value })
       else (node || item).set({ [key]: value })
       const group = mindMap(item)
       if (group) { layoutMindMap(group); refreshMindEdges(group) }
@@ -724,6 +730,8 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
     const value = model.getValue()
     const selectionIds = current.editor.list.map(x => x.id)
     restoringRef.current = true
+    restoreGenerationRef.current++
+    movedFrameItemsRef.current.clear()
     try {
       textBridgeRef.current?.sync()
       // Reconcile by identity: preserve the App, surviving nodes, selection and viewport.
@@ -817,6 +825,8 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
     const current = appRef.current
     if (!current) return
     restoringRef.current = true
+    restoreGenerationRef.current++
+    movedFrameItemsRef.current.clear()
     // cancel() detaches the native multi-selection helper before tree.reset()
     // destroys scene children; select([]) leaves that helper attached.
     current.editor.cancel()
@@ -1118,6 +1128,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
       commit()
     })
     instance.editor.on(EditorScaleEvent.SCALE, (event: EditorScaleEvent) => {
+      event.editor.list.filter(item => item.name === 'special-shape').forEach(item => scaledShapeItemsRef.current.add(item))
       scheduleSelectionPosition()
       // Text resizing bakes the editor scale into fontSize. Refresh the
       // selection array so StyleEditor reads the new value during dragging.
@@ -1129,12 +1140,13 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
     instance.on(ZoomEvent.ZOOM, scheduleSelectionPosition)
     instance.on(LeaferPointerEvent.UP, () => {
       // Custom path sizes are baked after Leafer completes its resize cycle.
-      const selectedItems = [...instance.editor.list]
+      const selectedItems = [...scaledShapeItemsRef.current], generation = restoreGenerationRef.current
+      scaledShapeItemsRef.current.clear()
       window.requestAnimationFrame(() => selectedItems.forEach((item) => {
-        if (item.destroyed) return
+        if (item.destroyed || item.leafer !== instance.tree || generation !== restoreGenerationRef.current) return
         bakeSpecialShapeScale(item)
       }))
-      window.setTimeout(reconcileFrameMembership, 0)
+      window.setTimeout(() => { if (generation === restoreGenerationRef.current) reconcileFrameMembership() }, 0)
     })
     instance.on(KeyEvent.DOWN, (event: KeyEvent) => {
       if (propsRef.current.mode === 'readonly') return
@@ -1231,7 +1243,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
       const bounds = host.getBoundingClientRect()
       applyZoomAt(nextScale, { x: event.clientX - bounds.left, y: event.clientY - bounds.top })
     }
-    const releaseWheelBoundary = installCanvasWheelBoundary(stage.closest<HTMLElement>('.canvas-app')!)
+    const releaseWheelBoundary = installCanvasWheelBoundary(stage.closest<HTMLElement>('.canvas-app')!, app.interaction?.canvas.view as HTMLElement | undefined)
     host.addEventListener('pointerdown', onPointerDown, true)
     host.addEventListener('pointermove', onPointerMove, true)
     host.addEventListener('pointerup', onPointerUp, true)
@@ -1980,7 +1992,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
   const displayedSaveState = props.saveStatus === 'clean' ? 'saved' : props.saveStatus || saveState
 
   return <CanvasI18nProvider locale={props.locale} messages={messages}>
-  <div data-aidcanvas="" lang={resolveLocale(props.locale) === 'en' ? 'en' : 'zh-CN'} tabIndex={0} onFocus={() => setFocused(true)} onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget)) setFocused(false) }} onPointerDown={e => { if (!(e.target as HTMLElement).closest('button,input,textarea,[contenteditable]')) e.currentTarget.focus() }} onDoubleClickCapture={e => { if (isReadOnly) e.stopPropagation() }} className={`canvas-app thinking-canvas${shapesOpen ? ' is-shapes-open' : ''}${outlineOpen ? ' is-drawer-open' : ''}${isReadOnly ? ' is-readonly' : ''}${props.className ? ` ${props.className}` : ''}`} style={{ ...props.theme, ...props.style }}>
+  <div data-aidcanvas="" lang={resolveLocale(props.locale) === 'en' ? 'en' : 'zh-CN'} tabIndex={0} onFocus={() => setFocused(true)} onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget)) setFocused(false) }} onPointerDown={e => { if (!(e.target as HTMLElement).closest('button,input,textarea,[contenteditable]')) e.currentTarget.focus() }} onDoubleClickCapture={e => { if (isReadOnly) e.stopPropagation() }} className={`canvas-app thinking-canvas${shapesOpen ? ' is-shapes-open' : ''}${outlineOpen ? ' is-drawer-open' : ''}${isReadOnly ? ' is-readonly' : ''}${props.className ? ` ${props.className}` : ''}`} style={{ ...props.theme, ...props.style, ...(backgroundColor ? { '--aidcanvas-background': backgroundColor } : {}) }}>
     {toast && <div className="toast">{toast}</div>}
     {props.showHeader !== false && <header className="app-header">
       <div className="header-actions board-header-panel">
@@ -1994,6 +2006,19 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
         <span className="board-edit-state"><BoardIcon name="pen" size={15} />{t(isReadOnly ? 'board.readonly' : 'board.editing')}</span>
         <span className="header-panel-divider" />
         <IconButton label={t('board.outline')} icon={<BoardIcon name="outline" />} active={outlineOpen} onClick={() => { setOutlineOpen(!outlineOpen); setShortcutsOpen(false) }} />
+      </div>
+    </header>}
+
+    {topActions.length > 0 && <div className="host-action-bar" role="toolbar" aria-label={t('header.hostActions')}>{topActions.map(renderHostAction)}</div>}
+
+    <div className="canvas-workspace">
+      <main ref={stageRef} className={`canvas-stage${grid ? ' has-grid' : ''}${!isReadOnly && props.showToolbar !== false ? ' has-toolbar' : ''}`} data-active-tool={activeKey} data-grid-pattern={gridPattern} onContextMenu={event => {
+        if (!(event.target as HTMLElement).closest('.canvas-host')) return
+        event.preventDefault()
+        const bounds = event.currentTarget.getBoundingClientRect()
+        setContextMenu({ x: Math.max(8, Math.min(event.clientX - bounds.left, bounds.width - 244)), y: Math.max(8, Math.min(event.clientY - bounds.top, bounds.height - 310)) })
+      }}>
+        <div className="board-view-controls">
         <Popover label={t('menu.main')} icon={<BoardIcon name="menu" />} className="view-popover" fitViewport>
           <div className="menu-heading">{props.title ?? t('board.title')}</div>
           <button type="button" className="menu-item" role="menuitem" onClick={save}><Save />{t('header.save')}<kbd>⌘ S</kbd></button>
@@ -2002,22 +2027,17 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
           <div className="menu-separator" />
           <button type="button" className="menu-item" role="menuitem" onClick={() => fitView()}><FullSelection />{t('zoom.fit')}<kbd>⇧ 1</kbd></button>
           <button type="button" className="menu-item" role="menuitemcheckbox" aria-checked={grid} onClick={() => setGrid(previous => !previous)}><span className="menu-check">{grid && <Check />}</span>{t('menu.grid')}<kbd>'</kbd></button>
+          <div className="menu-heading">{t('board.pattern')}</div>
+          <div className="board-pattern-options">{(['dots', 'lines'] as const).map(pattern => <button type="button" key={pattern} role="menuitemradio" aria-checked={grid && gridPattern === pattern} onClick={() => { setGrid(true); setGridPattern(pattern) }}><i className={`board-pattern-preview is-${pattern}`} />{t(`board.pattern.${pattern}`)}</button>)}</div>
+          <div className="menu-heading">{t('board.background')}</div>
+          <div className="board-background-options">{['#ffffff', '#f5f6f7', '#edf3ff', '#eaf5ee', '#fff7e6', '#25282d'].map(color => <button type="button" key={color} role="menuitemradio" aria-label={`${t('board.background')} ${color}`} aria-checked={(backgroundColor || '#ffffff') === color} style={{ background: color }} onClick={() => setBackgroundColor(color)}><span className="menu-check">{backgroundColor === color && <Check />}</span></button>)}</div>
+          <div className="menu-separator" />
+          <button type="button" className="menu-item" role="menuitemcheckbox" aria-checked={outlineOpen} onClick={() => setOutlineOpen(previous => !previous)}><span className="menu-check">{outlineOpen && <Check />}</span>{t('board.outline')}</button>
           <button type="button" className="menu-item" role="menuitemcheckbox" aria-checked={minimapOpen} onClick={() => setMinimapOpen(previous => !previous)}><span className="menu-check">{minimapOpen && <Check />}</span>{t('board.minimap')}</button>
           <div className="menu-separator" />
           <button type="button" className="menu-item" role="menuitem" onClick={() => { setShortcutsOpen(true); setOutlineOpen(false) }}><BoardIcon name="help" size={16} />{t('menu.help')}<kbd>?</kbd></button>
         </Popover>
-      </div>
-    </header>}
-
-    {topActions.length > 0 && <div className="host-action-bar" role="toolbar" aria-label={t('header.hostActions')}>{topActions.map(renderHostAction)}</div>}
-
-    <div className="canvas-workspace">
-      <main ref={stageRef} className={`canvas-stage${grid ? ' has-grid' : ''}${!isReadOnly && props.showToolbar !== false ? ' has-toolbar' : ''}`} data-active-tool={activeKey} onContextMenu={event => {
-        if (!(event.target as HTMLElement).closest('.canvas-host')) return
-        event.preventDefault()
-        const bounds = event.currentTarget.getBoundingClientRect()
-        setContextMenu({ x: Math.max(8, Math.min(event.clientX - bounds.left, bounds.width - 244)), y: Math.max(8, Math.min(event.clientY - bounds.top, bounds.height - 310)) })
-      }}>
+        </div>
         {app && <RemoteSelections app={app} model={props.model} sessions={visibleRemoteSelections(props.remoteSelections || [], props.sessionId || '', isReadOnly)} />}
         {app && props.model && <AnchorDecorations app={app} model={props.model} anchors={props.anchors || []} activeId={props.activeAnchorId} onClick={props.onAnchorClick} />}
         {app && !isReadOnly && props.showToolbar !== false && <div className="toolbar-wrap"><Toolbar app={app} plugins={plugins} activeKey={activeKey} setActiveKey={activateTool}
