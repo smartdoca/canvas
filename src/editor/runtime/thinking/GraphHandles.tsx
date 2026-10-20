@@ -6,7 +6,7 @@ import { allItems, ancestor, connectableNode, connectionPorts, connectorGeometry
 import { getStyleParamsFromLocalStorage } from '../utils/styleLocalStorage'
 import { BoardIcon } from './BoardIcon'
 
-type Draft = { type: 'create' | 'source' | 'target' | 'bend' | 'segment' | 'vertex'; node?: IUI; line?: IUI; anchor?: AnchorPoint; from: AnchorPoint; to: AnchorPoint; start: AnchorPoint; target?: IUI; targetAnchor?: AnchorPoint; bend?: number; offset?: number; curveOffset?: AnchorPoint; moved: boolean; index?: number; points?: AnchorPoint[]; vertices?: AnchorPoint[]; handlePoint?: AnchorPoint; guides?: { axis: 'x' | 'y'; value: number }[] }
+type Draft = { type: 'create' | 'source' | 'target' | 'bend' | 'segment' | 'vertex' | 'translate'; node?: IUI; line?: IUI; anchor?: AnchorPoint; from: AnchorPoint; to: AnchorPoint; start: AnchorPoint; target?: IUI; targetAnchor?: AnchorPoint; bend?: number; offset?: number; curveOffset?: AnchorPoint; moved: boolean; index?: number; points?: AnchorPoint[]; vertices?: AnchorPoint[]; handlePoint?: AnchorPoint; guides?: { axis: 'x' | 'y'; value: number }[] }
 export function GraphHandles({ app, activeKey, selection, onComplete, onMindAction }: { app: App; activeKey: string; selection: IUI[]; onComplete: (items: IUI[]) => void; onMindAction: (action: 'child' | 'collapse') => void }) {
   const t = useCanvasI18n(), root = useRef<HTMLDivElement>(null), draftRef = useRef<Draft>(), [draftState, setDraft] = useState<Draft>(), [hovered, setHovered] = useState<IUI>(), [, redraw] = useState(0)
   const [picker, setPicker] = useState<{ line: IUI; point: AnchorPoint }>()
@@ -24,6 +24,9 @@ export function GraphHandles({ app, activeKey, selection, onComplete, onMindActi
       line = makeConnector(current.from, current.to, (getStyleParamsFromLocalStorage().connectorMode || 'elbow') as import('./scene').RouteMode, current.node?.id, current.target?.id)
       line.data = { ...line.data, sourceAnchor: current.anchor, targetAnchor: current.targetAnchor }
       app.tree.add(line)
+    } else if (line && current.type === 'translate') {
+      if (current.from.x === line.data!.from.x && current.from.y === line.data!.from.y && current.to.x === line.data!.to.x && current.to.y === line.data!.to.y) { update(); return }
+      line.data = { ...line.data, from: current.from, to: current.to, ...(current.bend === undefined ? {} : { bend: current.bend }), ...(current.offset === undefined ? {} : { offset: current.offset }), ...(current.vertices === undefined ? {} : { vertices: current.vertices }) }
     } else if (line && (current.type === 'segment' || current.type === 'vertex')) {
       const vertices = orthogonalConnectorPoints([current.from, ...current.vertices || [], current.to], line.data).slice(1, -1)
       if (connectorGeometry(current.from, current.to, { ...line.data, vertices }).routePath === connectorGeometry(current.from, current.to, line.data).routePath) { update(); return }
@@ -79,7 +82,7 @@ export function GraphHandles({ app, activeKey, selection, onComplete, onMindActi
       const current = draftRef.current
       if (!current) {
         const line = !app.editor.innerEditing && host.contains(event.target as globalThis.Node) ? hitLine(event)?.line : undefined
-        setHoveredLine(previous => previous === line ? previous : line); host.style.cursor = line ? 'pointer' : ''
+        setHoveredLine(previous => previous === line ? previous : line); host.style.cursor = line ? !line.data?.sourceId && !line.data?.targetId ? 'move' : 'pointer' : ''
         return
       }
       if (current.line && !current.line.leafer || current.node && !current.node.leafer) { update(); setPicker(undefined); return }
@@ -87,7 +90,20 @@ export function GraphHandles({ app, activeKey, selection, onComplete, onMindActi
       if (current.line?.data?.mode === 'straight' && current.type === 'bend') return
       current.moved ||= Math.hypot(event.clientX - current.start.x, event.clientY - current.start.y) > 4
       if (!current.moved) return
-      if (current.type === 'segment' || current.type === 'vertex') {
+      if (current.type === 'translate') {
+        const data = current.line!.data!, origin = connectorLocalPoint(app, current.line!, pagePoint({ clientX: current.start.x, clientY: current.start.y }))
+        const delta = { x: point.x - origin.x, y: point.y - origin.y }
+        if (Math.abs(delta.x) < .000001) delta.x = 0
+        if (Math.abs(delta.y) < .000001) delta.y = 0
+        const translate = (p: AnchorPoint) => ({ x: p.x + delta.x, y: p.y + delta.y })
+        current.from = translate(data.from); current.to = translate(data.to)
+        // Endpoints, manual vertices and route coordinates share the parent's
+        // coordinate system; the curve's relative offset remains unchanged.
+        const vertical = connectorGeometry(data.from, data.to, data).vertical
+        if (typeof data.bend === 'number') current.bend = data.bend + (vertical ? delta.y : delta.x)
+        if (typeof data.offset === 'number') current.offset = data.offset + (vertical ? delta.x : delta.y)
+        if (Array.isArray(data.vertices)) current.vertices = data.vertices.map(translate)
+      } else if (current.type === 'segment' || current.type === 'vertex') {
         const points = current.points!.map(p => ({ ...p })), index = current.index!, origin = connectorLocalPoint(app, current.line!, pagePoint({ clientX: current.start.x, clientY: current.start.y }))
         current.guides = []
         const threshold = 7 / Math.abs(Number(app.tree.scaleX || 1))
@@ -176,7 +192,7 @@ export function GraphHandles({ app, activeKey, selection, onComplete, onMindActi
         points.splice(hit.index + 1, 0, { x: a.x + dx * ratio, y: a.y + dy * ratio })
         update({ type: 'vertex', line: hit.line, from: { ...data.from }, to: { ...data.to }, start: { x: event.clientX, y: event.clientY }, moved: false, index: hit.index + 1, points, vertices: points.slice(1, -1) }); return
       }
-      const type = data.mode === 'straight' || data.mode === 'curve' || geometry.points.length === 2 ? 'bend' : 'segment'
+      const type = !data.sourceId && !data.targetId ? 'translate' : data.mode === 'straight' || data.mode === 'curve' || geometry.points.length === 2 ? 'bend' : 'segment'
       update({ type, line: hit.line, from: { ...data.from }, to: { ...data.to }, start: { x: event.clientX, y: event.clientY }, moved: false, index: hit.index, points: geometry.points })
     }
     const double = (event: MouseEvent) => {
@@ -250,7 +266,7 @@ export function GraphHandles({ app, activeKey, selection, onComplete, onMindActi
     {nodes.map(node => connectionPorts.map((port, index) => { const p = stagePoint(endpoint(node, port, port)), side = port.y === 0 ? 'top' : port.x === 1 ? 'right' : port.y === 1 ? 'bottom' : 'left'; return <button type="button" key={`${node.id}-${index}`} data-node-id={node.id} data-port-x={port.x} data-port-y={port.y} className={`graph-handle graph-port${node === selected ? ' is-selected' : ''}`} aria-label={`${t('connector.startPort', { side: t(`connector.${side}`) })}${index < 4 ? '' : ` (${(side === 'top' || side === 'bottom' ? port.x : port.y) * 100}%)`}`} style={{ left: p.x, top: p.y }} onPointerDown={event => begin(event, 'create', node, port)} /> }))}
     {handles.map(handle => { const p = stagePoint(connectorPagePoint(app, line!, handle.point)); return <button type="button" key={handle.type} className={`graph-handle graph-endpoint is-${handle.type}`} aria-label={t(handle.type === 'source' ? 'connector.dragStart' : handle.type === 'target' ? 'connector.dragEnd' : 'connector.dragBend')} style={{ left: p.x, top: p.y }} onPointerDown={event => begin(event, handle.type)} /> })}
     {line && !['straight', 'curve'].includes(String(line.data?.mode)) && (() => {
-      const geometry = connectorGeometry(line.data!.from, line.data!.to, line.data)
+      const geometry = lineDraft?.type === 'translate' && preview ? preview : connectorGeometry(line.data!.from, line.data!.to, line.data)
       return <>{geometry.points.slice(1, -1).map((point, index) => { const p = stagePoint(connectorPagePoint(app, line, point)); return <button type="button" className="graph-handle graph-vertex" key={`v${index}`} aria-label={t('connector.dragVertex', { index: index + 1 })} style={{ left: p.x, top: p.y }} onPointerDown={event => begin(event, 'vertex', undefined, undefined, index + 1)} onDoubleClick={event => { event.preventDefault(); event.stopPropagation(); const points = geometry.points.slice(1, -1).filter((_, at) => at !== index); line.data = { ...line.data, vertices: points }; setConnectorPath(line as Path, line.data.from, line.data.to); onComplete([line]) }} /> })}{geometry.points.slice(1).map((point, index) => {
         const first = geometry.points[index], middle = { x: (first.x + point.x) / 2, y: (first.y + point.y) / 2 }
         if (geometry.points.length <= 2 || Math.hypot(point.x - first.x, point.y - first.y) < 28) return null

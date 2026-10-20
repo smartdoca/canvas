@@ -124,3 +124,27 @@ test('built package can delete a note with an active mention and undo the object
   await page.evaluate(() => window.demo.handle.undo())
   expect((await text(page, 'mention-label')).data.richText.value[0].children.some(child => child.inline)).toBe(true)
 })
+
+test('built package translates an unbound line from its body before and after selection', async ({ page }) => {
+  await page.evaluate(() => {
+    window.demo.model.remove(window.demo.model.getValue().scene.children.map(node => node.id))
+    window.demo.handle.addElement({ id: 'packaged-free-line', tag: 'Path', name: 'connector', path: 'M300 240L700 420', stroke: '#646a73', strokeWidth: 1.5, editable: true, editConfig: { moveable: false, resizeable: false, rotateable: false }, data: { kind: 'connector', mode: 'straight', from: { x: 300, y: 240 }, to: { x: 700, y: 420 } } })
+    window.demo.handle.flush(); window.demo.handle.select([])
+  })
+  const before = await text(page, 'packaged-free-line'), host = await page.locator('.canvas-host').boundingBox()
+  const drag = async (x, y, dx, dy) => {
+    await page.mouse.move(host.x + x, host.y + y); await page.mouse.down()
+    await page.mouse.move(host.x + x + dx, host.y + y + dy, { steps: 12 }); await page.mouse.up()
+  }
+  await drag(420, 294, 100, 60)
+  const first = await text(page, 'packaged-free-line')
+  expect(first.data.from).toEqual({ x: 400, y: 300 }); expect(first.data.to).toEqual({ x: 800, y: 480 })
+  await drag(520, 354, -50, 40)
+  const second = await text(page, 'packaged-free-line')
+  expect(second.data.from).toEqual({ x: 350, y: 340 }); expect(second.data.to).toEqual({ x: 750, y: 520 })
+  await page.evaluate(() => window.demo.handle.undo()); expect(await text(page, 'packaged-free-line')).toEqual(first)
+  await page.evaluate(() => window.demo.handle.undo()); expect(await text(page, 'packaged-free-line')).toEqual(before)
+  await page.evaluate(() => { window.demo.handle.redo(); window.demo.handle.redo() }); expect(await text(page, 'packaged-free-line')).toEqual(second)
+  await page.evaluate(() => window.demo.setMode('readonly'))
+  await drag(470, 394, 100, 60); expect(await text(page, 'packaged-free-line')).toEqual(second)
+})
