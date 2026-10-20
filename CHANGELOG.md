@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.8 — 2026-10-20
+
+- Drag the body of a connector with both endpoints unbound to translate the entire line, including straight lines, manual elbow routes and curves. Preserve existing editing behavior for connected lines and dedicated route handles.
+- Translate route coordinates and labels correctly inside scaled groups and at any canvas zoom; commit once on release with undo/redo, peer synchronization and checkpoint restoration. Cancelled and zero-distance drags leave content unchanged.
+
 ## 0.5.7 — 2026-10-20
 
 - Apply quick stroke widths and dashed/dotted lines to diagram bodies and table cells, matching the full style panel.

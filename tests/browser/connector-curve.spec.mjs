@@ -75,10 +75,14 @@ for (const direction of ['horizontal', 'vertical', 'diagonal']) test(`${directio
   await expect(page.locator('.graph-route-highlight path')).toHaveCount(1)
   await page.mouse.down()
   await page.mouse.move(host.x + body.x + 25, host.y + body.y - 30, { steps: 10 }); await page.mouse.up()
-  expect((await line(page, id)).data.curveOffset).toEqual({ x: -105, y: 100 })
+  const translated = await line(page, id)
+  expect(translated.data.curveOffset).toEqual(changed.data.curveOffset)
+  expect(translated.data.from).toEqual({ x: changed.data.from.x + 25, y: changed.data.from.y - 30 })
+  expect(translated.data.to).toEqual({ x: changed.data.to.x + 25, y: changed.data.to.y - 30 })
   await page.getByRole('button', { name: '重置连线路径', exact: true }).click()
   expect((await line(page, id)).data.curveOffset).toBeUndefined()
-  expect((await line(page, id)).path).toBe(initial.path)
+  const resetMiddle = middle((await line(page, id)).path), initialMiddle = middle(initial.path)
+  expect(resetMiddle.x).toBeCloseTo(initialMiddle.x + 25); expect(resetMiddle.y).toBeCloseTo(initialMiddle.y - 30)
 })
 
 test('an edited elbow converts to a draggable curve without reusing its segment gesture', async ({ page }) => {
