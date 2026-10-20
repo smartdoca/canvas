@@ -554,8 +554,16 @@ export function refreshConnectors(app: App) {
 }
 
 export function removeItems(app: App, items: IUI[]) {
+  // Live rich-text selection points at the label. Object deletion still owns
+  // its semantic note/card/diagram, including atomic mentions inside it.
+  const roots = [...new Set(items.map(item => {
+    if (item.tag !== 'Text') return item
+    const owner = ancestor(item, 'note') || ancestor(item, 'card') || ancestor(item, 'diagram-node') || ancestor(item, 'connector-label')
+    return owner && labelOf(owner) === item ? owner : item
+  }))]
+  if (app.editor.innerEditing) app.editor.closeInnerEditor()
   const before = new Set(allItems(app).map(item => item.id))
-  items.forEach(item => { const node = mindNode(item); if (node) removeMindNode(node); else item.remove() })
+  roots.forEach(item => { const node = mindNode(item); if (node) removeMindNode(node); else item.remove() })
   const remaining = allItems(app), ids = new Set(remaining.map(item => item.id))
   const removed = new Set([...before].filter(id => !ids.has(id)))
   // Relations do not imply selection. Preserve unselected lines and labels at

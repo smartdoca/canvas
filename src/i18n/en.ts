@@ -1,4 +1,11 @@
 export const en = {
+  'board.pattern': 'Background pattern',
+  'board.pattern.dots': 'Dots',
+  'board.pattern.lines': 'Grid',
+  'board.background': 'Background color',
+  'rich.suggestionsLoading': 'Loading suggestions…',
+  'rich.suggestionsEmpty': 'No matches',
+  'rich.suggestionsError': 'Could not load suggestions',
   'rich.rowControls': 'Row actions',
   'rich.insertContent': 'Insert content',
 

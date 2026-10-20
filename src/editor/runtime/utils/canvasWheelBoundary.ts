@@ -17,7 +17,7 @@ function holdBoundary(element: HTMLElement) {
 }
 
 /** Cover the first trackpad packet and the root scroll chain while the pointer is in this canvas. */
-export function installCanvasWheelBoundary(root: HTMLElement) {
+export function installCanvasWheelBoundary(root: HTMLElement, canvas?: HTMLElement) {
   let inside = root.matches(':hover'), release: (() => void) | undefined, timer: number | undefined
   const activate = () => {
     if (release) return
@@ -32,6 +32,15 @@ export function installCanvasWheelBoundary(root: HTMLElement) {
     activate()
     if (!inside) leave()
     const target = event.target as Element, horizontal = event.deltaX !== 0 || event.shiftKey
+    // Connection ports and table/object handles sit above Leafer's canvas.
+    // Route their wheel packets through the same native interaction surface.
+    if (canvas && target.closest('.graph-handle,.node-quick-create,.rich-object-move-handle,.table-axis-layer,.native-rich-resource,.native-task-checkbox,.rich-native-link')) {
+      event.preventDefault(); event.stopPropagation()
+      canvas.dispatchEvent(new WheelEvent('wheel', { bubbles: true, cancelable: true,
+        clientX: event.clientX, clientY: event.clientY, deltaX: event.deltaX, deltaY: event.deltaY, deltaMode: event.deltaMode,
+        ctrlKey: event.ctrlKey, metaKey: event.metaKey, shiftKey: event.shiftKey, altKey: event.altKey }))
+      return
+    }
     const editing = target.closest('[contenteditable],input,textarea')
     if (horizontal || event.deltaX === 0 && event.deltaY === 0) event.preventDefault()
     else if (editing && !event.ctrlKey && !event.metaKey) {

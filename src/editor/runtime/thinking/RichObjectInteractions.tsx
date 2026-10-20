@@ -84,7 +84,7 @@ export function RichObjectInteractions({ app, activeKey, selection, onComplete }
   const moved = delta ? owner.parent!.getWorldPoint({ x: Number(owner.x || 0) + delta.x, y: Number(owner.y || 0) + delta.y }) : undefined
   const target = moved && app.tree.getClientPointByWorld(moved)
   return <div className="rich-object-overlay">
-    <button type="button" className="rich-object-move-handle" aria-label={t('rich.moveObject')} title={t('rich.moveObject')} style={{ left: Math.max(80, p.x - stage.left - handleOffset), top: Math.max(72, p.y - stage.top - handleOffset) }} onPointerDown={event => {
+    <button type="button" className="rich-object-move-handle" aria-label={t('rich.moveObject')} title={t('rich.moveObject')} style={{ left: kind(owner) === 'table' ? p.x - stage.left - handleOffset : Math.max(80, p.x - stage.left - handleOffset), top: kind(owner) === 'table' ? p.y - stage.top - handleOffset : Math.max(72, p.y - stage.top - handleOffset) }} onPointerDown={event => {
       event.preventDefault(); event.stopPropagation(); event.currentTarget.setPointerCapture(event.pointerId)
       app.editor.closeInnerEditor(); app.editor.select(owner)
       const start = owner.parent!.getInnerPoint(app.tree.getWorldPointByClient(event))

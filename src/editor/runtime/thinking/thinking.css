@@ -447,3 +447,21 @@
 [data-aidcanvas] .rich-inline-suggestions:empty { display:none }
 [data-aidcanvas] .rich-inline-suggestions button { display:block; width:100%; padding:8px 10px; border:0; border-radius:4px; text-align:left; color:#1f2329; background:transparent; cursor:pointer }
 [data-aidcanvas] .rich-inline-suggestions button[aria-selected=true] { background:#eaf1ff; color:#245bdb }
+
+/* View controls remain available when a host owns the document header. */
+[data-aidcanvas].thinking-canvas .app-header { right: calc(76px + var(--board-right)); }
+[data-aidcanvas].thinking-canvas .board-view-controls { position: absolute; z-index: 46; top: 20px; right: calc(24px + var(--board-right)); padding: 5px; border: 1px solid #dee0e3; border-radius: 8px; background: var(--aidcanvas-surface); box-shadow: 0 4px 18px #1f232914; }
+[data-aidcanvas].thinking-canvas .board-view-controls > .canvas-popover > .icon-button { width: 32px; height: 32px; }
+[data-aidcanvas].thinking-canvas .board-view-controls .canvas-popover-content { max-height: calc(100dvh - 96px); overflow-y: auto; }
+[data-aidcanvas].thinking-canvas .board-pattern-options { display: flex; gap: 8px; padding: 4px 10px 10px; }
+[data-aidcanvas].thinking-canvas .board-pattern-options button { display: flex; flex: 1; align-items: center; gap: 8px; padding: 7px; border: 1px solid #dee0e3; border-radius: 6px; background: #fff; color: #4e5969; cursor: pointer; }
+[data-aidcanvas].thinking-canvas .board-pattern-options button[aria-checked=true] { border-color: #8eaeff; background: #edf3ff; color: #245bdb; }
+[data-aidcanvas].thinking-canvas .board-pattern-preview { display: block; width: 24px; height: 24px; background-size: 8px 8px; }
+[data-aidcanvas].thinking-canvas .board-pattern-preview.is-dots { background-image: radial-gradient(#a5acb8 1px, transparent 1px); }
+[data-aidcanvas].thinking-canvas .board-pattern-preview.is-lines { background-image: linear-gradient(#c4c8d0 1px, transparent 1px), linear-gradient(90deg, #c4c8d0 1px, transparent 1px); }
+[data-aidcanvas].thinking-canvas .board-background-options { display: flex; gap: 8px; padding: 4px 10px 12px; }
+[data-aidcanvas].thinking-canvas .board-background-options button { width: 26px; height: 26px; padding: 0; border: 1px solid #d3d7de; border-radius: 50%; color: #3370ff; cursor: pointer; }
+[data-aidcanvas].thinking-canvas .board-background-options button[aria-checked=true] { outline: 2px solid #3370ff; outline-offset: 2px; }
+[data-aidcanvas].thinking-canvas .canvas-stage.has-grid[data-grid-pattern=lines] .canvas-host { background-image: linear-gradient(#b8bfc638 1px, transparent 1px), linear-gradient(90deg, #b8bfc638 1px, transparent 1px); }
+[data-aidcanvas] .rich-inline-suggestions [role=status] { padding: 9px 10px; color: #646a73; font-size: 13px; }
+@media (max-width: 600px) { [data-aidcanvas].thinking-canvas .board-view-controls { right: 12px; top: 12px; } }

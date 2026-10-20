@@ -4,6 +4,7 @@ import { ReactEditor } from 'slate-react'
 import type { CanvasRichTextExtension } from '../../../sdk/types'
 import { cleanCustom } from './richText'
 import type { ResourceRuntime } from './slateRuntime'
+import type { MessageKey } from '../../../i18n/en'
 
 type Choice = { id: string; label: string; data: import('../../../model').Json }
 type Target = { extension: CanvasRichTextExtension; range: RangeRef; query: string; key: string }
@@ -17,8 +18,10 @@ export function insertInline(editor: NativeEditor, extension: CanvasRichTextExte
 }
 
 /** The native editor owns all live ranges; the host owns lookup and business data. */
-export function useRichInline(editor: NativeEditor, extensions: CanvasRichTextExtension[], runtime: ResourceRuntime | undefined, valid: () => boolean, revision: number) {
+export function useRichInline(editor: NativeEditor, extensions: CanvasRichTextExtension[], runtime: ResourceRuntime | undefined, valid: () => boolean, revision: number, t: (key: MessageKey) => string) {
   const [target, setTarget] = useState<Target>(), [choices, setChoices] = useState<Choice[]>([]), [index, setIndex] = useState(0)
+  const [status, setStatus] = useState<'loading' | 'empty' | 'error'>('loading')
+  const cache = useRef(new Map<CanvasRichTextExtension, Map<string, Choice[]>>())
   const [position, setPosition] = useState({ left: 0, top: 0 }), menu = useRef<HTMLDivElement>(null)
   const suppressed = useRef(''), pending = useRef(new Set<AbortController>())
   const active = useRef(true), canEdit = useRef<() => boolean>(() => false)
@@ -47,12 +50,19 @@ export function useRichInline(editor: NativeEditor, extensions: CanvasRichTextEx
   useEffect(() => {
     setChoices([]); setIndex(0)
     if (!target) return
+    const cached = cache.current.get(target.extension)?.get(target.query)
+    if (cached) { setChoices(cached); setStatus('empty'); return }
+    setStatus('loading')
     const controller = new AbortController()
     const timer = window.setTimeout(() => {
-      void target.extension.suggestions!.search(target.query, { signal: controller.signal }).then(items => {
-        if (!controller.signal.aborted && canEdit.current() && target.range.current) setChoices(items.slice(0, 20))
-      }).catch(error => { if (!controller.signal.aborted) runtime?.error(error) })
-    }, 180)
+      void Promise.resolve().then(() => target.extension.suggestions!.search(target.query, { signal: controller.signal })).then(items => {
+        if (controller.signal.aborted || !canEdit.current() || !target.range.current) return
+        const next = items.slice(0, 20), entries = cache.current.get(target.extension) || new Map<string, Choice[]>()
+        if (entries.size >= 20) entries.delete(entries.keys().next().value!)
+        entries.set(target.query, next); cache.current.set(target.extension, entries)
+        setChoices(next); setStatus('empty')
+      }).catch(error => { if (!controller.signal.aborted) { setStatus('error'); runtime?.error(error) } })
+    }, target.query ? 80 : 0)
     return () => { window.clearTimeout(timer); controller.abort() }
   }, [target, runtime])
   const close = useCallback(() => { suppressed.current = target?.key || ''; setTarget(undefined) }, [target])
@@ -80,6 +90,7 @@ export function useRichInline(editor: NativeEditor, extensions: CanvasRichTextEx
   }
   return {
     menu: target && <div ref={menu} className="rich-inline-suggestions" style={position} role="listbox" aria-label={target.extension.label} onPointerDown={event => event.preventDefault()}>
+      {!choices.length && <div role="status">{t(status === 'loading' ? 'rich.suggestionsLoading' : status === 'error' ? 'rich.suggestionsError' : 'rich.suggestionsEmpty')}</div>}
       {choices.map((choice, i) => <button type="button" key={choice.id} role="option" aria-selected={i === index} onPointerMove={() => setIndex(i)} onClick={() => choose(choice)}>{choice.label}</button>)}
     </div>,
     onKeyDown: (event: KeyboardEvent) => {
@@ -87,7 +98,7 @@ export function useRichInline(editor: NativeEditor, extensions: CanvasRichTextEx
       if (event.key === 'Escape') { event.preventDefault(); close(); return true }
       if (event.ctrlKey || event.metaKey || event.altKey) return false
       if (['ArrowDown', 'ArrowUp'].includes(event.key)) { event.preventDefault(); setIndex(i => (i + (event.key === 'ArrowDown' ? 1 : -1) + Math.max(choices.length, 1)) % Math.max(choices.length, 1)); return true }
-      if (event.key === 'Enter' || event.key === 'Tab') { event.preventDefault(); if (choices[index]) choose(choices[index]); return true }
+      if (event.key === 'Enter' || event.key === 'Tab') { if (!choices[index]) { close(); return false }; event.preventDefault(); choose(choices[index]); return true }
       return false
     },
     onPaste: (event: ClipboardEvent) => {

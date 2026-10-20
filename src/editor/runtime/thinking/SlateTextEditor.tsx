@@ -319,7 +319,7 @@ export function SlateSurface({ editor, value, baseSize, baseBold = false, baseAl
     } }
   })
   const [revision, refresh] = useState(0), [link, setLink] = useState<{ url: string; label: string }>(), [invalidLink, setInvalidLink] = useState(false), linkSelection = useRef<Range>()
-  const inline = useRichInline(editor, extensions, runtime, valid, revision)
+  const inline = useRichInline(editor, extensions, runtime, valid, revision, t)
   const [palette, setPalette] = useState<'color' | 'backgroundColor'>()
   const paletteRef = useRef<HTMLDivElement>(null)
   useLayoutEffect(() => {
