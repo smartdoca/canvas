@@ -187,6 +187,8 @@ export const en = {
   'board.mindmap': 'Mind map',
   'board.sticker': 'Stickers',
   'board.flowchart': 'Flowchart',
+  'board.rememberCreationStyle': 'Use selection as creation defaults',
+  'board.resetCreationStyle': 'Reset creation defaults',
   'board.minimap': 'Minimap',
   'board.outline': 'Mind map outline',
   'board.empty': 'Empty board',

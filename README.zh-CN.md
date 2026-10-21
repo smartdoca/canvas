@@ -87,3 +87,5 @@ codec 名称是 `aidcanvas-yjs`。
 `@smartdoca/canvas/io` 负责 PNG 和 SVG 的导入导出。
 
 行内扩展可提供 `suggestions: {trigger, search(query, {signal})}`，以及 `matchPaste(text)` / `paste(text, {signal})`。宿主负责目录查询、用户卡片、文档标题和权限；画布负责候选菜单、活范围、插入、删除、复制和撤销。异步回调不会在目标关闭、删除或只读后插入。原生文本用一个 U+FFFC 标记表示每个原子节点；画布和导出显示保存的 label，纯文本复制显示可读文字。新节点不承诺旧客户端可识别；不迁移、回填或重写现有内容。
+
+个人视图与新建样式通过 `viewPreferences` / `onViewPreferencesChange`、`creationPreferences` / `onCreationPreferencesChange` 受控接入，宿主负责按网站、账号、文档隔离的浏览器存储。`isCanvasViewPreferences`、`isCanvasCreationPreferences` 校验精确版本 1，也可从纯入口 `@smartdoca/canvas/preferences` 导入。旧文档内容保持不变，详见[偏好 API](docs/PREFERENCES.md)。

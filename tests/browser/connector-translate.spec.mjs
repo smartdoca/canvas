@@ -50,7 +50,7 @@ for (const [name, route] of [
   await open(page); const id = await seed(page, route), before = await scene(page), initial = nodes(before).find(node => node.id === id)
   const start = await bodyPoint(page, id), updates = await page.evaluate(() => window.demo.allUpdates.length)
   await dragBody(page, start)
-  await expect(page.locator('.graph-gesture-preview path')).toBeVisible()
+  await expect.poll(() => page.evaluate(async () => { const { Leafer } = await import('/node_modules/.vite/deps/leafer-ui.js'); return Leafer.list.list.find(item => item.isApp).tree.children.filter(item => item.skipJSON && item.name === 'connector-drag-preview').length })).toBe(1)
   expect(await scene(page)).toEqual(before); expect(await page.evaluate(() => window.demo.allUpdates.length)).toBe(updates)
   if (name === 'straight') await page.screenshot({ path: info.outputPath('straight-translation-preview.png') })
   await page.mouse.up()

@@ -1,3 +1,4 @@
+import { applyConnectorCreationStyle, applyNoteCreationStyle } from './preferences'
 import { useEffect, useRef, useState } from 'react'
 import { Frame, Text, type App, type IUI } from 'leafer-ui'
 import type { MessageKey } from '../../../i18n/en'
@@ -48,7 +49,7 @@ export function LibraryDragDrop({ app, onComplete }: { app: App; onComplete: (it
       if (type === 'diagram') item = makeDiagram(value as DiagramShape, p.x - 80, p.y - 40)
       if (type === 'table') item = makeTable(p.x - Number(extra) * 70, p.y - Number(value) * 23, Number(value), Number(extra))
       if (type === 'mindmap') item = makeMindMap(p.x - 80, p.y - 24, t('mind.root'), t('mind.branch'), (value || 'right') as MindLayout)
-      if (type === 'connector') item = makeConnector({ x: p.x - 80, y: p.y }, { x: p.x + 80, y: p.y + 60 }, value as RouteMode)
+      if (type === 'connector') { item = makeConnector({ x: p.x - 80, y: p.y }, { x: p.x + 80, y: p.y + 60 }, value as RouteMode); applyConnectorCreationStyle(app, item) }
       if (type === 'template') item = createTemplate(value as TemplateId, p.x, p.y, key => t(key as MessageKey))
       if (type === 'sticker') item = new Text({ name: 'text', text: current.key.slice(8), x: p.x - 26, y: p.y - 26, fontSize: 52, editable: true })
       if (type === 'text') item = new Text({ name: 'text', text: t('board.textPlaceholder'), x: p.x, y: p.y, fontSize: 20, fill: '#1f2329', editable: true })
@@ -58,7 +59,8 @@ export function LibraryDragDrop({ app, onComplete }: { app: App; onComplete: (it
         const defaults = getStyleParamsFromLocalStorage(), fill = value?.startsWith('#') ? value : defaults.fill || '#fff2a8'
         item = new Frame({ name: 'note', data: { kind: 'note' }, x: p.x - 100, y: p.y - 100, width: 200, height: 200, fill, editable: true, hitChildren: false, shadow: [{ x: 0, y: 2, blur: 3, color: '#45371518' }, { x: 1, y: 9, blur: 16, color: '#45371524' }] })
         item.add(new Text({ name: 'text', text: '', x: 16, y: 16, width: 168, height: 168, fontSize: 24, lineHeight: { type: 'percent', value: 1.35 }, fill: '#1f2329', textAlign: 'center', verticalAlign: 'middle', editable: true }))
-        applyNotePreset(item, value && !value.startsWith('#') ? value : String(defaults.notePreset || ''))
+        applyNotePreset(item, String(defaults.notePreset || '')); applyNoteCreationStyle(app, item)
+        if (value) { if (value.startsWith('#')) item.fill = value; else applyNotePreset(item, value) }
       }
       if (item) { if (preset) app.tree.addAt(item, 0); else app.tree.add(item); onComplete([item]) }
     }

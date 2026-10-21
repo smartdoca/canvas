@@ -63,6 +63,11 @@ class CanvasPlainTextEditor extends TextEditor {
     if (!this.editDom?.contains(event.target as Node)) return
     if (event.isComposing || event.keyCode === 229) return
     const modifier = event.metaKey || event.ctrlKey, key = event.key.toLowerCase()
+    if (modifier && key === 'a') {
+      event.preventDefault(); event.stopImmediatePropagation()
+      if (event.metaKey !== event.ctrlKey && !event.altKey && !event.shiftKey) window.getSelection()?.selectAllChildren(this.editDom)
+      return
+    }
     if (modifier && (key === 'z' || key === 'y') && this.requestUndo) {
       event.preventDefault(); event.stopPropagation()
       if (event.shiftKey || key === 'y') this.requestRedo?.(); else this.requestUndo()

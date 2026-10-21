@@ -49,7 +49,7 @@ test('ordered list markers share the first text baseline with larger and mixed l
     window.demo.handle.select(['list-label'])
   })
   await page.locator('.canvas-app').focus(); await page.keyboard.press('Enter'); await page.keyboard.press('ArrowRight')
-  const offsets = await page.locator('.rich-list-row').evaluateAll(rows => rows.slice(0, 2).map(row => {
+  const offsets = await page.locator('.rich-list-row').evaluateAll(rows => rows.map(row => {
     const rect = el => { const range = document.createRange(); range.selectNodeContents(el); return range.getBoundingClientRect() }
     const marker = rect(row.querySelector('.rich-list-marker')), text = rect(row.querySelector('[data-slate-string]'))
     return Math.abs(marker.bottom - text.bottom)

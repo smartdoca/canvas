@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { App, IUI, Text } from 'leafer-ui'
+import { LayoutEvent, MoveEvent, ZoomEvent, type App, type IUI, type Text } from 'leafer-ui'
 import { useCanvasI18n } from '../../../i18n/context'
 import type { MessageKey } from '../../../i18n/en'
 import { BoardIcon } from './BoardIcon'
@@ -93,13 +93,27 @@ export function ThinkingContextTools({ selection, onMindAction, onLayout, onThem
   </>
 }
 
-export function BoardMinimap({ app, onReveal }: { app: App; onReveal: (ids: string[]) => void }) {
+export function BoardMinimap({ app, onNavigate }: { app: App; onNavigate: (point: { x: number; y: number }) => void }) {
   const t = useCanvasI18n()
-  const nodes = app.tree.children.filter(item => item.visible !== false && !['connector', 'mind-edge'].includes(kind(item)))
+  const [, redraw] = useState(0)
+  useEffect(() => {
+    let frame: number | undefined
+    const paint = () => { if (frame === undefined) frame = requestAnimationFrame(() => { frame = undefined; redraw(n => n + 1) }) }
+    const ids = [app.on_(MoveEvent.MOVE, paint), app.on_(ZoomEvent.ZOOM, paint), app.tree.on_(LayoutEvent.AFTER, paint)]
+    return () => { if (frame !== undefined) cancelAnimationFrame(frame); app.off_(ids) }
+  }, [app])
+  const nodes = app.tree.children.filter(item => !item.skipJSON && item.visible !== false && !['connector', 'mind-edge'].includes(kind(item)))
   const bounds = nodes.map(item => item.getBounds('box', 'page'))
   if (!bounds.length) return <div className="board-minimap"><span>{t('board.empty')}</span></div>
   const x = Math.min(...bounds.map(b => b.x)), y = Math.min(...bounds.map(b => b.y)), width = Math.max(1, Math.max(...bounds.map(b => b.x + b.width)) - x), height = Math.max(1, Math.max(...bounds.map(b => b.y + b.height)) - y)
-  return <div className="board-minimap"><svg viewBox={`${x - 20} ${y - 20} ${width + 40} ${height + 40}`} aria-label={t('board.minimap')}>{nodes.map((item, index) => <rect key={item.id || index} x={bounds[index].x} y={bounds[index].y} width={bounds[index].width} height={bounds[index].height} fill="#e1eaff" stroke="#9bb5ed" strokeWidth={Math.max(width, height) / 250} tabIndex={0} role="button" aria-label={String(labelOf(item)?.text || item.name || t('board.element'))} onClick={() => onReveal([item.id!])} onKeyDown={event => { if (event.key === 'Enter') onReveal([item.id!]) }} />)}</svg></div>
+  const host = (app.view as HTMLElement).getBoundingClientRect(), from = app.tree.getInnerPoint(app.tree.getWorldPointByClient({ clientX: host.left, clientY: host.top })), to = app.tree.getInnerPoint(app.tree.getWorldPointByClient({ clientX: host.right, clientY: host.bottom }))
+  const navigate = (event: React.PointerEvent<SVGSVGElement>) => {
+    const matrix = event.currentTarget.getScreenCTM()
+    if (!matrix) return
+    event.preventDefault(); event.stopPropagation()
+    const point = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse()); onNavigate(point)
+  }
+  return <div className="board-minimap"><svg viewBox={`${x - 20} ${y - 20} ${width + 40} ${height + 40}`} aria-label={t('board.minimap')} onPointerDown={event => { if (event.button !== 0) return; event.currentTarget.setPointerCapture(event.pointerId); navigate(event) }} onPointerMove={event => { if (event.buttons === 1 && event.currentTarget.hasPointerCapture(event.pointerId)) navigate(event) }}>{nodes.map((item, index) => <rect key={item.id || index} x={bounds[index].x} y={bounds[index].y} width={bounds[index].width} height={bounds[index].height} fill="#e1eaff" stroke="#9bb5ed" strokeWidth={Math.max(width, height) / 250} tabIndex={0} role="button" aria-label={String(labelOf(item)?.text || item.name || t('board.element'))} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); const b = bounds[index]; onNavigate({ x: b.x + b.width / 2, y: b.y + b.height / 2 }) } }} />)}<rect className="board-minimap-viewport" x={from.x} y={from.y} width={Math.max(0, to.x - from.x)} height={Math.max(0, to.y - from.y)} fill="#3370ff12" stroke="#3370ff" strokeWidth={Math.max(width, height) / 200} pointerEvents="none" /></svg></div>
 }
 
 export function ShapesLibrary({ onPick, onClose }: { onPick: (key: string) => void; onClose: () => void }) {

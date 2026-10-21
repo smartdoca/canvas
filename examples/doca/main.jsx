@@ -104,6 +104,8 @@ channel.onmessage = ({ data }) => {
   }
 }
 function Host() {
+  const [viewPreferences, setViewPreferences] = useState(), [creationPreferences, setCreationPreferences] = useState()
+  const preferenceLog = useRef([])
   const editor = useRef(null)
   const fileInput = useRef(null)
   const insertFile = (file, options) => editor.current.insertImageFile(file, options).catch(error => errors.push(String(error)))
@@ -142,7 +144,7 @@ function Host() {
     <button onClick={() => changeConnection(!online)}>{online ? '模拟断线' : '重新连接'}</button>
     <button onClick={() => { const anchor = editor.current.captureAnchor(); if (anchor?.elementIds.length) setAnchors(previous => [...previous, { anchorId: `comment-${previous.length + 1}`, anchor }]) }}>标记选区评论</button>
     <span>{identity.name} · {status}（示例仅确认对端接收）</span>
-  </nav><input ref={fileInput} aria-label="宿主选择图片" hidden type="file" accept=".png,.jpg,.jpeg,.webp,.svg" onChange={e => { if (e.target.files[0]) void insertFile(e.target.files[0]); e.target.value = '' }} /><aside aria-label="宿主评论卡片">{anchors.filter(a => !a.resolved).map(a => <button key={a.anchorId} aria-pressed={activeAnchorId === a.anchorId} onClick={() => { setActiveAnchorId(a.anchorId); editor.current?.revealAnchor(a.anchor) }}>{a.anchorId}</button>)}</aside><section>{mounted && <CanvasEditor showHeader={!search.has('no-header')} ref={editor} model={model} hostManaged mode={mode} sessionId={sessionId} remoteSelections={remote} richTextExtensions={richTextExtensions} resources={resources} onAttachmentPreview={resource => { resourceLog.push({ type: 'preview', source: 'attachment', resource }) }} onResourcePreview={resource => { resourceLog.push({ type: 'preview', source: 'resource', resource }) }} onError={error => errors.push(String(error))}
+  </nav><input ref={fileInput} aria-label="宿主选择图片" hidden type="file" accept=".png,.jpg,.jpeg,.webp,.svg" onChange={e => { if (e.target.files[0]) void insertFile(e.target.files[0]); e.target.value = '' }} /><aside aria-label="宿主评论卡片">{anchors.filter(a => !a.resolved).map(a => <button key={a.anchorId} aria-pressed={activeAnchorId === a.anchorId} onClick={() => { setActiveAnchorId(a.anchorId); editor.current?.revealAnchor(a.anchor) }}>{a.anchorId}</button>)}</aside><section>{mounted && <CanvasEditor showHeader={!search.has('no-header')} ref={editor} model={model} hostManaged mode={mode} viewPreferences={viewPreferences} creationPreferences={creationPreferences} onViewPreferencesChange={next => { preferenceLog.current.push({ kind: 'view', value: next }); setViewPreferences(next) }} onCreationPreferencesChange={next => { preferenceLog.current.push({ kind: 'creation', value: next }); setCreationPreferences(next) }} sessionId={sessionId} remoteSelections={remote} richTextExtensions={richTextExtensions} resources={resources} onAttachmentPreview={resource => { resourceLog.push({ type: 'preview', source: 'attachment', resource }) }} onResourcePreview={resource => { resourceLog.push({ type: 'preview', source: 'resource', resource }) }} onError={error => errors.push(String(error))}
     onImportRequest={() => fileInput.current.click()} onExportRequest={options => void exportFile(options)}
     showToolbar={showToolbar}
     selectionActions={[{ id: 'comment', label: '评论选中元素', icon: <span>♧</span>, allowInReadOnly: true, disabled: !canComment, tooltip: canComment ? '为选中元素添加评论' : '没有评论权限', onClick: ({ selection }) => { window.demo.actionSelection = selection; setAnchors(previous => [...previous, { anchorId: `comment-${previous.length + 1}`, anchor: model.captureAnchor(selection.map(x => x.id)) }]) } }]}
@@ -151,7 +153,7 @@ function Host() {
     autoSave saveStatus={status} onSaveRequest={() => { throw new Error('Unexpected autosave') }}
     onPresenceChange={selection => { if (connected) send({ type: 'presence', identity, selection }) }}
     onReady={handle => {
-      window.demo = { io, resources, assetUrls, model, handle, allUpdates, outbox, resourceLog, resourceControls, transportControls, errors, link: link.href, setMode, setStatus, setAnchors, setActiveAnchorId, setCanComment, setLayersPosition: () => {}, setShowToolbar, closeDocument, openDocument, changeConnection, identity, readyCount: (window.demo?.readyCount || 0) + 1 }
+      window.demo = { setViewPreferences, setCreationPreferences, preferenceLog: preferenceLog.current, io, resources, assetUrls, model, handle, allUpdates, outbox, resourceLog, resourceControls, transportControls, errors, link: link.href, setMode, setStatus, setAnchors, setActiveAnchorId, setCanComment, setLayersPosition: () => {}, setShowToolbar, closeDocument, openDocument, changeConnection, identity, readyCount: (window.demo?.readyCount || 0) + 1 }
       send({ type: 'sync-request', vector: model.stateVector() })
     }} />}</section></>
 }

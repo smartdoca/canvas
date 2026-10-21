@@ -138,7 +138,7 @@ export async function exportCanvasFile(source: CanvasExportSource, options: Canv
     const id = () => `ac-export-${++nextId}`
     const serialize = (item: IUI): Element | null => {
       checkAbort(options.signal)
-      if (item.visible === false || item.opacity === 0) return null
+      if (item.skipJSON || item.visible === false || item.opacity === 0) return null
       const data = item.toJSON() as SceneNode, matrix = item.localTransform
       const wrapper = el('g', { transform: `matrix(${matrix.a} ${matrix.b} ${matrix.c} ${matrix.d} ${matrix.e} ${matrix.f})`, opacity: item.opacity })
       const paint = (value: unknown) => { try { return color(value) } catch { warn('UNSUPPORTED_PAINT', item.id); return 'none' } }
@@ -149,7 +149,7 @@ export async function exportCanvasFile(source: CanvasExportSource, options: Canv
         'stroke-dashoffset': data.dashOffset, 'fill-rule': data.windingRule || 'nonzero' })
       if (item.tag === 'Text') {
         const text = item as Text
-        warn('FONT_NOT_EMBEDDED_SYSTEM_FALLBACK', item.id)
+        if (options.format === 'svg') warn('FONT_NOT_EMBEDDED_SYSTEM_FALLBACK', item.id)
         const font = String(data.fontFamily || 'Arial').replace(/[<>]/g, '') + ', sans-serif'
         const textElement = el('text', { fill, stroke, 'stroke-width': data.strokeWidth ?? 1, 'font-family': font, 'font-size': data.fontSize || 12, 'font-weight': data.fontWeight || 'normal', 'font-style': data.italic ? 'italic' : 'normal', 'xml:space': 'preserve', 'text-decoration': data.textDecoration === 'none' ? undefined : data.textDecoration })
         const rich = richLayout(text, Boolean(richContainer(text)))

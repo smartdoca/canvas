@@ -1,3 +1,4 @@
+import { creationPreferences } from './preferences'
 import { useEffect, useState } from 'react'
 import { MoveEvent, ZoomEvent, type App } from 'leafer-ui'
 import { getStyleParamsFromLocalStorage } from '../utils/styleLocalStorage'
@@ -10,7 +11,7 @@ import { PhoneFramePreview } from './PhoneFramePreview'
 export function ToolPlacementPreview({ app, activeKey }: { app: App; activeKey: string }) {
   const [pointer, setPointer] = useState<{ clientX: number; clientY: number; key: string }>()
   const preset = containerType(activeKey)
-  const active = Boolean(preset) || /^(diagram:|table:|sticker:|mindmap|connector:|note$|text$)/.test(activeKey)
+  const active = Boolean(preset) || /^(diagram:|table:|sticker:|mindmap|connector:|note:|note$|text$)/.test(activeKey)
   useEffect(() => {
     if (!active) return
     const host = (app.view as HTMLElement).closest('.canvas-host')!
@@ -32,8 +33,9 @@ export function ToolPlacementPreview({ app, activeKey }: { app: App; activeKey: 
     const rows = Number(value), columns = Number(extra), width = columns * 140, height = rows * 46
     body = <g transform={`translate(${-width / 2} ${-height / 2})`} stroke="#a8bde8" strokeWidth={1 / scale}><rect width={width} height={height} fill="#fff" /><rect width={width} height="46" fill="#eaf1ff" />{Array.from({ length: columns - 1 }, (_, i) => <path key={`c${i}`} d={`M${(i + 1) * 140} 0v${height}`} />)}{Array.from({ length: rows - 1 }, (_, i) => <path key={`r${i}`} d={`M0 ${(i + 1) * 46}h${width}`} />)}</g>
   } else if (type === 'note') {
-    const preset = notePresets.find(p => p.id === style.notePreset)
-    body = <rect x="-100" y="-100" width="200" height="200" rx={preset && 'cornerRadius' in preset ? preset.cornerRadius : 2} fill={preset?.fill || (typeof style.fill === 'string' ? style.fill : '#fff2a8')} stroke={preset && 'stroke' in preset ? preset.stroke : undefined} strokeDasharray={preset && 'dashPattern' in preset ? preset.dashPattern.join(' ') : undefined} />
+    const defaults = creationPreferences(app)?.note
+    const preset = notePresets.find(p => p.id === (value || defaults?.preset || style.notePreset))
+    body = <rect x="-100" y="-100" width="200" height="200" rx={preset && 'cornerRadius' in preset ? preset.cornerRadius : 2} fill={defaults?.fill || preset?.fill || (typeof style.fill === 'string' ? style.fill : '#fff2a8')} stroke={preset && 'stroke' in preset ? preset.stroke : undefined} strokeDasharray={preset && 'dashPattern' in preset ? preset.dashPattern.join(' ') : undefined} />
   }
   else if (preset) {
     const { width, height, fill, radius } = containerPresets[preset]

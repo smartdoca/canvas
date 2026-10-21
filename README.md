@@ -110,3 +110,5 @@ Canvas images select on the first click and call `onResourcePreview` when clicke
 Presence also includes optional `cursor: { x, y }` in scene coordinates for remote canvas pointers. Pointer movement is throttled, temporary and uses the same host presence channel.
 
 Rich row actions follow the hovered or active paragraph in a floating left gutter. Heading/list/task and alignment commands target that row. The formatting toolbar waits for mouse or keyboard selection to end, then appears above the selected range (below only when viewport space requires it).
+
+Personal view and creation defaults are controlled through `viewPreferences` / `onViewPreferencesChange` and `creationPreferences` / `onCreationPreferencesChange`. The host owns scoped browser persistence. Validate exact version-1 records with `isCanvasViewPreferences` and `isCanvasCreationPreferences` (also available through the pure `@smartdoca/canvas/preferences` entry). Existing content is untouched; see [the preference API](docs/PREFERENCES.md).

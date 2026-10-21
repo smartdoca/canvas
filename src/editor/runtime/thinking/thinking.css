@@ -450,7 +450,7 @@
 
 /* View controls remain available when a host owns the document header. */
 [data-aidcanvas].thinking-canvas .app-header { right: calc(76px + var(--board-right)); }
-[data-aidcanvas].thinking-canvas .board-view-controls { position: absolute; z-index: 46; top: 20px; right: calc(24px + var(--board-right)); padding: 5px; border: 1px solid #dee0e3; border-radius: 8px; background: var(--aidcanvas-surface); box-shadow: 0 4px 18px #1f232914; }
+[data-aidcanvas].thinking-canvas .board-view-controls { position: absolute; z-index: 120; top: 20px; left: var(--board-left); right: auto; padding: 5px; border: 1px solid #dee0e3; border-radius: 8px; background: var(--aidcanvas-surface); box-shadow: 0 4px 18px #1f232914; }
 [data-aidcanvas].thinking-canvas .board-view-controls > .canvas-popover > .icon-button { width: 32px; height: 32px; }
 [data-aidcanvas].thinking-canvas .board-view-controls .canvas-popover-content { max-height: calc(100dvh - 96px); overflow-y: auto; }
 [data-aidcanvas].thinking-canvas .board-pattern-options { display: flex; gap: 8px; padding: 4px 10px 10px; }
@@ -464,4 +464,8 @@
 [data-aidcanvas].thinking-canvas .board-background-options button[aria-checked=true] { outline: 2px solid #3370ff; outline-offset: 2px; }
 [data-aidcanvas].thinking-canvas .canvas-stage.has-grid[data-grid-pattern=lines] .canvas-host { background-image: linear-gradient(#b8bfc638 1px, transparent 1px), linear-gradient(90deg, #b8bfc638 1px, transparent 1px); }
 [data-aidcanvas] .rich-inline-suggestions [role=status] { padding: 9px 10px; color: #646a73; font-size: 13px; }
-@media (max-width: 600px) { [data-aidcanvas].thinking-canvas .board-view-controls { right: 12px; top: 12px; } }
+@media (max-width: 600px) { [data-aidcanvas].thinking-canvas .board-view-controls { left: 12px; right: auto; top: 12px; } }
+
+[data-aidcanvas].thinking-canvas .board-view-controls .view-popover .canvas-popover-content { left: -6px; right: auto; transform-origin: left top; }
+[data-aidcanvas].thinking-canvas .is-object-dragging :is(.graph-port,.table-axis-layer,.table-cell-toolbar) { visibility: hidden; }
+[data-aidcanvas].thinking-canvas .board-minimap svg { cursor: crosshair; touch-action: none; }

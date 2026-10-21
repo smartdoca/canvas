@@ -155,7 +155,46 @@ export interface CanvasEditorCapabilities {
   characterPresence: boolean
 }
 
+/** Host-owned personal view state. Never part of the scene or collaboration model. */
+export interface CanvasViewPreferences {
+  version: 1
+  gridVisible: boolean
+  gridPattern: 'dots' | 'lines'
+  /** null preserves the editor/theme's existing background. */
+  backgroundColor: string | null
+  minimapVisible: boolean
+  outlineVisible: boolean
+}
+export interface CanvasConnectorCreationStyle {
+  mode?: 'straight' | 'elbow' | 'curve'
+  stroke?: string
+  strokeWidth?: number
+  lineDash?: 'solid' | 'dashed' | 'dotted'
+  startHead?: 'none' | 'arrow' | 'triangle' | 'circle'
+  endHead?: 'none' | 'arrow' | 'triangle' | 'circle'
+}
+export interface CanvasNoteCreationStyle {
+  preset?: string
+  fill?: string
+  fontSize?: number
+  fontColor?: string
+  textAlign?: 'left' | 'center' | 'right' | 'justify'
+  verticalAlign?: 'top' | 'middle' | 'bottom'
+}
+/** Explicit styles for new interactive elements only. Host owns scoped storage. */
+export interface CanvasCreationPreferences {
+  version: 1
+  connector?: CanvasConnectorCreationStyle
+  note?: CanvasNoteCreationStyle
+}
+
 export interface CanvasEditorProps {
+  /** Controlled personal view. Omitted preserves existing local view behavior. */
+  viewPreferences?: CanvasViewPreferences
+  onViewPreferencesChange?: (next: CanvasViewPreferences) => void
+  /** Controlled personal defaults; existing/API/remote elements are untouched. */
+  creationPreferences?: CanvasCreationPreferences
+  onCreationPreferencesChange?: (next: CanvasCreationPreferences) => void
   /** Stable, bootstrapped instance from aidcanvas/model. Owns no network or storage. */
   model?: CanvasModel
   hostManaged?: boolean
