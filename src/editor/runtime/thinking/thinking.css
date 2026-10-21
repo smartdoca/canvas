@@ -17,21 +17,29 @@
 [data-aidcanvas].thinking-canvas .export-popover .canvas-popover-content { top: 40px; }
 [data-aidcanvas].thinking-canvas .host-action-bar { top: 73px; right: calc(24px + var(--board-right)); z-index: 41; box-shadow: 0 2px 8px #0001; border: 1px solid #dee0e3; }
 [data-aidcanvas].thinking-canvas .canvas-host { top: 0; left: 0; right: var(--board-right); background-color: var(--aidcanvas-background); }
-[data-aidcanvas].thinking-canvas .toolbar-wrap { top: 96px; left: var(--board-left); bottom: auto; right: auto; width: 52px; max-width: none; height: auto; transform: none; z-index: 45; }
-[data-aidcanvas].thinking-canvas .canvas-toolbar { display: flex; flex-direction: column; justify-content: flex-start; width: 52px; max-width: none; height: auto; padding: 5px; gap: 12px; background: var(--aidcanvas-surface); border: 1px solid #dee0e3; border-radius: 9px; box-shadow: 0 4px 22px #1f232910; animation: aidcanvas-board-tools-arrive .22s ease-out; }
-[data-aidcanvas].thinking-canvas .board-tool-group { position: relative; width: 40px; height: 40px; flex-shrink: 0; }
-[data-aidcanvas].thinking-canvas .board-tool-button { position: relative; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; padding: 0; border: 0; border-radius: 5px; color: #2b2f36; background: transparent; cursor: pointer; transition: color .1s, background .1s, transform .1s; }
+[data-aidcanvas].thinking-canvas .toolbar-wrap { top: 96px; left: var(--board-left); bottom: 24px; right: auto; width: 52px; max-width: none; height: auto; transform: none; z-index: 45; container: canvas-tools / size; }
+[data-aidcanvas].thinking-canvas .canvas-toolbar { position: relative; display: flex; flex-direction: column; justify-content: flex-start; width: 52px; max-width: none; height: auto; max-height: 100%; padding: 5px; gap: 12px; background: var(--aidcanvas-surface); border: 1px solid #dee0e3; border-radius: 9px; box-shadow: 0 4px 22px #1f232910; animation: aidcanvas-board-tools-arrive .22s ease-out; }
+/* Keep the menu containing block outside the scrolling list so flyouts remain visible. */
+[data-aidcanvas].thinking-canvas .board-tool-list { display: flex; flex-direction: column; align-items: center; flex: 0 1 auto; min-height: 0; width: 40px; gap: inherit; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
+[data-aidcanvas].thinking-canvas .board-tool-list::-webkit-scrollbar { display: none; }
+[data-aidcanvas].thinking-canvas .canvas-toolbar > :not(.board-tool-list) { flex-shrink: 0; }
+[data-aidcanvas].thinking-canvas .board-tool-list > * { flex-shrink: 0; }
+[data-aidcanvas].thinking-canvas .board-tool-list > .board-tool-group > [data-canvas-insert] { touch-action: pan-y; }
+[data-aidcanvas].thinking-canvas .board-tool-group { position: static; width: 40px; height: 40px; flex-shrink: 0; }
+[data-aidcanvas].thinking-canvas .board-tool-button { position: relative; display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 40px; height: 40px; padding: 0; border: 0; border-radius: 5px; color: #2b2f36; background: transparent; cursor: pointer; transition: color .1s, background .1s, transform .1s; }
 [data-aidcanvas].thinking-canvas .board-tool-button:hover, [data-aidcanvas].thinking-canvas .board-tool-group.is-open > .board-tool-button { background: #f2f3f5; }
 [data-aidcanvas].thinking-canvas .board-tool-button.is-active { color: #3370ff; background: #f0f1f3; }
 [data-aidcanvas].thinking-canvas .board-tool-button:active { transform: scale(.94); }
 [data-aidcanvas].thinking-canvas .tool-caret { position: absolute; right: 3px; bottom: 5px; width: 0; height: 0; border-bottom: 4px solid #8f959e; border-left: 4px solid transparent; opacity: 0; }
 [data-aidcanvas].thinking-canvas .board-tool-button:hover .tool-caret { opacity: 1; }
 [data-aidcanvas].thinking-canvas .board-toolbar-separator { display: block; width: 28px; height: 1px; flex-shrink: 0; background: #dee0e3; }
-[data-aidcanvas].thinking-canvas .board-tool-flyout { position: absolute; top: -5px; left: 56px; z-index: 90; width: 224px; padding: 8px; border: 1px solid #dee0e3; border-radius: 8px; background: #fff; box-shadow: 0 6px 28px #1f232922; transform-origin: left top; animation: aidcanvas-board-flyout-arrive .15s ease-out; }
+[data-aidcanvas].thinking-canvas .board-tool-flyout { position: absolute; top: 0; left: 56px; z-index: 90; width: 224px; border: 1px solid #dee0e3; border-radius: 8px; background: #fff; box-shadow: 0 6px 28px #1f232922; transform-origin: left top; animation: aidcanvas-board-flyout-arrive .15s ease-out; }
+[data-aidcanvas].thinking-canvas .board-tool-flyout-content { max-height: inherit; padding: 8px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
 [data-aidcanvas].thinking-canvas .board-tool-flyout[hidden] { display: none; }
 [data-aidcanvas].thinking-canvas .board-tool-flyout::before { content: ''; position: absolute; width: 18px; right: 100%; top: 0; bottom: 0; }
-[data-aidcanvas].thinking-canvas [data-tool="section"] .board-tool-flyout { top: max(-280px, calc(12px - 100dvh / 3)); width: min(292px, calc(100vw - 90px)); max-height: min(850px, calc(100dvh - 110px)); padding: 0; }
-[data-aidcanvas].thinking-canvas .container-picker { max-height: inherit; overflow-y: auto; overscroll-behavior: contain; padding: 4px 16px; scrollbar-width: thin; }
+[data-aidcanvas].thinking-canvas [data-tool="section"] .board-tool-flyout { width: min(292px, calc(100vw - 90px)); }
+[data-aidcanvas].thinking-canvas [data-tool="section"] .board-tool-flyout-content { padding: 0; }
+[data-aidcanvas].thinking-canvas .container-picker { padding: 4px 16px; }
 [data-aidcanvas].thinking-canvas .container-picker-group { padding: 14px 0 10px; }
 [data-aidcanvas].thinking-canvas .container-picker-group + .container-picker-group { border-top: 1px solid #eff0f1; }
 [data-aidcanvas].thinking-canvas .container-picker h3 { margin: 0 0 10px; font-size: 12px; font-weight: 500; color: #8f959e; }
@@ -180,10 +188,13 @@
 @keyframes aidcanvas-board-panel-arrive { from { opacity: 0; } to { opacity: 1; } }
 @keyframes aidcanvas-board-flyout-arrive { from { opacity: 0; translate: -4px 0; } to { opacity: 1; translate: 0 0; } }
 @keyframes aidcanvas-board-library-arrive { from { translate: -12px 0; opacity: .5; } to { translate: 0 0; opacity: 1; } }
-@media (max-height: 760px) {
-  [data-aidcanvas].thinking-canvas .toolbar-wrap { top: 85px; }
+@container canvas-tools (max-height: 760px) {
   [data-aidcanvas].thinking-canvas .canvas-toolbar { gap: 2px; }
-  [data-aidcanvas].thinking-canvas .board-tool-group, [data-aidcanvas].thinking-canvas .board-tool-button { height: 32px; }
+}
+@media (min-width: 601px) {
+  @container canvas-tools (max-height: 600px) {
+    [data-aidcanvas].thinking-canvas .board-tool-group, [data-aidcanvas].thinking-canvas .board-tool-button { height: 32px; }
+  }
 }
 @media (max-width: 900px) {
   [data-aidcanvas].thinking-canvas .template-starter { width: 220px; right: 20px; }

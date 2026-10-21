@@ -1,6 +1,6 @@
 import { creationPreferences } from '../../thinking/preferences'
 import type { App } from 'leafer-ui'
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import type { Plugins } from '../../plugins/plugins'
 import type { CanvasElementExtension, CustomShapeDefinition } from '../../../../sdk/types'
 import { ExtensionTool } from './ExtensionTool'
@@ -44,20 +44,43 @@ export default function Toolbar({ app, preferredConnectorMode, plugins, activeKe
     document.addEventListener('pointerdown', dismiss); document.addEventListener('keydown', escape)
     return () => { document.removeEventListener('pointerdown', dismiss); document.removeEventListener('keydown', escape); clearTimeout(closeTimer.current) }
   }, [])
+  useLayoutEffect(() => {
+    if (!open) return
+    const toolbar = root.current, stage = toolbar?.closest<HTMLElement>('.canvas-stage')
+    const group = toolbar?.querySelector<HTMLElement>('.board-tool-group.is-open')
+    const flyout = group?.querySelector<HTMLElement>('.board-tool-flyout')
+    if (!toolbar || !stage || !group || !flyout) return
+    const place = () => {
+      const bounds = stage.getBoundingClientRect(), origin = toolbar.getBoundingClientRect(), anchor = group.getBoundingClientRect()
+      const top = Math.max(12, bounds.top + 12), bottom = Math.min(window.innerHeight - 12, bounds.bottom - 12)
+      const left = Math.max(12, bounds.left + 12), right = Math.min(window.innerWidth - 12, bounds.right - 12)
+      flyout.style.maxHeight = `${Math.max(0, bottom - top - 2)}px`
+      flyout.style.maxWidth = `${Math.max(0, right - left)}px`
+      const box = flyout.getBoundingClientRect()
+      flyout.style.top = `${Math.max(top, Math.min(anchor.top - (open === 'section' ? 280 : 5), bottom - box.height)) - origin.top - toolbar.clientTop}px`
+      flyout.style.left = `${Math.max(left, Math.min(anchor.right + 16, right - box.width)) - origin.left - toolbar.clientLeft}px`
+    }
+    place()
+    const observer = new ResizeObserver(place)
+    observer.observe(stage); observer.observe(toolbar); observer.observe(flyout)
+    window.addEventListener('resize', place); window.addEventListener('scroll', place, true)
+    return () => { observer.disconnect(); window.removeEventListener('resize', place); window.removeEventListener('scroll', place, true) }
+  }, [open])
   const tool = (name: string, label: string, key: string, content?: ReactNode) => <div data-tool={name} className={`board-tool-group ${open === name ? 'is-open' : ''}`} onPointerEnter={() => { clearTimeout(closeTimer.current); if (content) setOpen(name) }} onPointerLeave={() => { closeTimer.current = setTimeout(() => setOpen(''), 180) }}>
     <button type="button" className={`board-tool-button ${activeKey === key || activeKey.startsWith(`${name}:`) || name === 'shapes' && activeKey.startsWith('diagram:') || name === 'section' && activeKey.startsWith('container:') ? 'is-active' : ''}`} title={label} aria-label={label} data-canvas-insert={['text', 'note', 'frame', 'mindmap'].includes(key) || key.includes(':') ? key : undefined} aria-expanded={content ? open === name : undefined} onClick={() => { if (content) { setOpen(name); if (key) setActiveKey(key) } else activate(key) }}><BoardIcon name={name} />{content && <span className="tool-caret" />}</button>
-    {content && <div className="board-tool-flyout" hidden={open !== name} role="menu" aria-label={label}>{content}</div>}
+    {content && <div className="board-tool-flyout" hidden={open !== name} role="menu" aria-label={label}><div className="board-tool-flyout-content">{content}</div></div>}
   </div>
   const pluginButton = (plugin: Plugins) => { const AddMenu = plugin.AddMenu; return <AddMenu app={app} onCreateComplete={plugin.name === 'path' ? onCreateComplete : setInit} activeKey={plugin.name === 'frame' && activeKey === 'frame' ? 'init' : activeKey} onClick={key => activate(key)} customShapes={customShapes} /> }
   return <div ref={root} className={`canvas-toolbar${expanded ? ' is-mobile-expanded' : ''}`} role="toolbar" aria-label={t('toolbar.tools')}>
     {start}
+    <div className="board-tool-list">
     <button type="button" className="board-tool-button board-template-button" aria-label={t('template.library')} title={t('template.library')} onClick={onTemplates}><BoardIcon name="templates" size={23} /></button>
     <span className="board-toolbar-separator" />
     {tool('shapes', t('board.shapes'), 'diagram:rounded', <><div className="shape-quick-grid">{shapeTypes.map(shape => <button type="button" className={activeKey === `diagram:${shape}` ? 'is-active' : ''} key={shape} data-canvas-insert={`diagram:${shape}`} title={t(`shape.${shape}` as MessageKey)} aria-label={t(`shape.${shape}` as MessageKey)} onClick={() => activate(`diagram:${shape}`)}><BoardIcon name={shape} size={24} /></button>)}</div><button type="button" className="flyout-footer" onClick={() => { onLibrary(); setOpen('') }}>{t('board.moreShapes')}<kbd>M</kbd></button></>)}
     {tool('text', t('toolbar.text'), 'text')}
     {tool('note', t('toolbar.note'), 'note', <NotePresetPicker draggable onPick={id => { if (!creationPreferences(app)) setStyleParamsToLocalStorage({ ...getStyleParamsFromLocalStorage(), notePreset: id }); activate(`note:${id}`) }} />)}
     {tool('connector', t('board.connector'), `connector:${preferredConnectorMode || getStyleParamsFromLocalStorage().connectorMode || 'elbow'}`, <div className="connector-choices">{['elbow', 'straight', 'curve'].map(mode => <button type="button" key={mode} data-canvas-insert={`connector:${mode}`} onClick={() => activate(`connector:${mode}`)}><BoardIcon name={mode} size={23} /><span>{t(`connector.${mode}` as MessageKey)}</span></button>)}</div>)}
-    {tool('section', t('board.section'), 'frame', <ContainerPicker activeKey={activeKey} isOpen={open === 'section'} onPick={activate} />)}
+    {tool('section', t('board.section'), 'frame', <ContainerPicker activeKey={activeKey} onPick={activate} />)}
     {tool('table', t('board.table'), 'table:3:3', <><div className="table-picker">{Array.from({ length: 30 }, (_, i) => { const row = Math.floor(i / 6) + 1, column = i % 6 + 1; return <button type="button" key={i} data-canvas-insert={`table:${row}:${column}`} aria-label={`${row} × ${column}`} className={row <= tableSize.rows && column <= tableSize.columns ? 'is-highlighted' : ''} onPointerEnter={() => setTableSize({ rows: row, columns: column })} onFocus={() => setTableSize({ rows: row, columns: column })} onClick={() => activate(`table:${row}:${column}`)} /> })}</div><div className="table-picker-size">{tableSize.rows} × {tableSize.columns}</div></>)}
     {tool('pen', t('toolbar.pencil'), 'path', <><div className="connector-choices"><button type="button" onClick={() => activate('path')}><BoardIcon name="pen" /><span>{t('toolbar.pencil')}</span></button><button type="button" onClick={() => activate('eraser')}><span className="eraser-icon">▱</span><span>{t('toolbar.eraser')}</span></button></div><div className="pen-width-picker" role="group" aria-label={t('style.strokeWidth')}><div className="pen-width-label">{t('style.strokeWidth')}</div><div className="pen-width-presets">{STROKE_WIDTH_PRESETS.map(width => <button type="button" key={width} aria-label={`${t('style.strokeWidth')} ${width} px`} title={`${width} px`} aria-pressed={Number(getStyleParamsFromLocalStorage().strokeWidth) === width} onClick={() => { setStyleParamsToLocalStorage({ ...getStyleParamsFromLocalStorage(), strokeWidth: width }); activate('path') }}><svg width="42" height="24" viewBox="0 0 42 24" aria-hidden="true"><path d="M12 12H30" stroke="currentColor" strokeWidth={width} strokeLinecap="round" /></svg><span>{width}</span></button>)}</div></div></>)}
     {tool('mindmap', t('board.mindmap'), 'mindmap')}
@@ -65,6 +88,7 @@ export default function Toolbar({ app, preferredConnectorMode, plugins, activeKe
     <button type="button" className="board-tool-button board-image-tool" aria-label={t('toolbar.image')} title={t('toolbar.image')} onClick={() => onImageRequest ? onImageRequest() : imageInput.current?.click()}><BoardIcon name="image" /></button>
     <button type="button" className="board-tool-button" aria-label={t('resource.attachment')} title={t('resource.attachment')} onClick={() => attachmentInput.current?.click()}><BoardIcon name="attachment" /></button>
     {elementExtensions.length > 0 && tool('more', t('toolbar.more'), '', <div className="board-legacy-grid">{elementExtensions.map(extension => <ExtensionTool key={extension.type} app={app} extension={extension} properties={extensionValues[extension.type] || {}} activeKey={activeKey} onClick={key => activate(key)} onCreateComplete={setInit} />)}</div>)}
+    </div>
     <span className="board-toolbar-separator" />
     <button type="button" className={`board-tool-button ${activeKey === 'init' ? 'is-active' : ''}`} aria-label={t('toolbar.select')} title={t('toolbar.select')} onClick={setInit}><BoardIcon name="select" /></button>
     <button type="button" className="board-tool-button board-mobile-expand" aria-label={t('board.moreTools')} aria-expanded={expanded} onClick={() => { setExpanded(!expanded); setOpen('') }}><BoardIcon name={expanded ? 'close' : 'dots'} /></button>

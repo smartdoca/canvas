@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.10 — 2026-10-22
+
+- Keep the toolbar usable in short and embedded canvases with a scrollable tool list and a pinned selection button.
+- Position every tool flyout within the canvas and browser viewport, updating it on resize and scrolling.
+- Scroll long flyout content independently so container presets remain reachable without clipping menus.
+
 ## 0.5.9 — 2026-10-21
 
 - Paint full unbound connectors and rich table/card objects continuously while dragging, including attached routes and labels; commit once on release and restore paint on cancellation.
