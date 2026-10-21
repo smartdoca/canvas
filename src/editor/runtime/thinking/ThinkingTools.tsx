@@ -1,3 +1,4 @@
+import { applyConnectorCreationStyle } from './preferences'
 import { useEffect, useState } from 'react'
 import { PointerEvent, Text, type Path, type App, type IUI } from 'leafer-ui'
 import { ancestor, connectorLabel, isConnector, kind, labelOf, makeConnector, makeDiagram, makeMindMap, makeTable, mindNode, pickConnectable, endpoint, shapePath, nearestPort, setConnectorPath, connectorGeometry, type AnchorPoint, type DiagramShape, type RouteMode } from './scene'
@@ -30,7 +31,7 @@ export function ThinkingTools({ app, activeKey, onComplete }: { app: App; active
         const sourceAnchor = source && nearestPort(source, start), targetAnchor = end && nearestPort(end, point)
         const from = source ? endpoint(source, point, sourceAnchor) : start, to = end ? endpoint(end, start, targetAnchor) : point
         item = makeConnector(from, to, activeKey.split(':')[1] as RouteMode, source?.id, end?.id)
-        item.data = { ...item.data, sourceAnchor, targetAnchor }; setConnectorPath(item as Path, from, to)
+        item.data = { ...item.data, sourceAnchor, targetAnchor }; applyConnectorCreationStyle(app, item); setConnectorPath(item as Path, from, to)
       }
       gesture = undefined; setPreview(undefined)
       if (!item) return

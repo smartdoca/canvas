@@ -1,3 +1,4 @@
+import { applyConnectorCreationStyle, creationPreferences } from './preferences'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { LayoutEvent, MoveEvent, PointerEvent, PropertyEvent, ZoomEvent, type App, type Frame, type IUI, type Path } from 'leafer-ui'
 import { EditorEvent, InnerEditorEvent } from '@leafer-in/editor'
@@ -5,26 +6,34 @@ import { useCanvasI18n } from '../../../i18n/context'
 import { allItems, ancestor, connectableNode, connectionPorts, connectorGeometry, connectorLocalPoint, connectorPagePoint, connectorLabel, endpoint, isConnector, kind, labelOf, makeConnector, makeDiagram, mindDescendants, mindDirectionOf, moveConnectorSegment, nearestPort, pickConnectable, refreshConnectors, setConnectorPath, orthogonalConnectorPoints, type AnchorPoint } from './scene'
 import { getStyleParamsFromLocalStorage } from '../utils/styleLocalStorage'
 import { BoardIcon } from './BoardIcon'
+import { connectorTranslationPreview } from './connectorTranslationPreview'
 
 type Draft = { type: 'create' | 'source' | 'target' | 'bend' | 'segment' | 'vertex' | 'translate'; node?: IUI; line?: IUI; anchor?: AnchorPoint; from: AnchorPoint; to: AnchorPoint; start: AnchorPoint; target?: IUI; targetAnchor?: AnchorPoint; bend?: number; offset?: number; curveOffset?: AnchorPoint; moved: boolean; index?: number; points?: AnchorPoint[]; vertices?: AnchorPoint[]; handlePoint?: AnchorPoint; guides?: { axis: 'x' | 'y'; value: number }[] }
 export function GraphHandles({ app, activeKey, selection, onComplete, onMindAction }: { app: App; activeKey: string; selection: IUI[]; onComplete: (items: IUI[]) => void; onMindAction: (action: 'child' | 'collapse') => void }) {
   const t = useCanvasI18n(), root = useRef<HTMLDivElement>(null), draftRef = useRef<Draft>(), [draftState, setDraft] = useState<Draft>(), [hovered, setHovered] = useState<IUI>(), [, redraw] = useState(0)
   const [picker, setPicker] = useState<{ line: IUI; point: AnchorPoint }>()
   const [hoveredLine, setHoveredLine] = useState<IUI>()
+  const translationRef = useRef<ReturnType<typeof connectorTranslationPreview>>()
   const stagePoint = useCallback((point: AnchorPoint) => {
     const world = app.tree.getWorldPoint(point), client = app.tree.getClientPointByWorld(world), box = root.current?.getBoundingClientRect() || (app.view as HTMLElement).closest('.canvas-stage')?.getBoundingClientRect()
     return { x: client.x - (box?.left || 0), y: client.y - (box?.top || 0) }
   }, [app])
   const pagePoint = useCallback((event: { clientX: number; clientY: number }) => app.tree.getInnerPoint(app.tree.getWorldPointByClient(event)), [app])
-  const update = useCallback((next?: Draft) => { draftRef.current = next; setDraft(next ? { ...next } : undefined) }, [])
+  const update = useCallback((next?: Draft) => {
+    if (!next) { translationRef.current?.dispose(); translationRef.current = undefined }
+    draftRef.current = next; setDraft(next ? { ...next } : undefined)
+  }, [])
+  useEffect(() => () => { translationRef.current?.dispose(); translationRef.current = undefined }, [])
   const finish = useCallback((current: Draft) => {
     if (current.line && !current.line.leafer || current.node && !current.node.leafer || current.target && !current.target.leafer) { update(); setPicker(undefined); return }
     let line = current.line
     if (current.type === 'create') {
-      line = makeConnector(current.from, current.to, (getStyleParamsFromLocalStorage().connectorMode || 'elbow') as import('./scene').RouteMode, current.node?.id, current.target?.id)
+      line = makeConnector(current.from, current.to, (creationPreferences(app)?.connector?.mode || getStyleParamsFromLocalStorage().connectorMode || 'elbow') as import('./scene').RouteMode, current.node?.id, current.target?.id)
       line.data = { ...line.data, sourceAnchor: current.anchor, targetAnchor: current.targetAnchor }
+      applyConnectorCreationStyle(app, line)
       app.tree.add(line)
     } else if (line && current.type === 'translate') {
+      translationRef.current?.dispose(); translationRef.current = undefined
       if (current.from.x === line.data!.from.x && current.from.y === line.data!.from.y && current.to.x === line.data!.to.x && current.to.y === line.data!.to.y) { update(); return }
       line.data = { ...line.data, from: current.from, to: current.to, ...(current.bend === undefined ? {} : { bend: current.bend }), ...(current.offset === undefined ? {} : { offset: current.offset }), ...(current.vertices === undefined ? {} : { vertices: current.vertices }) }
     } else if (line && (current.type === 'segment' || current.type === 'vertex')) {
@@ -103,6 +112,8 @@ export function GraphHandles({ app, activeKey, selection, onComplete, onMindActi
         if (typeof data.bend === 'number') current.bend = data.bend + (vertical ? delta.y : delta.x)
         if (typeof data.offset === 'number') current.offset = data.offset + (vertical ? delta.x : delta.y)
         if (Array.isArray(data.vertices)) current.vertices = data.vertices.map(translate)
+        translationRef.current ||= connectorTranslationPreview(app, current.line!)
+        translationRef.current.update(current.from, current.to, { ...data, ...(current.bend === undefined ? {} : { bend: current.bend }), ...(current.offset === undefined ? {} : { offset: current.offset }), ...(current.vertices === undefined ? {} : { vertices: current.vertices }) })
       } else if (current.type === 'segment' || current.type === 'vertex') {
         const points = current.points!.map(p => ({ ...p })), index = current.index!, origin = connectorLocalPoint(app, current.line!, pagePoint({ clientX: current.start.x, clientY: current.start.y }))
         current.guides = []
@@ -248,7 +259,7 @@ export function GraphHandles({ app, activeKey, selection, onComplete, onMindActi
   }
   const lineGeometry = line?.data?.from && line.data.to ? connectorGeometry(line.data.from, line.data.to, line.data) : undefined
   const primarySegment = lineGeometry?.points.slice(1).reduce((best, point, index) => { const first = lineGeometry.points[index], distance = Math.hypot((first.x + point.x) / 2 - lineGeometry.middle.x, (first.y + point.y) / 2 - lineGeometry.middle.y); return Math.hypot(point.x - first.x, point.y - first.y) >= 28 && distance < best.distance ? { index, distance } : best }, { index: -1, distance: Infinity }).index
-  const preview = draft?.moved && connectorGeometry(draft.from, draft.to, { ...(draft.line?.data || { mode: getStyleParamsFromLocalStorage().connectorMode || 'elbow' }), ...(draft.bend === undefined ? {} : { bend: draft.bend }), ...(draft.offset === undefined ? {} : { offset: draft.offset }), ...(draft.curveOffset === undefined ? {} : { curveOffset: draft.curveOffset }), ...(draft.vertices === undefined ? {} : { vertices: draft.vertices }), ...(draft.type === 'source' ? { sourceId: draft.target?.id || '' } : draft.type === 'target' ? { targetId: draft.target?.id || '' } : {}), sourceAnchor: draft.type === 'source' ? draft.targetAnchor : draft.anchor || draft.line?.data?.sourceAnchor, targetAnchor: draft.type === 'target' || draft.type === 'create' ? draft.targetAnchor : draft.line?.data?.targetAnchor })
+  const preview = draft?.moved && connectorGeometry(draft.from, draft.to, { ...(draft.line?.data || { mode: creationPreferences(app)?.connector?.mode || getStyleParamsFromLocalStorage().connectorMode || 'elbow', ...creationPreferences(app)?.connector }), ...(draft.bend === undefined ? {} : { bend: draft.bend }), ...(draft.offset === undefined ? {} : { offset: draft.offset }), ...(draft.curveOffset === undefined ? {} : { curveOffset: draft.curveOffset }), ...(draft.vertices === undefined ? {} : { vertices: draft.vertices }), ...(draft.type === 'source' ? { sourceId: draft.target?.id || '' } : draft.type === 'target' ? { targetId: draft.target?.id || '' } : {}), sourceAnchor: draft.type === 'source' ? draft.targetAnchor : draft.anchor || draft.line?.data?.sourceAnchor, targetAnchor: draft.type === 'target' || draft.type === 'create' ? draft.targetAnchor : draft.line?.data?.targetAnchor })
   const lineDraft = line && draft?.line === line ? draft : undefined
   const handleGeometry = lineDraft && preview ? preview : lineGeometry
   const handles = handleGeometry ? [{ type: 'source' as const, point: lineDraft?.from || line!.data!.from }, { type: 'target' as const, point: lineDraft?.to || line!.data!.to }, ...(line!.data!.mode !== 'straight' && (line!.data!.mode === 'curve' || handleGeometry.points.length === 2) ? [{ type: 'bend' as const, point: handleGeometry.middle }] : [])] : []
@@ -257,7 +268,7 @@ export function GraphHandles({ app, activeKey, selection, onComplete, onMindActi
   return <div ref={root} className="graph-interaction-overlay">
     {displayLine && !draft && (() => { const edge = displayLine, geometry = connectorGeometry(edge.data!.from, edge.data!.to, edge.data), a = stagePoint(connectorPagePoint(app, edge, { x: 0, y: 0 })), b = stagePoint(connectorPagePoint(app, edge, { x: 1, y: 1 })); return <svg className={`graph-route-highlight${line ? ' is-selected' : ''}`}><path d={geometry.routePath} transform={`translate(${a.x} ${a.y}) scale(${b.x - a.x} ${b.y - a.y})`} /></svg> })()}
     {boxStart && boxEnd && <div className="graph-drop-target" style={{ left: boxStart.x - 4, top: boxStart.y - 4, width: boxEnd.x - boxStart.x + 8, height: boxEnd.y - boxStart.y + 8 }}><span>{t('connector.snapTarget')}</span></div>}
-    {preview && <svg className="graph-gesture-preview"><path d={preview.path} transform={(() => { const convert = (point: AnchorPoint) => stagePoint(draft?.line ? connectorPagePoint(app, draft.line, point) : point), a = convert({ x: 0, y: 0 }), b = convert({ x: 1, y: 1 }); return `translate(${a.x} ${a.y}) scale(${b.x - a.x} ${b.y - a.y})` })()} /></svg>}
+    {preview && draft?.type !== 'translate' && <svg className="graph-gesture-preview"><path d={preview.path} transform={(() => { const convert = (point: AnchorPoint) => stagePoint(draft?.line ? connectorPagePoint(app, draft.line, point) : point), a = convert({ x: 0, y: 0 }), b = convert({ x: 1, y: 1 }); return `translate(${a.x} ${a.y}) scale(${b.x - a.x} ${b.y - a.y})` })()} /></svg>}
     {draft?.guides?.length ? <><svg className="graph-gesture-preview">{draft.guides.map((guide, index) => {
       const points = [draft.from, ...draft.vertices || [], draft.to], other = guide.axis === 'x' ? 'y' : 'x', lo = Math.min(...points.map(p => p[other])) - 24, hi = Math.max(...points.map(p => p[other])) + 24
       const convert = (p: AnchorPoint) => stagePoint(draft.line ? connectorPagePoint(app, draft.line, p) : p), a = convert({ [guide.axis]: guide.value, [other]: lo } as AnchorPoint), b = convert({ [guide.axis]: guide.value, [other]: hi } as AnchorPoint)

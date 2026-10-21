@@ -1,7 +1,12 @@
+export { isCanvasViewPreferences, isCanvasCreationPreferences } from './preferences'
 export { default as CanvasEditor } from '../editor/runtime/CanvasEditor'
 export { createDocument, parseDocument, CANVAS_DOCUMENT_VERSION } from '../editor/core/document'
 export * from '../io'
 export type {
+  CanvasViewPreferences,
+  CanvasCreationPreferences,
+  CanvasConnectorCreationStyle,
+  CanvasNoteCreationStyle,
   CanvasAnchorDecoration,
   CanvasAnchorClick,
   CanvasRevealOptions,

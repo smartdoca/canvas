@@ -25,6 +25,8 @@ import './thinking/PlainTextEditor'
 import { richContainer } from './thinking/richBounds'
 import { fitNoteContent, prepareNoteLayout } from './thinking/noteLayout'
 import { applyNotePreset } from './thinking/noteStyles'
+import { applyConnectorCreationStyle, creationPreferences, setCreationPreferences, validCreationPreferences, validViewPreferences } from './thinking/preferences'
+import type { CanvasViewPreferences } from '../../sdk/types'
 import { getStyleParamsFromLocalStorage, setStyleParamsToLocalStorage } from './utils/styleLocalStorage'
 import { alignTextContent, enhanceRichText, readRich, plainText } from './thinking/richText'
 import { resourceRuntime, setResourceRuntime, setSlateTranslator, setRichExtensions } from './thinking/slateRuntime'
@@ -243,15 +245,34 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
   const [selectionPosition, setSelectionPosition] = useState<{ x: number; y: number } | null>(null)
   const [imageEditorTarget, setImageEditorTarget] = useState<IUI | null>(null)
   const [shapeEditorTarget, setShapeEditorTarget] = useState<IUI | null>(null)
-  const [grid, setGrid] = useState(false)
-  const [gridPattern, setGridPattern] = useState<'dots' | 'lines'>('dots')
-  const [backgroundColor, setBackgroundColor] = useState<string>()
+  const [localView, setLocalView] = useState<CanvasViewPreferences>({ version: 1, gridVisible: false, gridPattern: 'dots', backgroundColor: null, minimapVisible: false, outlineVisible: false })
+  const view = validViewPreferences(props.viewPreferences) ? props.viewPreferences : localView
+  const preferencesRef = useRef(view); preferencesRef.current = view
+  const changeView = useCallback((patch: Partial<CanvasViewPreferences>) => {
+    const supplied = propsRef.current.viewPreferences
+    if (supplied !== undefined && !validViewPreferences(supplied)) return
+    const next = { ...preferencesRef.current, ...patch }; preferencesRef.current = next
+    if (supplied === undefined) setLocalView(next)
+    propsRef.current.onViewPreferencesChange?.(next)
+  }, [])
+  const grid = view.gridVisible, gridPattern = view.gridPattern, backgroundColor = view.backgroundColor || undefined, minimapOpen = view.minimapVisible, outlineOpen = view.outlineVisible
+  const setGrid = useCallback((value: boolean | ((previous: boolean) => boolean)) => changeView({ gridVisible: typeof value === 'function' ? value(preferencesRef.current.gridVisible) : value }), [changeView])
+  const setGridPattern = useCallback((value: 'dots' | 'lines') => changeView({ gridPattern: value }), [changeView])
+  const setBackgroundColor = useCallback((value: string) => changeView({ backgroundColor: value }), [changeView])
+  const setMinimapOpen = useCallback((value: boolean | ((previous: boolean) => boolean)) => changeView({ minimapVisible: typeof value === 'function' ? value(preferencesRef.current.minimapVisible) : value }), [changeView])
+  const setOutlineOpen = useCallback((value: boolean | ((previous: boolean) => boolean)) => changeView({ outlineVisible: typeof value === 'function' ? value(preferencesRef.current.outlineVisible) : value }), [changeView])
+  useEffect(() => {
+    if (props.viewPreferences !== undefined && !validViewPreferences(props.viewPreferences)) propsRef.current.onError?.(new Error('CANVAS_VIEW_PREFERENCES_INVALID'))
+  }, [props.viewPreferences])
+  useEffect(() => {
+    if (props.creationPreferences !== undefined && !validCreationPreferences(props.creationPreferences)) propsRef.current.onError?.(new Error('CANVAS_CREATION_PREFERENCES_INVALID'))
+    if (app) setCreationPreferences(app, props.creationPreferences)
+    return () => { if (app) setCreationPreferences(app) }
+  }, [app, props.creationPreferences])
   const [galleryOpen, setGalleryOpen] = useState(false)
   const [starterOpen, setStarterOpen] = useState(true)
   const [templatePreview, setTemplatePreview] = useState<TemplateId | null>(null)
   const [shapesOpen, setShapesOpen] = useState(false)
-  const [outlineOpen, setOutlineOpen] = useState(false)
-  const [minimapOpen, setMinimapOpen] = useState(false)
   const [styleOpen, setStyleOpen] = useState(false)
   const styleSelectionItems = useRef<IUI[]>([])
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
@@ -259,7 +280,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
   const isReadOnly = props.mode === 'readonly'
   const activateTool = useCallback((key: string) => {
     const current = appRef.current
-    if (key.startsWith('connector:')) setStyleParamsToLocalStorage({ ...getStyleParamsFromLocalStorage(), connectorMode: key.split(':')[1] })
+    if (key.startsWith('connector:') && propsRef.current.creationPreferences === undefined) setStyleParamsToLocalStorage({ ...getStyleParamsFromLocalStorage(), connectorMode: key.split(':')[1] })
     if (key !== 'init') current?.editor.cancel()
     if (current && (key === 'init' || key === 'hand')) current.mode = 'normal'
     setActiveKey(key)
@@ -665,7 +686,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
     current.editor.list.forEach(item => {
       const node = mindNode(item) || ancestor(item, 'diagram-node') || ancestor(item, 'table-cell') || ancestor(item, 'note') || ancestor(item, 'card')
       const label = item instanceof LeaferText ? item : node ? labelOf(node) : labelOf(item)
-      if (key === 'notePreset') { applyNotePreset(item, String(value)); setStyleParamsToLocalStorage({ ...getStyleParamsFromLocalStorage(), notePreset: value }); return }
+      if (key === 'notePreset') { applyNotePreset(item, String(value)); if (propsRef.current.creationPreferences === undefined) setStyleParamsToLocalStorage({ ...getStyleParamsFromLocalStorage(), notePreset: value }); return }
       const strokeTarget = node && kind(node) === 'diagram-node' ? node.children?.[0] || node : node || item
       const dashPattern = value === 'dashed' ? [8, 5] : value === 'dotted' ? [2, 4] : []
       if (kind(item) === 'table') { item.children?.forEach(cell => { if (key === 'lineDash') cell.set({ dashPattern }); else if (['fill', 'stroke', 'strokeWidth'].includes(key)) cell.set({ [key]: value }); else { const text = labelOf(cell); if (text) { if (key === 'textAlign') alignTextContent(text, value as 'left' | 'center' | 'right' | 'justify'); else text.set({ [key === 'fontColor' ? 'fill' : key]: value }) } } }); return }
@@ -690,7 +711,8 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
     const b = source.getBounds('box', 'page')
     const target = makeDiagram('rounded', b.x + b.width + 100, b.y, '', Math.max(120, b.width), b.height)
     current.tree.add(target)
-    current.tree.add(makeConnector({ x: b.x + b.width, y: b.y + b.height / 2 }, { x: Number(target.x), y: Number(target.y) + Number(target.height) / 2 }, 'elbow', source.id, target.id))
+    const line = makeConnector({ x: b.x + b.width, y: b.y + b.height / 2 }, { x: Number(target.x), y: Number(target.y) + Number(target.height) / 2 }, creationPreferences(current)?.connector?.mode || 'elbow', source.id, target.id)
+    applyConnectorCreationStyle(current, line); current.tree.add(line)
     completeThinking([target])
   }, [completeThinking, flushContent])
 
@@ -1344,7 +1366,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
       if (!modifier && (key === 'v' || key === '1' || key === 'escape')) activateTool('init')
       if (!modifier && key === 'h') activateTool('hand')
       if (!modifier && ['r', 's', 'o', 'd'].includes(key)) { activateTool(`diagram:${({ r: 'rounded', s: 'rect', o: 'ellipse', d: 'diamond' } as Record<string, string>)[key]}`); return }
-      if (!modifier && key === 'a') { activateTool(`connector:${getStyleParamsFromLocalStorage().connectorMode || 'elbow'}`); return }
+      if (!modifier && key === 'a') { activateTool(`connector:${creationPreferences(appRef.current!)?.connector?.mode || getStyleParamsFromLocalStorage().connectorMode || 'elbow'}`); return }
       if (!modifier && key === 'm') { event.preventDefault(); setShapesOpen(open => !open); return }
       if (modifier && key === '0') { event.preventDefault(); const host = hostRef.current; applyZoomAt(1, { x: (host?.clientWidth || 0) / 2, y: (host?.clientHeight || 0) / 2 }); return }
       if (modifier && ['b', 'i', 'u'].includes(key)) {
@@ -1394,7 +1416,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
     window.addEventListener('keydown', onKeyDown)
     window.addEventListener('keyup', onKeyUp)
     return () => { window.removeEventListener('copy', onCopy); window.removeEventListener('cut', onCut); window.removeEventListener('paste', onPaste); window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp) }
-  }, [activateTool, applyZoomAt, changeThinkingStyle, commit, copySelection, duplicate, fitView, groupSelection, pasteSelection, redo, save, undo, ungroupSelection])
+  }, [activateTool, applyZoomAt, changeThinkingStyle, commit, copySelection, duplicate, fitView, groupSelection, pasteSelection, redo, save, setGrid, undo, ungroupSelection])
 
   useEffect(() => {
     if (managed()) return
@@ -1977,6 +1999,22 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
   }, [app])
 
   const selectionJSON = selected.map(item => toPersistedCanvasScene(item.toJSON() as SceneNode))
+  const creationTarget = selected.length === 1 && (isConnector(selected[0]) || kind(selected[0]) === 'note') ? selected[0] : undefined
+  const rememberCreationStyle = () => {
+    if (!app || !creationTarget || isReadOnly || !props.onCreationPreferencesChange) return
+    if (props.creationPreferences !== undefined && !validCreationPreferences(props.creationPreferences)) return
+    const next = { ...(creationPreferences(app) || { version: 1 as const }) }
+    if (isConnector(creationTarget)) {
+      const data = creationTarget.data!
+      next.connector = { mode: data.mode || 'elbow', stroke: String(creationTarget.stroke || '#646a73'), strokeWidth: Number(creationTarget.strokeWidth), lineDash: creationTarget.dashPattern?.[0] === 2 ? 'dotted' : creationTarget.dashPattern?.length ? 'dashed' : 'solid', startHead: data.startHead || 'none', endHead: data.endHead || 'arrow' }
+    } else {
+      const label = labelOf(creationTarget)
+      if (!label) return
+      next.note = { fill: String(creationTarget.fill), fontSize: Number(label.fontSize), fontColor: String(label.fill), textAlign: label.textAlign === 'both' ? 'justify' : label.textAlign as 'left' | 'center' | 'right', verticalAlign: label.verticalAlign as 'top' | 'middle' | 'bottom' }
+    }
+    if (validCreationPreferences(next)) props.onCreationPreferencesChange(next)
+    else props.onError?.(new Error('CANVAS_CREATION_PREFERENCES_INVALID'))
+  }
   const availableActions = (actions: CanvasEditorProps['selectionActions']) => (actions || []).filter(action => (!isReadOnly || action.allowInReadOnly) && (!action.visible || action.visible(selectionJSON)))
   const externalActions = availableActions(props.selectionActions)
   const selectedAttachment = selected.length === 1 && kind(selected[0]) === 'attachment' ? selected[0].data?.resource as CanvasResource | undefined : undefined
@@ -2034,13 +2072,14 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
           <div className="menu-separator" />
           <button type="button" className="menu-item" role="menuitemcheckbox" aria-checked={outlineOpen} onClick={() => setOutlineOpen(previous => !previous)}><span className="menu-check">{outlineOpen && <Check />}</span>{t('board.outline')}</button>
           <button type="button" className="menu-item" role="menuitemcheckbox" aria-checked={minimapOpen} onClick={() => setMinimapOpen(previous => !previous)}><span className="menu-check">{minimapOpen && <Check />}</span>{t('board.minimap')}</button>
+          {!isReadOnly && props.onCreationPreferencesChange && <><div className="menu-separator" /><button type="button" className="menu-item" role="menuitem" disabled={!creationTarget} onClick={rememberCreationStyle}>{t('board.rememberCreationStyle')}</button><button type="button" className="menu-item" role="menuitem" onClick={() => { if (props.creationPreferences === undefined || validCreationPreferences(props.creationPreferences)) props.onCreationPreferencesChange?.({ version: 1 }) }}>{t('board.resetCreationStyle')}</button></>}
           <div className="menu-separator" />
           <button type="button" className="menu-item" role="menuitem" onClick={() => { setShortcutsOpen(true); setOutlineOpen(false) }}><BoardIcon name="help" size={16} />{t('menu.help')}<kbd>?</kbd></button>
         </Popover>
         </div>
         {app && <RemoteSelections app={app} model={props.model} sessions={visibleRemoteSelections(props.remoteSelections || [], props.sessionId || '', isReadOnly)} />}
         {app && props.model && <AnchorDecorations app={app} model={props.model} anchors={props.anchors || []} activeId={props.activeAnchorId} onClick={props.onAnchorClick} />}
-        {app && !isReadOnly && props.showToolbar !== false && <div className="toolbar-wrap"><Toolbar app={app} plugins={plugins} activeKey={activeKey} setActiveKey={activateTool}
+        {app && !isReadOnly && props.showToolbar !== false && <div className="toolbar-wrap"><Toolbar app={app} preferredConnectorMode={validCreationPreferences(props.creationPreferences) ? props.creationPreferences.connector?.mode : undefined} plugins={plugins} activeKey={activeKey} setActiveKey={activateTool}
           canUndo={historyState.canUndo} canRedo={historyState.canRedo} hasSelection={selected.length > 0}
           onDuplicate={duplicate} onDelete={removeSelection} onGroup={groupSelection} onUngroup={ungroupSelection} onSelectAll={() => app.editor.select(app.tree.children.filter(item => !item.skipJSON))}
           onTemplates={() => setGalleryOpen(true)} onLibrary={() => setShapesOpen(true)}
@@ -2121,7 +2160,12 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
           return <button type="button" className="node-quick-create" aria-label={t(kind(node) === 'mind-node' ? 'mind.addChild' : 'board.quickConnect')} style={{ left: point.x - (stage?.left || 0) - 12 + (vertical ? 0 : direction === 'left' ? -44 : 44), top: point.y - (stage?.top || 0) - 12 + (vertical ? direction === 'up' ? -44 : 44 : 0) }} onClick={() => kind(node) === 'mind-node' ? changeMind('child') : quickConnect()}><BoardIcon name="plus" size={15} /></button>
         })()}
         {app && <RichLinks app={app} />}
-        {app && minimapOpen && <BoardMinimap app={app} onReveal={ids => editorHandleRef.current?.revealElements(ids, { padding: 100, maxZoom: 1 })} />}
+        {app && minimapOpen && <BoardMinimap app={app} onNavigate={point => {
+          const host = hostRef.current, current = appRef.current
+          if (!host || !current) return
+          const box = host.getBoundingClientRect(), client = current.tree.getClientPointByWorld(current.tree.getWorldPoint(point))
+          current.tree.set({ x: Number(current.tree.x || 0) + box.left + box.width / 2 - client.x, y: Number(current.tree.y || 0) + box.top + box.height / 2 - client.y })
+        }} />}
 
         <div ref={hostRef} className="canvas-host"><div ref={viewRef} className="canvas-view" />{app && !isReadOnly && activeKey === 'init' && <AlignmentGuides app={app} />}</div>
       </main>

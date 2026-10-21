@@ -148,3 +148,38 @@ test('built package translates an unbound line from its body before and after se
   await page.evaluate(() => window.demo.setMode('readonly'))
   await drag(470, 394, 100, 60); expect(await text(page, 'packaged-free-line')).toEqual(second)
 })
+
+test('built package paints a whole table at the live drag location and commits once', async ({ page }, info) => {
+  await page.evaluate(() => {
+    window.demo.model.remove(window.demo.model.getValue().scene.children.map(node => node.id))
+    const children = Array.from({ length: 4 }, (_, index) => ({ id: `live-cell-${index}`, tag: 'Frame', name: 'table-cell', x: index % 2 * 140, y: Math.floor(index / 2) * 46, width: 140, height: 46, fill: index < 2 ? '#eaf1ff' : '#ffffff', stroke: '#cfd3d8', strokeWidth: 1, data: { kind: 'table-cell', row: Math.floor(index / 2), column: index % 2 }, children: [{ id: `live-label-${index}`, tag: 'Text', name: 'text', x: 12, y: 10, width: 116, height: 26, fontSize: 14, text: '', editable: true, data: { kind: 'cell-label' } }] }))
+    window.demo.handle.addElement({ id: 'live-table', tag: 'Group', name: 'board-table', x: 420, y: 240, editable: true, hitSelf: false, data: { kind: 'table', rows: 2, columns: 2 }, children })
+    window.demo.handle.flush(); window.demo.handle.select(['live-table'])
+  })
+  const before = await text(page, 'live-table'), writes = await page.evaluate(() => window.demo.allUpdates.length), host = await page.locator('.canvas-host').boundingBox(), handle = await page.locator('.rich-object-move-handle').boundingBox()
+  await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2); await page.mouse.down()
+  await page.mouse.move(handle.x + handle.width / 2 + 180, handle.y + handle.height / 2 + 140, { steps: 12 })
+  const headerPainted = (x, y) => page.locator('.canvas-host canvas').evaluateAll((canvases, point) => canvases.some(canvas => {
+    const b = canvas.getBoundingClientRect(), px = Math.floor((point.x - b.left) * canvas.width / b.width), py = Math.floor((point.y - b.top) * canvas.height / b.height)
+    const [r, g, blue, a] = canvas.getContext('2d').getImageData(px, py, 1, 1).data
+    return a > 0 && Math.abs(r - 234) < 2 && Math.abs(g - 241) < 2 && blue > 253
+  }), { x: host.x + x, y: host.y + y })
+  await expect.poll(() => headerPainted(670, 400)).toBe(true)
+  expect(await headerPainted(490, 260)).toBe(false)
+  expect(await text(page, 'live-table')).toEqual(before); expect(await page.evaluate(() => window.demo.allUpdates.length)).toBe(writes)
+  await page.screenshot({ path: info.outputPath('packaged-table-live-drag.png') })
+  await page.mouse.up()
+  expect(await text(page, 'live-table')).toMatchObject({ x: 600, y: 380 }); expect(await page.evaluate(() => window.demo.allUpdates.length)).toBe(writes + 1)
+  await page.evaluate(() => window.demo.handle.undo()); expect(await text(page, 'live-table')).toEqual(before)
+})
+
+test('built package accepts host-controlled personal preferences without replacing its model', async ({ page }) => {
+  const before = await page.evaluate(() => JSON.stringify(window.demo.model.getValue().scene)), ready = await page.evaluate(() => window.demo.readyCount)
+  await page.evaluate(() => { window.demo.setViewPreferences({ version: 1, gridVisible: true, gridPattern: 'lines', backgroundColor: '#edf3ff', minimapVisible: true, outlineVisible: false }); window.demo.setCreationPreferences({ version: 1, note: { preset: 'mint', textAlign: 'left', verticalAlign: 'top' } }) })
+  await expect(page.locator('.canvas-host')).toHaveCSS('background-color', 'rgb(237, 243, 255)')
+  await expect(page.locator('.board-minimap')).toBeVisible()
+  expect(await page.evaluate(() => JSON.stringify(window.demo.model.getValue().scene))).toBe(before)
+  expect(await page.evaluate(() => window.demo.readyCount)).toBe(ready)
+  await page.getByRole('button', { name: '主菜单', exact: true }).click(); await page.getByRole('menuitemradio', { name: '点阵', exact: true }).click()
+  expect(await page.evaluate(() => window.demo.preferenceLog.at(-1))).toMatchObject({ kind: 'view', value: { version: 1, gridPattern: 'dots' } })
+})

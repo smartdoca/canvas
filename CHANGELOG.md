@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.9 — 2026-10-21
+
+- Paint full unbound connectors and rich table/card objects continuously while dragging, including attached routes and labels; commit once on release and restore paint on cancellation.
+- Support Ctrl+A and Cmd+A within plain diagram/connector labels without selecting the canvas.
+- Move the view menu to the upper-left above canvas tools. Navigate to any minimap point by clicking or dragging, with a current-viewport indicator and unchanged zoom.
+- Add controlled, version-1 personal view and creation preferences, change callbacks, explicit save/reset actions and pure public validators. The host owns browser/account/document storage; no new document fields, old-data conversion or default backfill.
+- Keep the SVG font portability notice; avoid that vector-only warning for raster PNG exports.
+
 ## 0.5.8 — 2026-10-20
 
 - Drag the body of a connector with both endpoints unbound to translate the entire line, including straight lines, manual elbow routes and curves. Preserve existing editing behavior for connected lines and dedicated route handles.

@@ -1,3 +1,4 @@
+import { applyNoteCreationStyle } from '../../thinking/preferences'
 import { useEffect } from 'react'
 import { Frame, PointerEvent, Text } from 'leafer-ui'
 import type { AddMenuProps } from '../plugins'
@@ -12,7 +13,7 @@ function NoteIcon() {
 
 function AddMenu({ app, activeKey, onClick, onCreateComplete }: AddMenuProps) {
   const t = useCanvasI18n()
-  const active = activeKey === 'note'
+  const active = activeKey === 'note' || activeKey.startsWith('note:')
   useEffect(() => {
     if (!active) return
     app.mode = 'draw'
@@ -23,12 +24,14 @@ function AddMenu({ app, activeKey, onClick, onCreateComplete }: AddMenuProps) {
       const text = new Text({ name: 'text', text: '', x: 16, y: 16, width: 168, height: 168, fontSize: 24, lineHeight: { type: 'percent', value: 1.35 }, textAlign: 'center', verticalAlign: 'middle', fill: '#1d1d1d', editable: true })
       note.add(text)
       applyNotePreset(note, String(style.notePreset || ''))
+      applyNoteCreationStyle(app, note)
+      if (activeKey.startsWith('note:')) applyNotePreset(note, activeKey.slice(5))
       app.tree.add(note)
       onCreateComplete()
       app.editor.select(note)
     })
     return () => app.off_(event)
-  }, [active, app, onCreateComplete])
+  }, [active, activeKey, app, onCreateComplete])
   return <IconButton label={t('toolbar.note')} icon={<NoteIcon />} active={active} onClick={() => onClick('note')} />
 }
 

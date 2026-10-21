@@ -5,11 +5,13 @@ import { useCanvasI18n } from '../../../i18n/context'
 import { ancestor, kind, labelOf, pickConnectable, refreshConnectors } from './scene'
 import { richContainer } from './richBounds'
 import { BoardIcon } from './BoardIcon'
+import { movingObjectPreview } from './connectorTranslationPreview'
 
 /** A shared object handle; rich bodies always own text/cell gestures. */
 export function RichObjectInteractions({ app, activeKey, selection, onComplete }: { app: App; activeKey: string; selection: IUI[]; onComplete: (items: IUI[]) => void }) {
   const t = useCanvasI18n(), [, paint] = useState(0), [delta, setDelta] = useState<{ x: number; y: number }>()
   const gesture = useRef<{ owner: IUI; start: { x: number; y: number }; x: number; y: number }>()
+  const preview = useRef<ReturnType<typeof movingObjectPreview>>()
   useEffect(() => {
     if (activeKey !== 'init') return
     let noteClick: { owner: IUI; x: number; y: number; selected: boolean; moved: boolean } | undefined
@@ -46,12 +48,16 @@ export function RichObjectInteractions({ app, activeKey, selection, onComplete }
       if (noteClick && Math.hypot(event.clientX - noteClick.x, event.clientY - noteClick.y) > 4) noteClick.moved = true
       const current = gesture.current
       if (!current) return
-      if (!current.owner.leafer) { gesture.current = undefined; setDelta(undefined); return }
+      if (!current.owner.leafer) { preview.current?.dispose(); preview.current = undefined; gesture.current = undefined; setDelta(undefined); return }
       const point = clientToParent(current.owner, event)
       current.x = point.x - current.start.x; current.y = point.y - current.start.y
+      if (Math.abs(current.x) < .000001) current.x = 0
+      if (Math.abs(current.y) < .000001) current.y = 0
+      if (current.x || current.y) preview.current ||= movingObjectPreview(app, current.owner)
+      preview.current?.update(current.x, current.y)
       setDelta({ x: current.x, y: current.y }); event.preventDefault(); event.stopImmediatePropagation()
     }
-    const cancel = () => { noteClick = undefined; gesture.current = undefined; setDelta(undefined) }
+    const cancel = () => { preview.current?.dispose(); preview.current = undefined; noteClick = undefined; gesture.current = undefined; setDelta(undefined) }
     const up = (event: PointerEvent) => {
       const click = noteClick; noteClick = undefined
       if (click?.selected && !click.moved) queueMicrotask(() => {
@@ -72,7 +78,7 @@ export function RichObjectInteractions({ app, activeKey, selection, onComplete }
     const ids = [app.on_(MoveEvent.MOVE, () => paint(n => n + 1)), app.on_(ZoomEvent.ZOOM, () => paint(n => n + 1)), app.tree.on_(PropertyEvent.CHANGE, () => paint(n => n + 1)), app.editor.on_(EditorEvent.SELECT, () => paint(n => n + 1)), app.editor.on_(InnerEditorEvent.OPEN, () => paint(n => n + 1)), app.editor.on_(InnerEditorEvent.CLOSE, () => paint(n => n + 1))]
     ids.push(app.on_([LeaferPointerEvent.DOUBLE_TAP, LeaferPointerEvent.DOUBLE_CLICK], (event: LeaferPointerEvent) => { if (noteTarget) event.stop() }, undefined, true))
     document.addEventListener('pointerdown', down, true); document.addEventListener('pointermove', move, true); document.addEventListener('pointerup', up, true); document.addEventListener('pointercancel', cancel, true); window.addEventListener('blur', cancel); window.addEventListener('keydown', key, true)
-    return () => { app.off_(ids); document.removeEventListener('pointerdown', down, true); document.removeEventListener('pointermove', move, true); document.removeEventListener('pointerup', up, true); document.removeEventListener('pointercancel', cancel, true); window.removeEventListener('blur', cancel); window.removeEventListener('keydown', key, true) }
+    return () => { cancel(); app.off_(ids); document.removeEventListener('pointerdown', down, true); document.removeEventListener('pointermove', move, true); document.removeEventListener('pointerup', up, true); document.removeEventListener('pointercancel', cancel, true); window.removeEventListener('blur', cancel); window.removeEventListener('keydown', key, true) }
   }, [activeKey, app, onComplete])
   if (activeKey !== 'init') return null
   const inner = (app.editor.innerEditor as unknown as { editTarget?: IUI } | undefined)?.editTarget
@@ -84,12 +90,11 @@ export function RichObjectInteractions({ app, activeKey, selection, onComplete }
   const moved = delta ? owner.parent!.getWorldPoint({ x: Number(owner.x || 0) + delta.x, y: Number(owner.y || 0) + delta.y }) : undefined
   const target = moved && app.tree.getClientPointByWorld(moved)
   return <div className="rich-object-overlay">
-    <button type="button" className="rich-object-move-handle" aria-label={t('rich.moveObject')} title={t('rich.moveObject')} style={{ left: kind(owner) === 'table' ? p.x - stage.left - handleOffset : Math.max(80, p.x - stage.left - handleOffset), top: kind(owner) === 'table' ? p.y - stage.top - handleOffset : Math.max(72, p.y - stage.top - handleOffset) }} onPointerDown={event => {
+    <button type="button" className="rich-object-move-handle" aria-label={t('rich.moveObject')} title={t('rich.moveObject')} style={{ left: kind(owner) === 'table' ? (target?.x ?? p.x) - stage.left - handleOffset : Math.max(80, (target?.x ?? p.x) - stage.left - handleOffset), top: kind(owner) === 'table' ? (target?.y ?? p.y) - stage.top - handleOffset : Math.max(72, (target?.y ?? p.y) - stage.top - handleOffset) }} onPointerDown={event => {
       event.preventDefault(); event.stopPropagation(); event.currentTarget.setPointerCapture(event.pointerId)
       app.editor.closeInnerEditor(); app.editor.select(owner)
       const start = owner.parent!.getInnerPoint(app.tree.getWorldPointByClient(event))
       gesture.current = { owner, start, x: 0, y: 0 }
     }}><BoardIcon name="hand" size={16} /></button>
-    {target && <div className="rich-object-drag-preview" style={{ left: target.x - stage.left, top: target.y - stage.top, width: bounds.width, height: bounds.height }} />}
   </div>
 }

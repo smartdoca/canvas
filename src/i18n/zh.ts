@@ -189,6 +189,8 @@ export const zh: Record<MessageKey, string> = {
   'board.mindmap': '思维导图',
   'board.sticker': '图标与表情',
   'board.flowchart': '流程图',
+  'board.rememberCreationStyle': '将选中样式用作新建默认',
+  'board.resetCreationStyle': '重置新建默认样式',
   'board.minimap': '小地图',
   'board.outline': '思维导图大纲',
   'board.empty': '画布为空',

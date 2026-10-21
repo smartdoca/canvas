@@ -1,3 +1,4 @@
+import { creationPreferences } from '../../thinking/preferences'
 import type { App } from 'leafer-ui'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { Plugins } from '../../plugins/plugins'
@@ -14,6 +15,7 @@ import { STROKE_WIDTH_PRESETS } from '../../plugins/path/const'
 
 interface ToolbarProps {
   app: App; plugins: Plugins[]; activeKey: string; setActiveKey: (key: string) => void
+  preferredConnectorMode?: 'straight' | 'elbow' | 'curve'
   canUndo: boolean; canRedo: boolean; hasSelection: boolean
   onUndo: () => void; onRedo: () => void; onDuplicate: () => void; onDelete: () => void
   onCreateComplete: () => void
@@ -28,7 +30,7 @@ const shapeTypes: DiagramShape[] = ['rounded', 'ellipse', 'diamond', 'rect', 'cy
 const runtimeNames = ['text', 'note', 'path', 'frame', 'eraser']
 const emojis = ['😊', '👍', '❤️', '🎯', '💡', '⭐', '🚀', '✅', '🔥', '🎉', '📌', '🤔', '💬', '📚', '⚡', '🌱']
 
-export default function Toolbar({ app, plugins, activeKey, setActiveKey, onCreateComplete, onImage, onImageRequest, onAttachment, onTemplates, onLibrary, customShapes, elementExtensions = [], extensionValues = {}, start, end }: ToolbarProps) {
+export default function Toolbar({ app, preferredConnectorMode, plugins, activeKey, setActiveKey, onCreateComplete, onImage, onImageRequest, onAttachment, onTemplates, onLibrary, customShapes, elementExtensions = [], extensionValues = {}, start, end }: ToolbarProps) {
   const attachmentInput = useRef<HTMLInputElement>(null)
   const imageInput = useRef<HTMLInputElement>(null), root = useRef<HTMLDivElement>(null), closeTimer = useRef<ReturnType<typeof setTimeout>>()
   const [expanded, setExpanded] = useState(false)
@@ -53,8 +55,8 @@ export default function Toolbar({ app, plugins, activeKey, setActiveKey, onCreat
     <span className="board-toolbar-separator" />
     {tool('shapes', t('board.shapes'), 'diagram:rounded', <><div className="shape-quick-grid">{shapeTypes.map(shape => <button type="button" className={activeKey === `diagram:${shape}` ? 'is-active' : ''} key={shape} data-canvas-insert={`diagram:${shape}`} title={t(`shape.${shape}` as MessageKey)} aria-label={t(`shape.${shape}` as MessageKey)} onClick={() => activate(`diagram:${shape}`)}><BoardIcon name={shape} size={24} /></button>)}</div><button type="button" className="flyout-footer" onClick={() => { onLibrary(); setOpen('') }}>{t('board.moreShapes')}<kbd>M</kbd></button></>)}
     {tool('text', t('toolbar.text'), 'text')}
-    {tool('note', t('toolbar.note'), 'note', <NotePresetPicker draggable onPick={id => { setStyleParamsToLocalStorage({ ...getStyleParamsFromLocalStorage(), notePreset: id }); activate('note') }} />)}
-    {tool('connector', t('board.connector'), `connector:${getStyleParamsFromLocalStorage().connectorMode || 'elbow'}`, <div className="connector-choices">{['elbow', 'straight', 'curve'].map(mode => <button type="button" key={mode} data-canvas-insert={`connector:${mode}`} onClick={() => activate(`connector:${mode}`)}><BoardIcon name={mode} size={23} /><span>{t(`connector.${mode}` as MessageKey)}</span></button>)}</div>)}
+    {tool('note', t('toolbar.note'), 'note', <NotePresetPicker draggable onPick={id => { if (!creationPreferences(app)) setStyleParamsToLocalStorage({ ...getStyleParamsFromLocalStorage(), notePreset: id }); activate(`note:${id}`) }} />)}
+    {tool('connector', t('board.connector'), `connector:${preferredConnectorMode || getStyleParamsFromLocalStorage().connectorMode || 'elbow'}`, <div className="connector-choices">{['elbow', 'straight', 'curve'].map(mode => <button type="button" key={mode} data-canvas-insert={`connector:${mode}`} onClick={() => activate(`connector:${mode}`)}><BoardIcon name={mode} size={23} /><span>{t(`connector.${mode}` as MessageKey)}</span></button>)}</div>)}
     {tool('section', t('board.section'), 'frame', <ContainerPicker activeKey={activeKey} isOpen={open === 'section'} onPick={activate} />)}
     {tool('table', t('board.table'), 'table:3:3', <><div className="table-picker">{Array.from({ length: 30 }, (_, i) => { const row = Math.floor(i / 6) + 1, column = i % 6 + 1; return <button type="button" key={i} data-canvas-insert={`table:${row}:${column}`} aria-label={`${row} × ${column}`} className={row <= tableSize.rows && column <= tableSize.columns ? 'is-highlighted' : ''} onPointerEnter={() => setTableSize({ rows: row, columns: column })} onFocus={() => setTableSize({ rows: row, columns: column })} onClick={() => activate(`table:${row}:${column}`)} /> })}</div><div className="table-picker-size">{tableSize.rows} × {tableSize.columns}</div></>)}
     {tool('pen', t('toolbar.pencil'), 'path', <><div className="connector-choices"><button type="button" onClick={() => activate('path')}><BoardIcon name="pen" /><span>{t('toolbar.pencil')}</span></button><button type="button" onClick={() => activate('eraser')}><span className="eraser-icon">▱</span><span>{t('toolbar.eraser')}</span></button></div><div className="pen-width-picker" role="group" aria-label={t('style.strokeWidth')}><div className="pen-width-label">{t('style.strokeWidth')}</div><div className="pen-width-presets">{STROKE_WIDTH_PRESETS.map(width => <button type="button" key={width} aria-label={`${t('style.strokeWidth')} ${width} px`} title={`${width} px`} aria-pressed={Number(getStyleParamsFromLocalStorage().strokeWidth) === width} onClick={() => { setStyleParamsToLocalStorage({ ...getStyleParamsFromLocalStorage(), strokeWidth: width }); activate('path') }}><svg width="42" height="24" viewBox="0 0 42 24" aria-hidden="true"><path d="M12 12H30" stroke="currentColor" strokeWidth={width} strokeLinecap="round" /></svg><span>{width}</span></button>)}</div></div></>)}
