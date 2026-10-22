@@ -60,7 +60,7 @@ class CanvasPlainTextEditor extends TextEditor {
   protected override onInput() { this.editTarget.text = this.getPlainText() }
 
   protected override onKeydown(event: KeyboardEvent) {
-    if (!this.editDom?.contains(event.target as Node)) return
+    if (event.defaultPrevented || !this.editDom?.contains(event.target as Node)) return
     if (event.isComposing || event.keyCode === 229) return
     const modifier = event.metaKey || event.ctrlKey, key = event.key.toLowerCase()
     if (modifier && key === 'a') {

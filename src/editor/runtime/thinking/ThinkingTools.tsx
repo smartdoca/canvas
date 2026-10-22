@@ -1,5 +1,6 @@
 import { applyConnectorCreationStyle } from './preferences'
 import { useEffect, useState } from 'react'
+import { ownsCanvasCommands } from '../utils/keyboardOwnership'
 import { PointerEvent, Text, type Path, type App, type IUI } from 'leafer-ui'
 import { ancestor, connectorLabel, isConnector, kind, labelOf, makeConnector, makeDiagram, makeMindMap, makeTable, mindNode, pickConnectable, endpoint, shapePath, nearestPort, setConnectorPath, connectorGeometry, type AnchorPoint, type DiagramShape, type RouteMode } from './scene'
 import { useCanvasI18n } from '../../../i18n/context'
@@ -87,7 +88,7 @@ export function ThinkingTools({ app, activeKey, onComplete }: { app: App; active
     })
     const enter = (event: KeyboardEvent) => {
       const item = app.editor.list[0]
-      if (app.editor.innerEditing || !(event.target as HTMLElement).closest('.canvas-app') || (event.target as HTMLElement).closest('button,input,textarea,select,[role=menu],[role=dialog],[contenteditable=true]')) return
+      if (app.editor.innerEditing || event.isComposing || event.keyCode === 229 || !ownsCanvasCommands(event, app.view as HTMLElement)) return
       if (event.key === 'Enter' && isConnector(item)) {
         event.preventDefault(); event.stopImmediatePropagation()
         const label = connectorLabel(app, item); app.editor.select(label); app.editor.openInnerEditor(label, true); return

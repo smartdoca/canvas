@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, useMemo, type PointerEvent as ReactPointerEvent } from 'react'
+import { ownsCanvasCommands } from '../utils/keyboardOwnership'
 import { MoveEvent, PropertyEvent, ZoomEvent, type App, type Group, type IUI } from 'leafer-ui'
 import { EditorEvent, InnerEditorEvent } from '@leafer-in/editor'
 import { useCanvasI18n } from '../../../i18n/context'
@@ -116,9 +117,10 @@ export function TableInteractions({ app, activeKey, selection, onComplete }: { a
       onComplete([...app.editor.list])
     }
     const key = (event: KeyboardEvent) => {
+      if (event.isComposing || event.keyCode === 229 || !ownsCanvasCommands(event, host)) return
       const owner = ancestor(app.editor.list[0], 'table') as Group | undefined, current = selectedRange(owner, app.editor.list, rangeRef.current)
       if (event.key === 'Escape' && resizeRef.current) { event.preventDefault(); event.stopImmediatePropagation(); resizeRef.current = undefined; setResize(undefined); return }
-      if (!owner || !current || app.editor.innerEditing || !(event.target instanceof HTMLElement) || !event.target.closest('.canvas-app') || event.target.closest('button,input,textarea,select,[contenteditable=true],[role=menu]')) return
+      if (!owner || !current || app.editor.innerEditing) return
       const stop = () => { event.preventDefault(); event.stopImmediatePropagation() }
       if (['Backspace', 'Delete'].includes(event.key)) { stop(); clearTableCells(cellsInRange(owner, current)); onComplete([...app.editor.list]); return }
       if (event.key === 'Enter' || event.key === 'F2') { stop(); editCell(owner, current.focus); return }
@@ -138,7 +140,7 @@ export function TableInteractions({ app, activeKey, selection, onComplete }: { a
     }
     const clipboard = (event: ClipboardEvent) => {
       const owner = ancestor(app.editor.list[0], 'table') as Group | undefined, current = selectedRange(owner, app.editor.list, rangeRef.current)
-      if (!owner || !current || app.editor.innerEditing || !(event.target instanceof HTMLElement) || !event.target.closest('.canvas-app') || event.target.closest('input,textarea,[contenteditable=true]')) return
+      if (!owner || !current || app.editor.innerEditing || !ownsCanvasCommands(event, host)) return
       if (event.type === 'paste') {
         const encoded = event.clipboardData?.getData(TABLE_CLIPBOARD), html = event.clipboardData?.getData('text/html')
         let fragment: unknown
