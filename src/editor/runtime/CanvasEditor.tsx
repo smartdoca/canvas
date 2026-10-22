@@ -5,7 +5,6 @@ import {
   Frame,
   Group,
   Image as LeaferImage,
-  KeyEvent,
   MoveEvent,
   Path,
   PointerEvent as LeaferPointerEvent,
@@ -80,6 +79,7 @@ import { elementBounds } from './utils/elementBounds'
 import { findItem, indexItems } from './utils/findItem'
 import { createTextInputBridge } from './utils/textInputBridge'
 import { installCanvasWheelBoundary } from './utils/canvasWheelBoundary'
+import { isOwnCanvasEvent, ownsCanvasCommands } from './utils/keyboardOwnership'
 import { installContainedSelection } from './utils/containedSelection'
 import { bakeSpecialShapeScale, fitSpecialPath } from './utils/shapeGeometry'
 import { type AddImageOptions, type CanvasResource, type CanvasEditorProps, type CanvasEditorRef, type CanvasFindOptions, type CanvasRevealOptions, type CanvasRevealResult, type CanvasSaveStatus, type CanvasTextMatch, type CanvasValue } from '../../sdk/types'
@@ -307,7 +307,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
     if (!contextMenu && !shortcutsOpen) return
     if (contextMenu) stageRef.current?.querySelector<HTMLElement>('.canvas-context-menu')?.focus()
     const close = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') { setContextMenu(null); setShortcutsOpen(false); stageRef.current?.closest<HTMLElement>('.canvas-app')?.focus() }
+      if (event.key === 'Escape' && isOwnCanvasEvent(event, stageRef.current)) { setContextMenu(null); setShortcutsOpen(false); stageRef.current?.closest<HTMLElement>('.canvas-app')?.focus() }
     }
     const dismiss = (event: PointerEvent) => { if (!(event.target as HTMLElement).closest('.canvas-context-menu')) setContextMenu(null) }
     window.addEventListener('keydown', close)
@@ -767,12 +767,14 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
   useEffect(() => {
     const onThinkingKey = (event: KeyboardEvent) => {
       const current = appRef.current
-      if (!current || event.isComposing || propsRef.current.mode === 'readonly') return
+      if (!current || event.defaultPrevented || event.isComposing || event.keyCode === 229 || propsRef.current.mode === 'readonly') return
       const target = event.target as HTMLElement
-      if (!hostRef.current?.closest('.canvas-app')?.contains(target) && !(current.editor.innerEditing && target.closest('.leafer-text-editor'))) return
+      const native = current.editor.innerEditor as { editDom?: HTMLElement } | undefined
+      const ownsText = current.editor.innerEditing && target instanceof HTMLElement && target.isContentEditable &&
+        !target.closest('button,input,textarea,select,[contenteditable="false"]') && native?.editDom?.contains(target)
+      if (!ownsText && !ownsCanvasCommands(event, hostRef.current)) return
       if (target.closest('[role="menu"], [role="dialog"]')) return
       const editing = Boolean(current.editor.innerEditing)
-      if (target.closest('button,input,textarea,[contenteditable]') && !editing) return
       const modifier = event.metaKey || event.ctrlKey
       const node = mindNode(current.editor.list[0]), group = mindMap(node)
       if (!node || !group) return
@@ -1045,7 +1047,12 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
     const instance = new App({
       view: viewRef.current,
       fill: 'transparent',
+      // DOM commands below own keys by the current input target. Leafer's
+      // document listener has no input/instance ownership predicate.
+      keyEvent: false,
+      move: { holdSpaceKey: false },
       editor: {
+        keyEvent: false,
         beforeEditInner: ({ target }) => appRef.current?.editor.innerEditing && appRef.current.editor.innerEditor?.editTarget === target ? false : target.tag === 'Text' ? richContainer(target) ? 'CanvasSlateEditor' : 'CanvasPlainTextEditor' : undefined,
         buttonsDirection: 'bottom',
         buttonsFixed: true,
@@ -1308,15 +1315,6 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
         }
       }, 0)
     })
-    instance.on(KeyEvent.DOWN, (event: KeyEvent) => {
-      if (propsRef.current.mode === 'readonly') return
-      const editingText = Boolean(instance.editor.innerEditing)
-      if (!editingText && (event.code === 'Delete' || event.code === 'Backspace')) {
-        removeItems(instance, [...instance.editor.list])
-        instance.editor.cancel()
-        commit()
-      }
-    })
     setApp(instance)
     return () => {
       // Native editor unload writes its final DOM text. Do this before flushing/cancelling timers.
@@ -1363,7 +1361,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
       moveable: !isReadOnly,
       resizeable: !isReadOnly,
       rotateable: !isReadOnly,
-      keyEvent: !isReadOnly,
+      keyEvent: false,
       editBox: !isReadOnly,
       openInner: isReadOnly ? false as never : 'double',
     }
@@ -1424,11 +1422,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
       const elements = copySelection()
       return elements.length ? JSON.stringify({ format: CANVAS_CLIPBOARD_FORMAT, version: 1, elements }) : undefined
     }
-    const isCanvasEvent = (event: Event) => {
-      const target = event.target
-      return target instanceof Element && target.closest('.canvas-app') === stageRef.current?.closest('.canvas-app') &&
-        !target.closest('input, textarea, [contenteditable="true"]') && !appRef.current?.editor.innerEditing
-    }
+    const isCanvasEvent = (event: Event) => ownsCanvasCommands(event, stageRef.current) && !appRef.current?.editor.innerEditing
     const onCopy = (event: ClipboardEvent) => {
       if (event.defaultPrevented || !event.clipboardData || !isCanvasEvent(event)) return false
       const content = encodeSelection()
@@ -1445,7 +1439,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
       commit()
     }
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || !isCanvasEvent(event)) return
+      if (event.defaultPrevented || event.isComposing || event.keyCode === 229 || !isCanvasEvent(event)) return
       if ((event.target as HTMLElement).closest('[role="menu"], [role="dialog"]')) return
       const modifier = event.metaKey || event.ctrlKey
       const nativeModifier = /Mac|iPhone|iPad/.test(navigator.platform) ? event.metaKey : event.ctrlKey
@@ -1473,6 +1467,13 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
         stageRef.current?.classList.add('is-panning')
       }
       if (propsRef.current.mode === 'readonly') {
+        return
+      }
+      if (key === 'delete' || key === 'backspace') {
+        event.preventDefault()
+        if (appRef.current) removeItems(appRef.current, [...appRef.current.editor.list])
+        appRef.current?.editor.cancel()
+        commit()
         return
       }
       if (modifier && !nativeModifier && key === 'v' && clipboardRef.current.length) { event.preventDefault(); pasteSelection() }
@@ -1520,21 +1521,22 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
       if (!modifier && ['arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key)) {
         event.preventDefault()
         const step = event.shiftKey ? 10 : 1
-        appRef.current?.editor.list.forEach((item) => {
-          if (key === 'arrowup') item.y = (item.y || 0) - step
-          if (key === 'arrowdown') item.y = (item.y || 0) + step
-          if (key === 'arrowleft') item.x = (item.x || 0) - step
-          if (key === 'arrowright') item.x = (item.x || 0) + step
-        })
+        const current = appRef.current
+        if (!current) return
+        const before = new Map(current.editor.list.map(item => [item, { x: item.x, y: item.y }]))
+        current.editor.move(key === 'arrowright' ? step : key === 'arrowleft' ? -step : 0, key === 'arrowdown' ? step : key === 'arrowup' ? -step : 0)
+        const changed = current.editor.list.filter(item => item.x !== before.get(item)?.x || item.y !== before.get(item)?.y)
+        if (changed.length) reconcileFrameMembership(changed)
         commit()
       }
     }
-    const onKeyUp = (event: KeyboardEvent) => {
-      if (event.code !== 'Space') return
+    const releasePan = () => {
       panRef.current.space = false
       panRef.current.active = false
       stageRef.current?.classList.remove('is-panning')
     }
+    // Release even when focus changed after Space went down.
+    const onKeyUp = (event: KeyboardEvent) => { if (event.code === 'Space') releasePan() }
     const onPaste = (event: ClipboardEvent) => {
       if (event.defaultPrevented || event.clipboardData?.files.length || !isCanvasEvent(event) || propsRef.current.mode === 'readonly') return
       const content = event.clipboardData?.getData(CANVAS_CLIPBOARD_TYPE) || event.clipboardData?.getData('text/plain')
@@ -1553,8 +1555,9 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
     window.addEventListener('paste', onPaste)
     window.addEventListener('keydown', onKeyDown)
     window.addEventListener('keyup', onKeyUp)
-    return () => { window.removeEventListener('copy', onCopy); window.removeEventListener('cut', onCut); window.removeEventListener('paste', onPaste); window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp) }
-  }, [activateTool, applyZoomAt, changeThinkingStyle, commit, copySelection, duplicate, fitView, groupSelection, pasteSelection, redo, save, setGrid, undo, ungroupSelection])
+    window.addEventListener('blur', releasePan)
+    return () => { window.removeEventListener('copy', onCopy); window.removeEventListener('cut', onCut); window.removeEventListener('paste', onPaste); window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp); window.removeEventListener('blur', releasePan); releasePan() }
+  }, [activateTool, applyZoomAt, changeThinkingStyle, commit, copySelection, duplicate, fitView, groupSelection, pasteSelection, reconcileFrameMembership, redo, save, setGrid, undo, ungroupSelection])
 
   useEffect(() => {
     if (managed()) return
@@ -2243,7 +2246,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
             onExtensionValueChange={(type, key, value) => setExtensionValues(previous => ({ ...previous, [type]: { ...previous[type], [key]: value } }))} />
         </div>}
 
-        {selectionPosition && selected.length > 0 && selected.every(item => item.leafer) && !ancestor(selected[0], 'table-cell') && activeKey === 'init' && (!isReadOnly || selectedAttachment || externalActions.length > 0) && <div ref={selectionActionsRef} className="selection-actions" style={{ left: selectionPosition.x, top: selectionPosition.y }}>
+        {selectionPosition && selected.length > 0 && selected.every(item => item.leafer) && !ancestor(selected[0], 'table-cell') && activeKey === 'init' && (!isReadOnly || selectedAttachment || externalActions.length > 0) && <div ref={selectionActionsRef} className="selection-actions" style={{ left: selectionPosition.x, top: selectionPosition.y }} onPointerDown={event => { if ((event.target as HTMLElement).closest('button')) event.preventDefault() }}>
           {!isReadOnly && <>
           <ThinkingContextTools key={selected.map(item => item.id).join()} selection={selected} onMindAction={changeMind} onLayout={changeMindLayout} onTheme={changeMindTheme} onStyle={changeThinkingStyle} onMoreStyles={() => setStyleOpen(!styleOpen)} />
           <IconButton label={t('selection.duplicate')} icon={<Copy />} onClick={duplicate} />

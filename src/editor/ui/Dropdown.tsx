@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { isOwnCanvasEvent, ownsCanvasCommands } from '../runtime/utils/keyboardOwnership'
 
 export interface DropdownOption<T> { value: T; label: string }
 
@@ -13,6 +14,8 @@ export function Dropdown<T extends string | number>({ label, value, options, onC
   const show = useCallback((index = Math.max(0, selected)) => { setActive(index); setOpen(true) }, [selected])
   const choose = useCallback((index: number) => { const option = options[index]; if (option) { setOpen(false); onChange(option.value) } }, [options, onChange])
   const handleKeys = useCallback((event: KeyboardEvent | ReactKeyboardEvent<HTMLDivElement>) => {
+    const native = 'nativeEvent' in event ? event.nativeEvent : event
+    if (event.defaultPrevented || native.isComposing || native.keyCode === 229) return
     if (event.key === 'Tab') { setOpen(false); return }
     if (event.key === 'Escape') { if (open) { event.preventDefault(); event.stopPropagation(); setOpen(false) } return }
     if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
@@ -50,7 +53,14 @@ export function Dropdown<T extends string | number>({ label, value, options, onC
     if (!open) return
     const dismiss = (event: PointerEvent) => { if (!ref.current?.contains(event.target as Node)) setOpen(false) }
     // Mouse opening keeps a live editor's range and pending text transaction.
-    const key = (event: KeyboardEvent) => { if (!ref.current?.contains(event.target as Node)) handleKeys(event) }
+    const key = (event: KeyboardEvent) => {
+      if (ref.current?.contains(event.target as Node) || !isOwnCanvasEvent(event, ref.current)) return
+      // A mouse-opened format menu may retain this canvas text editor's range.
+      const target = event.target as HTMLElement
+      const ownsText = target.isContentEditable && target.closest('.canvas-plain-text-editor,[data-slate-editor]') &&
+        !target.closest('button,input,textarea,select,[contenteditable="false"]')
+      if (ownsCanvasCommands(event, ref.current) || ownsText) handleKeys(event)
+    }
     document.addEventListener('pointerdown', dismiss, true)
     document.addEventListener('keydown', key, true)
     return () => { document.removeEventListener('pointerdown', dismiss, true); document.removeEventListener('keydown', key, true) }

@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { isOwnCanvasEvent } from '../runtime/utils/keyboardOwnership'
 import { IconButton } from './Controls'
 
 export function Popover({ label, icon, children, className = '', keepMounted = false, selected = false, fitViewport = false }: { label: string; icon: ReactNode; children: ReactNode; className?: string; keepMounted?: boolean; selected?: boolean; fitViewport?: boolean }) {
@@ -45,7 +46,7 @@ export function Popover({ label, icon, children, className = '', keepMounted = f
   useEffect(() => {
     if (!open) return
     const dismiss = (event: PointerEvent) => { if (!ref.current?.contains(event.target as Node)) setOpen(false) }
-    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') { setOpen(false); ref.current?.querySelector('button')?.focus() } }
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape' && isOwnCanvasEvent(event, ref.current)) { setOpen(false); ref.current?.querySelector('button')?.focus() } }
     document.addEventListener('pointerdown', dismiss)
     document.addEventListener('keydown', escape)
     return () => { document.removeEventListener('pointerdown', dismiss); document.removeEventListener('keydown', escape) }

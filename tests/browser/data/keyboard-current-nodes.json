@@ -1,0 +1,549 @@
+{
+  "table": {
+    "tag": "Group",
+    "id": "keyboard-table-0",
+    "name": "board-table",
+    "x": 80,
+    "y": 180,
+    "editable": true,
+    "hitSelf": false,
+    "data": {
+      "kind": "table",
+      "rows": 2,
+      "columns": 2,
+      "columnWidths": [
+        140,
+        140
+      ],
+      "rowHeights": [
+        46,
+        46
+      ]
+    },
+    "children": [
+      {
+        "tag": "Frame",
+        "fill": "#eaf1ff",
+        "overflow": "hide",
+        "width": 140,
+        "height": 46,
+        "id": "keyboard-table-1",
+        "name": "table-cell",
+        "visible": true,
+        "x": 0,
+        "y": 0,
+        "editable": false,
+        "hitChildren": false,
+        "stroke": "#cfd3d8",
+        "strokeWidth": 1,
+        "data": {
+          "kind": "table-cell",
+          "row": 0,
+          "column": 0
+        },
+        "editConfig": {
+          "moveable": false,
+          "resizeable": false,
+          "rotateable": false
+        },
+        "children": [
+          {
+            "tag": "Text",
+            "width": 116,
+            "height": 26,
+            "fill": "#1f2329",
+            "text": "A1",
+            "fontFamily": "Arial, \"PingFang SC\", \"Microsoft YaHei\", sans-serif",
+            "fontSize": 14,
+            "fontWeight": 600,
+            "verticalAlign": "top",
+            "id": "keyboard-table-2",
+            "name": "text",
+            "x": 12,
+            "y": 10,
+            "editable": true,
+            "data": {
+              "kind": "cell-label"
+            }
+          }
+        ]
+      },
+      {
+        "tag": "Frame",
+        "fill": "#eaf1ff",
+        "overflow": "hide",
+        "width": 140,
+        "height": 46,
+        "id": "keyboard-table-3",
+        "name": "table-cell",
+        "visible": true,
+        "x": 140,
+        "y": 0,
+        "editable": false,
+        "hitChildren": false,
+        "stroke": "#cfd3d8",
+        "strokeWidth": 1,
+        "data": {
+          "kind": "table-cell",
+          "row": 0,
+          "column": 1
+        },
+        "editConfig": {
+          "moveable": false,
+          "resizeable": false,
+          "rotateable": false
+        },
+        "children": [
+          {
+            "tag": "Text",
+            "width": 116,
+            "height": 26,
+            "fill": "#1f2329",
+            "text": "B1",
+            "fontFamily": "Arial, \"PingFang SC\", \"Microsoft YaHei\", sans-serif",
+            "fontSize": 14,
+            "fontWeight": 600,
+            "verticalAlign": "top",
+            "id": "keyboard-table-4",
+            "name": "text",
+            "x": 12,
+            "y": 10,
+            "editable": true,
+            "data": {
+              "kind": "cell-label"
+            }
+          }
+        ]
+      },
+      {
+        "tag": "Frame",
+        "fill": "#ffffff",
+        "overflow": "hide",
+        "width": 140,
+        "height": 46,
+        "id": "keyboard-table-5",
+        "name": "table-cell",
+        "visible": true,
+        "x": 0,
+        "y": 46,
+        "editable": false,
+        "hitChildren": false,
+        "stroke": "#cfd3d8",
+        "strokeWidth": 1,
+        "data": {
+          "kind": "table-cell",
+          "row": 1,
+          "column": 0
+        },
+        "editConfig": {
+          "moveable": false,
+          "resizeable": false,
+          "rotateable": false
+        },
+        "children": [
+          {
+            "tag": "Text",
+            "width": 116,
+            "height": 26,
+            "fill": "#1f2329",
+            "text": "A2",
+            "fontFamily": "Arial, \"PingFang SC\", \"Microsoft YaHei\", sans-serif",
+            "fontSize": 14,
+            "fontWeight": 400,
+            "verticalAlign": "top",
+            "id": "keyboard-table-6",
+            "name": "text",
+            "x": 12,
+            "y": 10,
+            "editable": true,
+            "data": {
+              "kind": "cell-label"
+            }
+          }
+        ]
+      },
+      {
+        "tag": "Frame",
+        "fill": "#ffffff",
+        "overflow": "hide",
+        "width": 140,
+        "height": 46,
+        "id": "keyboard-table-7",
+        "name": "table-cell",
+        "visible": true,
+        "x": 140,
+        "y": 46,
+        "editable": false,
+        "hitChildren": false,
+        "stroke": "#cfd3d8",
+        "strokeWidth": 1,
+        "data": {
+          "kind": "table-cell",
+          "row": 1,
+          "column": 1
+        },
+        "editConfig": {
+          "moveable": false,
+          "resizeable": false,
+          "rotateable": false
+        },
+        "children": [
+          {
+            "tag": "Text",
+            "width": 116,
+            "height": 26,
+            "fill": "#1f2329",
+            "text": "B2",
+            "fontFamily": "Arial, \"PingFang SC\", \"Microsoft YaHei\", sans-serif",
+            "fontSize": 14,
+            "fontWeight": 400,
+            "verticalAlign": "top",
+            "id": "keyboard-table-8",
+            "name": "text",
+            "x": 12,
+            "y": 10,
+            "editable": true,
+            "data": {
+              "kind": "cell-label"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "mind": {
+    "tag": "Group",
+    "id": "keyboard-mind-0",
+    "name": "mindmap",
+    "x": 80,
+    "y": 180,
+    "editable": false,
+    "hitSelf": false,
+    "data": {
+      "kind": "mindmap",
+      "layout": "right",
+      "originX": 0,
+      "originY": 0
+    },
+    "children": [
+      {
+        "tag": "Path",
+        "id": "keyboard-mind-1",
+        "name": "mind-edge",
+        "visible": true,
+        "path": "M160 24C196 24 196 88 232 88",
+        "editable": false,
+        "hittable": false,
+        "stroke": "#e5a329",
+        "strokeWidth": 2,
+        "data": {
+          "kind": "mind-edge",
+          "sourceId": "keyboard-mind-4",
+          "targetId": "keyboard-mind-10"
+        }
+      },
+      {
+        "tag": "Path",
+        "id": "keyboard-mind-2",
+        "name": "mind-edge",
+        "visible": true,
+        "path": "M160 24C196 24 196 24 232 24",
+        "editable": false,
+        "hittable": false,
+        "stroke": "#36a872",
+        "strokeWidth": 2,
+        "data": {
+          "kind": "mind-edge",
+          "sourceId": "keyboard-mind-4",
+          "targetId": "keyboard-mind-8"
+        }
+      },
+      {
+        "tag": "Path",
+        "id": "keyboard-mind-3",
+        "name": "mind-edge",
+        "visible": true,
+        "path": "M160 24C196 24 196 -40 232 -40",
+        "editable": false,
+        "hittable": false,
+        "stroke": "#3370ff",
+        "strokeWidth": 2,
+        "data": {
+          "kind": "mind-edge",
+          "sourceId": "keyboard-mind-4",
+          "targetId": "keyboard-mind-6"
+        }
+      },
+      {
+        "tag": "Frame",
+        "fill": "#3370ff",
+        "width": 160,
+        "height": 48,
+        "id": "keyboard-mind-4",
+        "name": "mind-node",
+        "visible": true,
+        "x": 0,
+        "y": 0,
+        "editable": true,
+        "hitChildren": false,
+        "stroke": "#3370ff",
+        "strokeWidth": 0,
+        "cornerRadius": 5,
+        "data": {
+          "kind": "mind-node",
+          "parentId": "",
+          "root": true,
+          "colorIndex": 0,
+          "collapsed": false
+        },
+        "editConfig": {
+          "resizeable": false,
+          "rotateable": false
+        },
+        "children": [
+          {
+            "tag": "Text",
+            "width": 132,
+            "height": 32,
+            "fill": "#ffffff",
+            "text": "Root",
+            "fontFamily": "Arial, \"PingFang SC\", \"Microsoft YaHei\", sans-serif",
+            "fontSize": 18,
+            "fontWeight": 600,
+            "lineHeight": {
+              "type": "percent",
+              "value": 1.4
+            },
+            "textAlign": "center",
+            "verticalAlign": "middle",
+            "id": "keyboard-mind-5",
+            "name": "text",
+            "x": 14,
+            "y": 8,
+            "editable": true,
+            "data": {
+              "kind": "node-label"
+            }
+          }
+        ]
+      },
+      {
+        "tag": "Frame",
+        "fill": "#eaf1ff",
+        "width": 128,
+        "height": 42,
+        "id": "keyboard-mind-6",
+        "name": "mind-node",
+        "visible": true,
+        "x": 232,
+        "y": -61,
+        "editable": true,
+        "hitChildren": false,
+        "stroke": "#3370ff",
+        "strokeWidth": 1,
+        "cornerRadius": 5,
+        "data": {
+          "kind": "mind-node",
+          "parentId": "keyboard-mind-4",
+          "root": false,
+          "colorIndex": 0,
+          "collapsed": false
+        },
+        "editConfig": {
+          "resizeable": false,
+          "rotateable": false
+        },
+        "children": [
+          {
+            "tag": "Text",
+            "width": 100,
+            "height": 26,
+            "fill": "#1f2329",
+            "text": "Branch 1",
+            "fontFamily": "Arial, \"PingFang SC\", \"Microsoft YaHei\", sans-serif",
+            "fontSize": 16,
+            "fontWeight": 400,
+            "lineHeight": {
+              "type": "percent",
+              "value": 1.4
+            },
+            "textAlign": "center",
+            "verticalAlign": "middle",
+            "id": "keyboard-mind-7",
+            "name": "text",
+            "x": 14,
+            "y": 8,
+            "editable": true,
+            "data": {
+              "kind": "node-label"
+            }
+          }
+        ]
+      },
+      {
+        "tag": "Frame",
+        "fill": "#e5f6ee",
+        "width": 128,
+        "height": 42,
+        "id": "keyboard-mind-8",
+        "name": "mind-node",
+        "visible": true,
+        "x": 232,
+        "y": 3,
+        "editable": true,
+        "hitChildren": false,
+        "stroke": "#36a872",
+        "strokeWidth": 1,
+        "cornerRadius": 5,
+        "data": {
+          "kind": "mind-node",
+          "parentId": "keyboard-mind-4",
+          "root": false,
+          "colorIndex": 1,
+          "collapsed": false
+        },
+        "editConfig": {
+          "resizeable": false,
+          "rotateable": false
+        },
+        "children": [
+          {
+            "tag": "Text",
+            "width": 100,
+            "height": 26,
+            "fill": "#1f2329",
+            "text": "Branch 2",
+            "fontFamily": "Arial, \"PingFang SC\", \"Microsoft YaHei\", sans-serif",
+            "fontSize": 16,
+            "fontWeight": 400,
+            "lineHeight": {
+              "type": "percent",
+              "value": 1.4
+            },
+            "textAlign": "center",
+            "verticalAlign": "middle",
+            "id": "keyboard-mind-9",
+            "name": "text",
+            "x": 14,
+            "y": 8,
+            "editable": true,
+            "data": {
+              "kind": "node-label"
+            }
+          }
+        ]
+      },
+      {
+        "tag": "Frame",
+        "fill": "#fff4d9",
+        "width": 128,
+        "height": 42,
+        "id": "keyboard-mind-10",
+        "name": "mind-node",
+        "visible": true,
+        "x": 232,
+        "y": 67,
+        "editable": true,
+        "hitChildren": false,
+        "stroke": "#e5a329",
+        "strokeWidth": 1,
+        "cornerRadius": 5,
+        "data": {
+          "kind": "mind-node",
+          "parentId": "keyboard-mind-4",
+          "root": false,
+          "colorIndex": 2,
+          "collapsed": false
+        },
+        "editConfig": {
+          "resizeable": false,
+          "rotateable": false
+        },
+        "children": [
+          {
+            "tag": "Text",
+            "width": 100,
+            "height": 26,
+            "fill": "#1f2329",
+            "text": "Branch 3",
+            "fontFamily": "Arial, \"PingFang SC\", \"Microsoft YaHei\", sans-serif",
+            "fontSize": 16,
+            "fontWeight": 400,
+            "lineHeight": {
+              "type": "percent",
+              "value": 1.4
+            },
+            "textAlign": "center",
+            "verticalAlign": "middle",
+            "id": "keyboard-mind-11",
+            "name": "text",
+            "x": 14,
+            "y": 8,
+            "editable": true,
+            "data": {
+              "kind": "node-label"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "note": {
+    "tag": "Frame",
+    "fill": "transparent",
+    "width": 300,
+    "height": 220,
+    "id": "keyboard-note-0",
+    "name": "note",
+    "x": 80,
+    "y": 180,
+    "editable": true,
+    "hitChildren": false,
+    "data": {
+      "kind": "note",
+      "shape": "rounded"
+    },
+    "children": [
+      {
+        "tag": "Rect",
+        "id": "keyboard-note-1",
+        "name": "diagram-body",
+        "x": 0,
+        "y": 0,
+        "width": 300,
+        "height": 220,
+        "editable": false,
+        "fill": "#ffffff",
+        "stroke": "#646a73",
+        "strokeWidth": 1.5,
+        "cornerRadius": 8,
+        "data": {
+          "kind": "diagram-body"
+        }
+      },
+      {
+        "tag": "Text",
+        "width": 272,
+        "height": 196,
+        "fill": "#1f2329",
+        "text": "Note text",
+        "fontFamily": "Arial, \"PingFang SC\", \"Microsoft YaHei\", sans-serif",
+        "fontSize": 16,
+        "lineHeight": {
+          "type": "percent",
+          "value": 1.4
+        },
+        "textAlign": "center",
+        "verticalAlign": "middle",
+        "id": "keyboard-note-2",
+        "name": "text",
+        "x": 14,
+        "y": 12,
+        "editable": true,
+        "data": {
+          "kind": "node-label"
+        }
+      }
+    ]
+  }
+}
