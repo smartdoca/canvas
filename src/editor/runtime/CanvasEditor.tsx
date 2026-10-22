@@ -302,6 +302,13 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
     setActiveKey(key)
     setStyleOpen(false)
   }, [])
+  const chooseCanvasTool = useCallback((key: string) => {
+    const current = appRef.current
+    if (!current) return
+    current.editor.closeInnerEditor()
+    activateTool(key)
+    ;(current.view as HTMLElement).closest<HTMLElement>('.canvas-app')?.focus({ preventScroll: true })
+  }, [activateTool])
 
   useEffect(() => {
     if (!contextMenu && !shortcutsOpen) return
@@ -2232,7 +2239,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
         </div>
         {app && <RemoteSelections app={app} model={props.model} sessions={visibleRemoteSelections(props.remoteSelections || [], props.sessionId || '', isReadOnly)} />}
         {app && props.model && <AnchorDecorations app={app} model={props.model} anchors={props.anchors || []} activeId={props.activeAnchorId} onClick={props.onAnchorClick} />}
-        {app && !isReadOnly && props.showToolbar !== false && <div className="toolbar-wrap"><Toolbar app={app} preferredConnectorMode={validCreationPreferences(props.creationPreferences) ? props.creationPreferences.connector?.mode : undefined} plugins={plugins} activeKey={activeKey} setActiveKey={activateTool}
+        {app && !isReadOnly && props.showToolbar !== false && <div className="toolbar-wrap"><Toolbar app={app} preferredConnectorMode={validCreationPreferences(props.creationPreferences) ? props.creationPreferences.connector?.mode : undefined} plugins={plugins} activeKey={activeKey} setActiveKey={activateTool} onActivateTool={chooseCanvasTool}
           canUndo={historyState.canUndo} canRedo={historyState.canRedo} hasSelection={selected.length > 0}
           onDuplicate={duplicate} onDelete={removeSelection} onGroup={groupSelection} onUngroup={ungroupSelection} onSelectAll={() => app.editor.select(app.tree.children.filter(item => !item.skipJSON))}
           onTemplates={() => setGalleryOpen(true)} onLibrary={() => setShapesOpen(true)}
@@ -2267,7 +2274,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
         {props.showZoomControls !== false && <div className="board-bottom-controls">
           {!isReadOnly && <div className="board-history-controls" role="toolbar" aria-label={t('toolbar.actions')}><IconButton label={t('toolbar.undo')} icon={<BoardIcon name="undo" size={18} />} disabled={!historyState.canUndo} onClick={undo} /><span className="header-panel-divider" /><IconButton label={t('toolbar.redo')} icon={<BoardIcon name="redo" size={18} />} disabled={!historyState.canRedo} onClick={redo} /></div>}
           <div className="zoom-controls" role="toolbar" aria-label={t('zoom.navigation')}>
-            <IconButton label={t('toolbar.hand')} icon={<BoardIcon name="hand" size={20} />} active={activeKey === 'hand'} onClick={() => activateTool(activeKey === 'hand' ? 'init' : 'hand')} /><span className="header-panel-divider" />
+            <IconButton label={t('toolbar.hand')} icon={<BoardIcon name="hand" size={20} />} active={activeKey === 'hand'} onClick={() => chooseCanvasTool(activeKey === 'hand' ? 'init' : 'hand')} /><span className="header-panel-divider" />
             <IconButton label={t('zoom.out')} icon={<BoardIcon name="minus" size={18} />} onClick={() => zoom('out')} />
             <Popover label={t('zoom.menu')} icon={<span className="zoom-value">{zoomPercent}%</span>} className="zoom-popover">
               <button type="button" className="menu-item" role="menuitem" onClick={() => fitView()}>{t('zoom.fit')}<kbd>⇧ 1</kbd></button>
@@ -2323,7 +2330,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
         <div ref={hostRef} className="canvas-host"><div ref={viewRef} className="canvas-view" />{app && !isReadOnly && activeKey === 'init' && <AlignmentGuides app={app} />}</div>
       </main>
     </div>
-    {shapesOpen && !isReadOnly && <ShapesLibrary onPick={key => activateTool(key)} onClose={() => setShapesOpen(false)} />}
+    {shapesOpen && !isReadOnly && <ShapesLibrary onPick={chooseCanvasTool} onClose={() => setShapesOpen(false)} />}
     {outlineOpen && app && <MindOutline app={app} onReveal={id => { const item = findItem(app.tree, id); if (item) app.editor.select(item); editorHandleRef.current?.revealElements([id], { padding: 120, maxZoom: 1 }) }} onClose={() => setOutlineOpen(false)} />}
     {galleryOpen && !isReadOnly && <TemplateGallery onInsert={insertTemplate} onClose={() => setGalleryOpen(false)} />}
     {shortcutsOpen && <div className="shortcuts-backdrop" onClick={() => setShortcutsOpen(false)}>

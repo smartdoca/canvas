@@ -15,6 +15,7 @@ import { STROKE_WIDTH_PRESETS } from '../../plugins/path/const'
 
 interface ToolbarProps {
   app: App; plugins: Plugins[]; activeKey: string; setActiveKey: (key: string) => void
+  onActivateTool: (key: string) => void
   preferredConnectorMode?: 'straight' | 'elbow' | 'curve'
   canUndo: boolean; canRedo: boolean; hasSelection: boolean
   onUndo: () => void; onRedo: () => void; onDuplicate: () => void; onDelete: () => void
@@ -30,14 +31,14 @@ const shapeTypes: DiagramShape[] = ['rounded', 'ellipse', 'diamond', 'rect', 'cy
 const runtimeNames = ['text', 'note', 'path', 'frame', 'eraser']
 const emojis = ['😊', '👍', '❤️', '🎯', '💡', '⭐', '🚀', '✅', '🔥', '🎉', '📌', '🤔', '💬', '📚', '⚡', '🌱']
 
-export default function Toolbar({ app, preferredConnectorMode, plugins, activeKey, setActiveKey, onCreateComplete, onImage, onImageRequest, onAttachment, onTemplates, onLibrary, customShapes, elementExtensions = [], extensionValues = {}, start, end }: ToolbarProps) {
+export default function Toolbar({ app, preferredConnectorMode, plugins, activeKey, setActiveKey, onActivateTool, onCreateComplete, onImage, onImageRequest, onAttachment, onTemplates, onLibrary, customShapes, elementExtensions = [], extensionValues = {}, start, end }: ToolbarProps) {
   const attachmentInput = useRef<HTMLInputElement>(null)
   const imageInput = useRef<HTMLInputElement>(null), root = useRef<HTMLDivElement>(null), closeTimer = useRef<ReturnType<typeof setTimeout>>()
   const [expanded, setExpanded] = useState(false)
   const [open, setOpen] = useState(''), [tableSize, setTableSize] = useState({ rows: 3, columns: 3 })
   const t = useCanvasI18n()
   const setInit = useCallback(() => { setActiveKey('init'); app.mode = 'normal'; onCreateComplete() }, [app, setActiveKey, onCreateComplete])
-  const activate = (key: string) => { setActiveKey(key); setOpen(''); (app.view as HTMLElement).closest<HTMLElement>('.canvas-app')?.focus() }
+  const activate = (key: string) => { onActivateTool(key); setOpen('') }
   useEffect(() => {
     const dismiss = (event: PointerEvent) => { if (!root.current?.contains(event.target as Node)) setOpen('') }
     const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') setOpen('') }
@@ -90,7 +91,7 @@ export default function Toolbar({ app, preferredConnectorMode, plugins, activeKe
     {elementExtensions.length > 0 && tool('more', t('toolbar.more'), '', <div className="board-legacy-grid">{elementExtensions.map(extension => <ExtensionTool key={extension.type} app={app} extension={extension} properties={extensionValues[extension.type] || {}} activeKey={activeKey} onClick={key => activate(key)} onCreateComplete={setInit} />)}</div>)}
     </div>
     <span className="board-toolbar-separator" />
-    <button type="button" className={`board-tool-button ${activeKey === 'init' ? 'is-active' : ''}`} aria-label={t('toolbar.select')} title={t('toolbar.select')} onClick={setInit}><BoardIcon name="select" /></button>
+    <button type="button" className={`board-tool-button ${activeKey === 'init' ? 'is-active' : ''}`} aria-label={t('toolbar.select')} title={t('toolbar.select')} onClick={() => { activate('init'); app.mode = 'normal'; onCreateComplete() }}><BoardIcon name="select" /></button>
     <button type="button" className="board-tool-button board-mobile-expand" aria-label={t('board.moreTools')} aria-expanded={expanded} onClick={() => { setExpanded(!expanded); setOpen('') }}><BoardIcon name={expanded ? 'close' : 'dots'} /></button>
     {end}
     <div className="tool-runtime-only" hidden>{plugins.filter(plugin => runtimeNames.includes(plugin.name)).map(plugin => <div key={plugin.name}>{pluginButton(plugin)}</div>)}</div>

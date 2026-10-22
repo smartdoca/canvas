@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.14 — 2026-10-23
+
+- Return focus to the current canvas after explicit Select, Hand and final drawing-tool choices, so keyboard undo/redo works after leaving a table cell through tool buttons.
+- Close the prior native text editor for an explicit tool choice while preserving menu/search/settings control focus, external inputs and other canvas instances.
+- Keep automatic creation completion and resource insertion from taking focus; newly created text retains its live editor. Model, persisted schema, public API and dependency boundaries are unchanged.
+
 ## 0.5.13 — 2026-10-23
 
 - Return keyboard focus to the current canvas when starting a table/card move-handle gesture, so undo/redo works after zoom or another control button had focus.
