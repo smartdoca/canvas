@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.13 — 2026-10-23
+
+- Return keyboard focus to the current canvas when starting a table/card move-handle gesture, so undo/redo works after zoom or another control button had focus.
+- Preserve host-input and multi-canvas command isolation. Gesture release does not steal later host autofocus, and readonly cancels pending movement without a content write.
+- Keep the model, persisted schema, public API and dependency boundaries unchanged.
+
 ## 0.5.12 — 2026-10-22
 
 - Keep keyboard and clipboard commands with their current DOM input and canvas instance, independently of retained object selections. Comment fields, form controls and contenteditable drafts no longer delete or move selected drawing objects.

@@ -91,8 +91,10 @@ export function RichObjectInteractions({ app, activeKey, selection, onComplete }
   const target = moved && app.tree.getClientPointByWorld(moved)
   return <div className="rich-object-overlay">
     <button type="button" className="rich-object-move-handle" aria-label={t('rich.moveObject')} title={t('rich.moveObject')} style={{ left: kind(owner) === 'table' ? (target?.x ?? p.x) - stage.left - handleOffset : Math.max(80, (target?.x ?? p.x) - stage.left - handleOffset), top: kind(owner) === 'table' ? (target?.y ?? p.y) - stage.top - handleOffset : Math.max(72, (target?.y ?? p.y) - stage.top - handleOffset) }} onPointerDown={event => {
+      if (event.button !== 0) return
       event.preventDefault(); event.stopPropagation(); event.currentTarget.setPointerCapture(event.pointerId)
       app.editor.closeInnerEditor(); app.editor.select(owner)
+      ;(app.view as HTMLElement).closest<HTMLElement>('.canvas-app')?.focus({ preventScroll: true })
       const start = owner.parent!.getInnerPoint(app.tree.getWorldPointByClient(event))
       gesture.current = { owner, start, x: 0, y: 0 }
     }}><BoardIcon name="hand" size={16} /></button>
