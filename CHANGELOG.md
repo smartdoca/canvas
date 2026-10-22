@@ -5,6 +5,7 @@
 - Keep keyboard and clipboard commands with their current DOM input and canvas instance, independently of retained object selections. Comment fields, form controls and contenteditable drafts no longer delete or move selected drawing objects.
 - Use the existing scoped DOM commands for deletion, arrows, shortcuts and Space panning instead of Leafer's unscoped document key dispatch. Releasing Space after focus changes or window blur clears the temporary pan state.
 - Keep table, diagram/mind editing and open format menus within their own canvas; a second canvas or a host autofocus does not redirect input into a previous selection.
+- Keep file paste with the existing image/resource uploader even when a table cell is selected, preserving cell text and ordinary TSV/fragment paste.
 - Preserve native plain/Slate text editing, readonly behavior, model/schema/checkpoints, collaboration transport and public package exports.
 
 ## 0.5.11 — 2026-10-22

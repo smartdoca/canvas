@@ -142,6 +142,8 @@ export function TableInteractions({ app, activeKey, selection, onComplete }: { a
       const owner = ancestor(app.editor.list[0], 'table') as Group | undefined, current = selectedRange(owner, app.editor.list, rangeRef.current)
       if (!owner || !current || app.editor.innerEditing || !ownsCanvasCommands(event, host)) return
       if (event.type === 'paste') {
+        // File clipboard content belongs to the resource uploader, not empty TSV.
+        if (event.clipboardData?.files.length) return
         const encoded = event.clipboardData?.getData(TABLE_CLIPBOARD), html = event.clipboardData?.getData('text/html')
         let fragment: unknown
         try { fragment = encoded ? JSON.parse(encoded) : html ? tableFragmentFromHtml(html) : undefined } catch { /* Invalid clipboard fragments fall back to text. */ }

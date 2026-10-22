@@ -1,4 +1,4 @@
-import { writeFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { test, expect } from './fixtures.mjs'
 
 const read = page => page.evaluate(() => ({ scene: window.demo.model.getValue().scene, updates: window.demo.allUpdates.length, selection: window.demo.handle.getSelection() }))
@@ -203,4 +203,38 @@ test('real image clipboard stays with a focused host control, while focused canv
   await page.locator('.canvas-app').focus(); await page.keyboard.press('ControlOrMeta+v')
   await expect.poll(async () => (await read(page)).scene.children.length).toBe(baseline.scene.children.length + 1)
   expect(await page.evaluate(() => window.demo.resourceLog.filter(event => event.type === 'upload').length)).toBe(1)
+})
+
+
+test('native PNG paste over a selected table cell uploads without clearing content; TSV still edits cells', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']); await open(page)
+  const table = JSON.parse(readFileSync(new URL('./data/keyboard-current-nodes.json', import.meta.url), 'utf8')).table
+  const url = await page.evaluate(table => {
+    const model = window.demo.model.constructor.initialize(crypto.randomUUID(), { version: 1, scene: { tag: 'Leafer', children: [table] } })
+    const checkpoint = model.checkpoint(), target = new URL('/examples/doca/', location.origin)
+    target.searchParams.set('epoch', checkpoint.epochId); target.searchParams.set('checkpoint', btoa(String.fromCharCode(...checkpoint.update))); model.dispose(); return target.href
+  }, table)
+  await page.goto(url); await page.waitForFunction(() => window.demo?.handle)
+  await page.evaluate(() => window.demo.handle.select(['keyboard-table-1']))
+  await page.locator('.canvas-app').focus(); const baseline = await read(page)
+  await page.evaluate(async () => {
+    const canvas = document.createElement('canvas'); canvas.width = 8; canvas.height = 8
+    const ctx = canvas.getContext('2d'); ctx.fillStyle = '#3281de'; ctx.fillRect(0, 0, 8, 8)
+    const image = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'))
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': image })])
+  })
+  await page.keyboard.press('ControlOrMeta+v')
+  // Assert the retained table before polling the asynchronous upload, so a
+  // swallowed PNG cannot pass by merely avoiding an upload assertion.
+  expect((await read(page)).scene.children.find(item => item.id === table.id)).toEqual(baseline.scene.children[0])
+  await expect.poll(async () => (await read(page)).scene.children.filter(item => item.tag === 'Image').length).toBe(1)
+  expect(await page.evaluate(() => window.demo.resourceLog.filter(event => event.type === 'upload').length)).toBe(1)
+  const pasted = await read(page); expect(pasted.updates - baseline.updates).toBe(1)
+  await page.keyboard.press('ControlOrMeta+z'); await expect.poll(async () => (await read(page)).scene).toEqual(baseline.scene)
+  await page.keyboard.press('ControlOrMeta+Shift+z'); await expect.poll(async () => (await read(page)).scene).toEqual(pasted.scene)
+  await page.evaluate(async () => { window.demo.handle.select(['keyboard-table-1']); await navigator.clipboard.writeText('Z1\tZ2\nZ3\tZ4') })
+  await page.locator('.canvas-app').focus(); await page.keyboard.press('ControlOrMeta+v')
+  const labels = scene => scene.children.find(item => item.id === table.id).children.map(cell => cell.children[0].text)
+  await expect.poll(async () => labels((await read(page)).scene)).toEqual(['Z1', 'Z2', 'Z3', 'Z4'])
+  await page.keyboard.press('ControlOrMeta+z'); await expect.poll(async () => (await read(page)).scene).toEqual(pasted.scene)
 })
