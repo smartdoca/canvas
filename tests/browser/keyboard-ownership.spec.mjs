@@ -230,6 +230,7 @@ test('native PNG paste over a selected table cell uploads without clearing conte
   await expect.poll(async () => (await read(page)).scene.children.filter(item => item.tag === 'Image').length).toBe(1)
   expect(await page.evaluate(() => window.demo.resourceLog.filter(event => event.type === 'upload').length)).toBe(1)
   const pasted = await read(page); expect(pasted.updates - baseline.updates).toBe(1)
+  expect(pasted.scene.children.find(item => item.id === table.id)).toEqual(baseline.scene.children[0])
   await page.keyboard.press('ControlOrMeta+z'); await expect.poll(async () => (await read(page)).scene).toEqual(baseline.scene)
   await page.keyboard.press('ControlOrMeta+Shift+z'); await expect.poll(async () => (await read(page)).scene).toEqual(pasted.scene)
   await page.evaluate(async () => { window.demo.handle.select(['keyboard-table-1']); await navigator.clipboard.writeText('Z1\tZ2\nZ3\tZ4') })
