@@ -30,6 +30,8 @@ export function Canvas() {
 
 Keep one `CanvasModel` for the document session. Do not construct a new model when selection or readonly changes.
 
+Container titles and Phone hardware generated only for the native view do not backfill the authoritative model. Model-only child updates and later native edits retain the visible container frame; see [container projection](docs/CONTAINER_PROJECTION.md).
+
 For an existing document, use `CanvasModel.restore(checkpoint)` with the authoritative checkpoint supplied by your host. A collaborative host creates the authoritative epoch once and shares its checkpoint with every session. See [collaboration](docs/COLLABORATION.md) and the [0.5.0 release notes](CHANGELOG.md).
 
 `yarn bench:collaboration` benchmarks two browser pages at 1,000, 5,000 and 10,000 elements, including repeated edits, concurrent offline changes, original-message replay and duplicate delivery. `PERF_OUTPUT=path.json` saves measurements; `PERF_COUNTS`, `PERF_SAMPLES` and `PERF_LATENCY_MS` configure the fixture. This uses a simulated example-host transport, rather than a production Doca service. `yarn bench:model` also covers boards containing up to 1,000 groups.

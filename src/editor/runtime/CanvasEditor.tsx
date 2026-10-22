@@ -31,7 +31,7 @@ import { getStyleParamsFromLocalStorage, setStyleParamsToLocalStorage } from './
 import { alignTextContent, enhanceRichText, readRich, plainText } from './thinking/richText'
 import { resourceRuntime, setResourceRuntime, setSlateTranslator, setRichExtensions } from './thinking/slateRuntime'
 import '@leafer-in/export'
-import { EditorEvent, InnerEditorEvent, EditorMoveEvent, EditorRotateEvent, EditorScaleEvent, type EditSelect } from '@leafer-in/editor'
+import { EditorEvent, EditorGroupEvent, InnerEditorEvent, EditorMoveEvent, EditorRotateEvent, EditorScaleEvent, type EditSelect } from '@leafer-in/editor'
 import { Check, Copy, Delete, Download, EditTwo, FolderOpen, FullSelection, OffScreenOne, Save } from '@icon-park/react'
 import { CanvasIOError, parseCanvasFile, createCanvasImportValue, exportCanvasFile, type CanvasInsertOptions, type CanvasInsertResult, type CanvasExportOptions, type CanvasExportResult } from '../../io'
 import { cancellable, checkAbort, progress } from '../../io/common'
@@ -45,6 +45,7 @@ import './thinking/thinking.css'
 import { GraphHandles } from './thinking/GraphHandles'
 import { LibraryDragDrop } from './thinking/LibraryDragDrop'
 import { TableInteractions } from './thinking/TableInteractions'
+import { layoutTable } from './thinking/table'
 import { NativeResourcePreviews } from './thinking/NativeResourcePreviews'
 import { copyImageToClipboard } from './thinking/imageClipboard'
 import { nativeImageResource, nativeImageSource } from './thinking/nativeImage'
@@ -59,7 +60,7 @@ import { containerContents, isAutoLayout, isCanvasContainer, isContainerPart, la
 import { BoardIcon } from './thinking/BoardIcon'
 import { BoardMinimap, MindOutline, ShapesLibrary, TemplateGallery, TemplatePicture, TemplateStarter, ThinkingContextTools } from './thinking/ThinkingPanels'
 import { createTemplate, type TemplateId } from './thinking/templates'
-import { addMindNode, ancestor, fitConnectorLabel, isConnector, kind, labelOf, layoutMindMap, makeConnector, makeDiagram, mindMap, mindNode, mindNodes, mindDirectionOf, refreshConnectors, refreshMindEdges, removeItems, rememberConnectorLabelPosition, rememberMindPositions, syncMovedMindBranch, syncDiagramGeometry, isMindPositioning, shapePath, setConnectorPath, setMindTheme, type MindLayout, type MindTheme } from './thinking/scene'
+import { addMindNode, ancestor, fitConnectorLabel, isConnector, kind, labelOf, layoutMindMap, makeConnector, makeDiagram, mindMap, mindNode, mindNodes, mindDirectionOf, normalizeDiagramView, refreshConnectors, refreshMindEdges, removeItems, rememberConnectorLabelPosition, rememberMindPositions, syncMovedMindBranch, syncDiagramGeometry, isMindPositioning, shapePath, setConnectorPath, setMindTheme, type MindLayout, type MindTheme } from './thinking/scene'
 import { notePlugin } from './plugins/note'
 import { SPECIAL_SHAPES } from './plugins/specialShape/const'
 import type { Plugins } from './plugins/plugins'
@@ -89,6 +90,28 @@ import { resolveLocale, translate, type TranslateParams } from '../../i18n/trans
 const plugins: Plugins[] = [pathPlugin, textPlugin, notePlugin, framePlugin, eraserPlugin]
 
 type SaveState = 'saved' | 'saving' | 'dirty' | 'error'
+type GroupViewFlag = { present: boolean; value: unknown; runtime: boolean }
+
+function projectGroupViewFlags(scene: SceneNode, items: IUI[], overrides: WeakMap<IUI, GroupViewFlag>) {
+  const flags = new Map<string, GroupViewFlag>()
+  const collect = (children: IUI[]) => children.forEach(item => {
+    if (item.skipJSON) return
+    const flag = overrides.get(item)
+    if (flag && item.id && item.hitChildren === flag.runtime) flags.set(item.id, flag)
+    if (item.children) collect(item.children)
+  })
+  collect(items)
+  const project = (node: SceneNode) => {
+    const flag = node.id && flags.get(node.id)
+    if (flag) {
+      if (flag.present) node.hitChildren = flag.value
+      else delete node.hitChildren
+    }
+    node.children?.forEach(project)
+  }
+  if (flags.size) project(scene)
+  return scene
+}
 
 const FRAME_TITLE_NAME = 'frame-title'
 const CANVAS_CLIPBOARD_TYPE = 'application/x-smartdoca-canvas'
@@ -113,21 +136,7 @@ function normalizeSelectableItems(items: IUI[], deep = true) {
   items.forEach((item) => {
     // Native editor helpers share the scene tree but are not canvas content.
     if (item.skipJSON) return
-    // Name-only diagram wrappers must use the same resize lifecycle as newer
-    // nodes. Otherwise only the outer Frame grows, exposing a second fill and
-    // leaving its body/text at the old size. Explicit containers keep their role.
-    const body = item.children?.find(child => kind(child) === 'diagram-body' || child.name === 'diagram-body')
-    const diagram = kind(item) === 'diagram-node' || !kind(item) && (item.name === 'diagram-node' || item.name === 'frame' && !item.data?.containerType)
-    if (body && diagram) {
-      const legacy = kind(item) !== 'diagram-node' || item.name !== 'diagram-node', missingBodyKind = kind(body) !== 'diagram-body'
-      if (legacy) {
-        const shape = item.data?.shape || (!body.path ? body.tag === 'Ellipse' ? 'ellipse' : body.tag === 'Rect' ? body.cornerRadius ? 'rounded' : 'rect' : undefined : undefined)
-        item.set({ name: 'diagram-node', fill: 'transparent', stroke: 'transparent', data: { ...item.data, kind: 'diagram-node', ...(shape ? { shape } : {}) } })
-        item.children!.filter(child => child instanceof LeaferText && child.name === FRAME_TITLE_NAME && !child.data?.containerPart && child.text === 'Frame').forEach(child => child.remove())
-      }
-      if (missingBodyKind) body.data = { ...body.data, kind: 'diagram-body' }
-      if (legacy || missingBodyKind) syncDiagramGeometry(item)
-    }
+    normalizeDiagramView(item)
     // Every persisted scene item in this canvas is selectable.
     const derived = ['mind-edge', 'diagram-body', 'template-edge', 'container-decoration'].includes(kind(item)) && !['label', 'axis-label'].includes(item.data?.containerPart)
     const structuredGroup = kind(item) === 'mindmap'
@@ -168,6 +177,9 @@ function normalizeSelectableItems(items: IUI[], deep = true) {
       addFrameTitle(item)
       syncContainerGeometry(item)
     }
+    // Complete the existing native table layout before capturing the view
+    // baseline. Merely entering/leaving a cell must not publish layout defaults.
+    if (kind(item) === 'table' && item instanceof Group) layoutTable(item)
     if (deep && 'children' in item && Array.isArray(item.children)) normalizeSelectableItems(item.children as IUI[])
     prepareNoteLayout(item)
     if (kind(item) === 'mindmap') rememberMindPositions(item as Group)
@@ -216,6 +228,8 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
   const selectionActionsRef = useRef<HTMLDivElement>(null)
   const selectionPlacementRef = useRef<{ items: IUI[]; layout: string; offsetX: number; below: boolean }>()
   const movedFrameItemsRef = useRef(new Set<IUI>())
+  const transformedFrameItemsRef = useRef(new Set<IUI>())
+  const createdFrameItemsRef = useRef(new Set<IUI>())
   const scaledShapeItemsRef = useRef(new Set<IUI>())
   const restoreGenerationRef = useRef(0)
   const editorHandleRef = useRef<CanvasEditorRef>()
@@ -230,6 +244,8 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
   const textBridgeRef = useRef<ReturnType<typeof createTextInputBridge>>()
   const contentBaseRef = useRef('')
   const snapshotCacheRef = useRef<{ tree: IUI; value: string }>()
+  const groupViewFlagsRef = useRef(new WeakMap<IUI, GroupViewFlag>())
+  const groupFlagPhasesRef = useRef(new WeakMap<IUI, GroupViewFlag>())
   const clipboardRef = useRef<Record<string, unknown>[]>([])
   const [app, setApp] = useState<App | null>(null)
   const [activeKey, setActiveKey] = useState('init')
@@ -444,7 +460,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
     scheduleSelectionPosition()
   }, [scheduleSelectionPosition])
 
-  const reconcileFrameMembership = useCallback(() => {
+  const reconcileFrameMembership = useCallback((transformed: IUI[], captureCreated = false) => {
     const current = appRef.current
     if (!current || propsRef.current.mode === 'readonly') return
     const frames: Frame[] = []
@@ -455,12 +471,33 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
     })
     visit([...current.tree.children] as IUI[])
 
-    const candidates = new Set<IUI>([...current.tree.children] as IUI[])
-    frames.forEach(frame => containerContents(frame).forEach(item => candidates.add(item)))
-    movedFrameItemsRef.current.forEach((item) => candidates.add(item))
-    movedFrameItemsRef.current.clear()
+    // A transform owns its roots, not every descendant of overlapping copies.
+    // A newly created container may still adopt content using the same bounds
+    // and smallest-container rule, without rescanning unrelated membership.
+    const targets = new Set(transformed)
+    transformed.forEach(item => {
+      for (let parent = item.parent; parent; parent = parent.parent) {
+        if (targets.has(parent)) { targets.delete(item); break }
+      }
+    })
+    const candidates = new Set(targets)
+    const createdFrames = new Set(captureCreated ? [...targets].filter(isCanvasContainer) : [])
+    if (createdFrames.size) {
+      current.tree.children.forEach(item => candidates.add(item))
+      frames.forEach(frame => containerContents(frame).forEach(item => candidates.add(item)))
+    }
+    transformed.forEach(item => {
+      movedFrameItemsRef.current.delete(item)
+      transformedFrameItemsRef.current.delete(item)
+      createdFrameItemsRef.current.delete(item)
+    })
     let changed = false
     candidates.forEach((item) => {
+      // Once a container is captured, its descendants remain part of that
+      // authored subtree, including content outside an overflow:show Frame.
+      if (!targets.has(item)) for (let parent = item.parent; parent; parent = parent.parent) {
+        if (createdFrames.has(parent as Frame)) return
+      }
       if (item.skipJSON || isContainerPart(item) || kind(item) === 'mind-node' || kind(item) === 'table-cell') return
       if (item.parent !== current.tree && !isCanvasContainer(item.parent)) return
       const bounds = item.getBounds('render', 'world')
@@ -478,6 +515,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
           const bBounds = b.getBounds('box', 'world')
           return aBounds.width * aBounds.height - bBounds.width * bBounds.height
         })[0]
+      if (!targets.has(item) && (!target || !createdFrames.has(target))) return
       if (target && item.parent !== target) { item.dropTo(target); changed = true }
       if (!target && isCanvasContainer(item.parent)) { item.dropTo(current.tree); changed = true }
     })
@@ -497,13 +535,18 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
       if ('children' in item && Array.isArray(item.children)) assign(item.children as IUI[])
     })
     if (tree) assign([...tree.children])
+    const scene = projectGroupViewFlags({ tag: 'Leafer', children: tree?.toJSON().children || [] } as SceneNode,
+      tree?.children || [], groupViewFlagsRef.current)
     // Root pan/zoom/size are view state, never collaborative content.
-    const value = JSON.stringify(persistedScene({ tag: 'Leafer', children: tree?.toJSON().children || [] }))
+    const value = JSON.stringify(persistedScene(scene))
     if (tree) snapshotCacheRef.current = { tree, value }
     return value
   }, [])
 
   const getValue = useCallback((): CanvasValue => createDocument(JSON.parse(snapshot())), [snapshot])
+  const nativeElementJSON = useCallback((item: IUI) => projectGroupViewFlags(item.toJSON() as SceneNode,
+    [item], groupViewFlagsRef.current), [])
+  const elementJSON = useCallback((item: IUI) => toPersistedCanvasScene(nativeElementJSON(item)), [nativeElementJSON])
 
   const managed = useCallback(() => Boolean(propsRef.current.hostManaged || propsRef.current.model), [])
 
@@ -608,7 +651,12 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
   }, [flushContent])
 
   const completeCreation = useCallback(() => {
-    reconcileFrameMembership()
+    // The Selection button also invokes this callback. Only instances added
+    // by a live draw operation belong to its creation boundary; a debounce may
+    // already have flushed their IDs while the pointer was still held down.
+    const created = [...createdFrameItemsRef.current].filter(item => !item.destroyed && item.leafer === appRef.current?.tree)
+    createdFrameItemsRef.current.clear()
+    if (created.length) reconcileFrameMembership(created, true)
     flushContent()
   }, [flushContent, reconcileFrameMembership])
 
@@ -616,7 +664,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
     const current = appRef.current
     if (!current || propsRef.current.mode === 'readonly') return
     activateTool('init')
-    reconcileFrameMembership()
+    reconcileFrameMembership(reveal ? [reveal] : [...new Set(selection.map(item => mindMap(item) || item))], true)
     current.editor.select(selection)
     refreshConnectors(current)
     flushContent()
@@ -754,11 +802,22 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
     restoringRef.current = true
     restoreGenerationRef.current++
     movedFrameItemsRef.current.clear()
+    transformedFrameItemsRef.current.clear()
+    createdFrameItemsRef.current.clear()
     try {
       textBridgeRef.current?.sync()
       // Reconcile by identity: preserve the App, surviving nodes, selection and viewport.
       const existing = new Map<string, IUI>()
-      const collect = (items: IUI[]) => items.forEach(item => { if (item.skipJSON) return; if (item.id) existing.set(item.id, item); if ('children' in item && Array.isArray(item.children)) collect(item.children as IUI[]) })
+      const anonymousProjectionParts: IUI[] = []
+      const projectionPart = (item: IUI) => isCanvasContainer(item.parent) && (item.name === FRAME_TITLE_NAME || item.parent.data?.containerType === 'phone' && String(item.data?.containerPart || '').startsWith('device-'))
+      // Model-supplied containers can omit native titles/phone hardware. These
+      // derived view parts still reconcile by identity, but are not model data.
+      const collect = (items: IUI[]) => items.forEach(item => {
+        if (item.skipJSON && !projectionPart(item)) return
+        if (item.id) existing.set(item.id, item)
+        else if (projectionPart(item)) anonymousProjectionParts.push(item)
+        if ('children' in item && Array.isArray(item.children)) collect(item.children as IUI[])
+      })
       collect([...current.tree.children])
       // Compare model intent with the last model projection. Native-only
       // defaults (hit testing, text layout, resolved URLs) must not be cleared
@@ -767,7 +826,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
       const collectPrevious = (nodes: SceneNode[]) => nodes.forEach(({ children, ...attrs }) => { previous.set(attrs.id!, attrs); if (children) collectPrevious(children) })
       collectPrevious((projectedModelRef.current || viewBaseRef.current).children || [])
       const used = new Set<string>()
-      const changed = new Set<IUI>(), resources: IUI[] = []
+      const changed = new Set<IUI>(), resources: IUI[] = [], containerParents = new Set<Frame>()
       const reconcile = (parent: typeof current.tree | Group | Frame, nodes: SceneNode[]) => nodes.forEach((node, index) => {
         const { children, ...attrs } = node
         let item = existing.get(node.id!)
@@ -787,18 +846,45 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
           const path = (attrs.data as Record<string, unknown> | undefined)?.resourcePath
           // Resolved URLs stay in this view until the stable resource changes.
           if (path && path === oldPath && (item as LeaferImage).url) delete patch.url
+          if (Object.prototype.hasOwnProperty.call(patch, 'hitChildren')) {
+            // Explicit model intent wins even when its value already equals an
+            // opened group's live flag and Leafer emits no property event.
+            groupViewFlagsRef.current.delete(item)
+            groupFlagPhasesRef.current.delete(item)
+          }
           if (Object.keys(patch).length) { item.set(patch as never); changed.add(item) }
           if (path && path !== oldPath) resources.push(item)
           if (item.parent !== parent || parent.children[index] !== item) parent.addAt(item, index)
         }
+        if (item.skipJSON && projectionPart(item)) item.skipJSON = false
         used.add(node.id!)
+        const beforeChildren = changed.size
         if (children?.length && (item instanceof Group || item instanceof Frame)) reconcile(item, children)
+        // Reconciliation can restore the stored generated title of an older
+        // wrapper after only a child changes. Reuse its existing display rules
+        // with model intent, even when this native parent is already normalized.
+        if (changed.has(item) || changed.size !== beforeChildren) normalizeDiagramView(item, attrs)
       })
       const projection = renderScene(value.scene)
       reconcile(current.tree, projection.children || [])
       projectedModelRef.current = projection
-      existing.forEach((item, id) => { if (!used.has(id)) item.remove() })
+      const removeUnused = (item: IUI) => {
+        if (projectionPart(item)) containerParents.add(item.parent as Frame)
+        item.remove()
+      }
+      existing.forEach((item, id) => { if (!used.has(id)) removeUnused(item) })
+      anonymousProjectionParts.forEach(removeUnused)
       normalizeSelectableItems([...changed], false)
+      changed.forEach(item => { if (isCanvasContainer(item)) containerParents.add(item) })
+      containerParents.forEach(frame => {
+        if (!frame.id || !used.has(frame.id)) return
+        normalizeSelectableItems([frame], false)
+        // Keep generated-only titles/hardware out of snapshots and applyScene's
+        // diff baseline. Stored parts keep their existing IDs and properties.
+        frame.children.forEach(item => {
+          if (projectionPart(item) && (!item.id || !used.has(item.id))) item.set({ skipJSON: true, editable: false, hittable: false, hitSelf: false })
+        })
+      })
       textBridgeRef.current?.sync()
       const editingCell = ancestor((current.editor.innerEditor as unknown as { editTarget?: IUI } | undefined)?.editTarget, 'table-cell')
       if (current.editor.innerEditing && editingCell?.data?.coveredBy) current.editor.closeInnerEditor()
@@ -813,6 +899,8 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
         else current.editor.cancel()
       }
       setSelected(selection)
+      // Generated view parts may change without a native property event.
+      snapshotCacheRef.current = undefined
       contentBaseRef.current = snapshot(); viewBaseRef.current = JSON.parse(contentBaseRef.current)
       lastValueRef.current = contentBaseRef.current
       setHistoryState({ canUndo: model.canUndo, canRedo: model.canRedo })
@@ -849,6 +937,8 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
     restoringRef.current = true
     restoreGenerationRef.current++
     movedFrameItemsRef.current.clear()
+    transformedFrameItemsRef.current.clear()
+    createdFrameItemsRef.current.clear()
     // cancel() detaches the native multi-selection helper before tree.reset()
     // destroys scene children; select([]) leaves that helper attached.
     current.editor.cancel()
@@ -886,7 +976,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
     if (!current?.editor.list.length) return
     const sources = [...new Set(current.editor.list.map(item => mindMap(item) || item))]
     sources.filter(item => isConnector(item) && item.data?.labelId).forEach(item => { const label = findItem(current.tree, String(item.data?.labelId || '')); if (label && !sources.includes(label)) sources.push(label) })
-    const cloned = cloneForInsertion({ children: sources.map(item => item.toJSON()) }).children as Record<string, unknown>[]
+    const cloned = cloneForInsertion({ children: sources.map(nativeElementJSON) }).children as Record<string, unknown>[]
     const copies = cloned.map((data) => {
       data.x = Number(data.x || 0) + 16
       data.y = Number(data.y || 0) + 16
@@ -896,14 +986,14 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
     normalizeSelectableItems(copies)
     current.editor.select(copies.map(item => kind(item) === 'mindmap' ? mindNodes(item as Group).find(node => node.data?.root)! : item))
     commit()
-  }, [commit])
+  }, [commit, nativeElementJSON])
 
   const copySelection = useCallback(() => {
     const current = appRef.current, items = [...new Set((current?.editor.list || []).map(item => mindMap(item) || item))]
     items.filter(item => isConnector(item) && item.data?.labelId).forEach(item => { const label = findItem(current?.tree, String(item.data?.labelId || '')); if (label && !items.includes(label)) items.push(label) })
-    clipboardRef.current = items.map((item) => toPersistedCanvasScene(item.toJSON() as SceneNode))
+    clipboardRef.current = items.map(elementJSON)
     return clipboardRef.current
-  }, [])
+  }, [elementJSON])
 
   const pasteSelection = useCallback(() => {
     const current = appRef.current
@@ -1090,7 +1180,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
       }
       event.editor.list.forEach(item => { if (item instanceof LeaferText) enhanceRichText(item); item.children?.forEach(child => { if (child instanceof LeaferText) enhanceRichText(child) }) })
       setSelected([...event.editor.list])
-      propsRef.current.onSelectionChange?.(event.editor.list.map(item => toPersistedCanvasScene(item.toJSON() as SceneNode)))
+      propsRef.current.onSelectionChange?.(event.editor.list.map(elementJSON))
       scheduleSelectionPosition()
     })
     // Structured gestures draw their own outline; the native resize box would duplicate it.
@@ -1107,6 +1197,27 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
       }
     }
     instance.editor.on(EditorEvent.AFTER_SELECT, hideStructuredBox)
+    const beforeGroupFlag = (event: EditorGroupEvent, runtime: boolean) => {
+      const item = event.editTarget
+      if (!item || item.skipJSON || item.leafer !== instance.tree) return
+      const previous = groupViewFlagsRef.current.get(item), data = item.toJSON() as SceneNode
+      // Carry any pending authored change forward; do not flush or rebaseline
+      // other fields merely because the native editor is opening a group.
+      groupFlagPhasesRef.current.set(item, previous && item.hitChildren === previous.runtime
+        ? { ...previous, runtime }
+        : { present: Object.prototype.hasOwnProperty.call(data, 'hitChildren'), value: data.hitChildren, runtime })
+    }
+    const afterGroupFlag = (event: EditorGroupEvent) => {
+      const item = event.editTarget, flag = item && groupFlagPhasesRef.current.get(item)
+      if (!item || !flag) return
+      if (item.hitChildren === flag.runtime) groupViewFlagsRef.current.set(item, flag)
+      groupFlagPhasesRef.current.delete(item)
+      snapshotCacheRef.current = undefined
+    }
+    instance.editor.on(EditorGroupEvent.BEFORE_OPEN, (event: EditorGroupEvent) => beforeGroupFlag(event, true))
+    instance.editor.on(EditorGroupEvent.OPEN, afterGroupFlag)
+    instance.editor.on(EditorGroupEvent.BEFORE_CLOSE, (event: EditorGroupEvent) => beforeGroupFlag(event, false))
+    instance.editor.on(EditorGroupEvent.CLOSE, afterGroupFlag)
     instance.editor.on(InnerEditorEvent.OPEN, () => { hideStructuredBox(); setStyleOpen(false) })
     instance.editor.editBox.on(PropertyEvent.CHANGE, (event: PropertyEvent) => { if (event.target === instance.editor.editBox && event.attrName === 'visible' && instance.editor.editBox.visible) hideStructuredBox() })
     nativeSelector.targetStroker.on(PropertyEvent.CHANGE, (event: PropertyEvent) => { if (event.attrName === 'visible' && nativeSelector.targetStroker.visible) hideStructuredBox() })
@@ -1123,6 +1234,16 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
       // Root transforms and size belong to the viewport, not scene content.
       // Do not scan connectors, invalidate snapshots or schedule a content flush.
       if (event.target === instance.tree) { scheduleSelectionPosition(); return }
+      if (event.attrName === 'hitChildren') {
+        const target = event.target as IUI, phase = groupFlagPhasesRef.current.get(target)
+        if (phase && target.hitChildren === phase.runtime) {
+          groupViewFlagsRef.current.set(target, phase)
+          snapshotCacheRef.current = undefined
+          return
+        }
+        groupViewFlagsRef.current.delete(target)
+        groupFlagPhasesRef.current.delete(target)
+      }
       if (!restoringRef.current && !resourceMutationRef.current && propsRef.current.mode !== 'readonly') {
         const target = event.target as IUI, group = mindMap(target)
         if (isCanvasContainer(target) && ['width', 'height'].includes(event.attrName)) syncContainerGeometry(target)
@@ -1140,16 +1261,26 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
       }
       commit()
     })
-    instance.tree.on(ChildEvent.ADD, commit)
+    instance.tree.on(ChildEvent.ADD, (event: ChildEvent) => {
+      const item = event.child as IUI | undefined
+      if (!restoringRef.current && !resourceMutationRef.current && instance.mode === 'draw' && item?.parent === instance.tree && !item.skipJSON) {
+        createdFrameItemsRef.current.add(item)
+      }
+      commit()
+    })
     instance.tree.on(ChildEvent.REMOVE, commit)
-    instance.editor.on(EditorMoveEvent.MOVE, () => {
+    instance.editor.on(EditorMoveEvent.MOVE, (event: EditorMoveEvent) => {
       instance.editor.list.forEach(item => { const node = mindNode(item); if (node) syncMovedMindBranch(node) })
       refreshConnectors(instance)
-      instance.editor.list.forEach((item) => movedFrameItemsRef.current.add(item))
+      if (event.moveX || event.moveY) instance.editor.list.forEach(item => {
+        movedFrameItemsRef.current.add(item)
+        transformedFrameItemsRef.current.add(item)
+      })
       scheduleSelectionPosition()
       commit()
     })
     instance.editor.on(EditorScaleEvent.SCALE, (event: EditorScaleEvent) => {
+      if (event.scaleX !== 1 || event.scaleY !== 1) event.editor.list.forEach(item => transformedFrameItemsRef.current.add(item))
       event.editor.list.filter(item => item.name === 'special-shape').forEach(item => scaledShapeItemsRef.current.add(item))
       scheduleSelectionPosition()
       // Text resizing bakes the editor scale into fontSize. Refresh the
@@ -1157,7 +1288,10 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
       if (event.editor.list.some((item) => item.name === 'text')) setSelected([...event.editor.list])
       commit()
     })
-    instance.editor.on(EditorRotateEvent.ROTATE, () => { scheduleSelectionPosition(); commit() })
+    instance.editor.on(EditorRotateEvent.ROTATE, (event: EditorRotateEvent) => {
+      if (event.rotation) event.editor.list.forEach(item => transformedFrameItemsRef.current.add(item))
+      scheduleSelectionPosition(); commit()
+    })
     instance.on(MoveEvent.MOVE, scheduleSelectionPosition)
     instance.on(ZoomEvent.ZOOM, scheduleSelectionPosition)
     instance.on(LeaferPointerEvent.UP, () => {
@@ -1168,7 +1302,11 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
         if (item.destroyed || item.leafer !== instance.tree || generation !== restoreGenerationRef.current) return
         bakeSpecialShapeScale(item)
       }))
-      window.setTimeout(() => { if (generation === restoreGenerationRef.current) reconcileFrameMembership() }, 0)
+      window.setTimeout(() => {
+        if (generation === restoreGenerationRef.current && transformedFrameItemsRef.current.size) {
+          reconcileFrameMembership([...transformedFrameItemsRef.current])
+        }
+      }, 0)
     })
     instance.on(KeyEvent.DOWN, (event: KeyEvent) => {
       if (propsRef.current.mode === 'readonly') return
@@ -1193,7 +1331,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
       uploadControllers.clear()
       instance.destroy()
     }
-  }, [commit, flushContent, hydrateResources, managed, notify, reconcileFrameMembership, scheduleSelectionPosition, snapshot])
+  }, [commit, elementJSON, flushContent, hydrateResources, managed, notify, reconcileFrameMembership, scheduleSelectionPosition, snapshot])
 
   useEffect(() => {
     if (!props.value || !appRef.current || propsRef.current.model) return
@@ -1607,12 +1745,15 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
     const owner = appRef.current
     if (!owner) throw new CanvasIOError('EDITOR_NOT_READY')
     // Never flush as a side effect of export. Host may finish editing/flush explicitly before calling.
-    const scene = persistedScene({ tag: 'Leafer', children: owner.tree.toJSON().children || [] })
+    const scene = persistedScene(projectGroupViewFlags({ tag: 'Leafer', children: owner.tree.toJSON().children || [] },
+      owner.tree.children, groupViewFlagsRef.current))
     if (owner.editor.innerEditing || JSON.stringify(scene) !== contentBaseRef.current) throw new CanvasIOError('PENDING_LOCAL_EDITS', 'Finish the active edit before exporting')
     const controller = new AbortController(), abort = () => controller.abort()
     checkAbort(options.signal); options.signal?.addEventListener('abort', abort, { once: true }); uploadControllersRef.current.add(controller)
     try {
-      return await exportCanvasFile({ scene: propsRef.current.model?.getValue().scene || scene }, { ...options, signal: controller.signal, elementIds: owner.editor.list.map(n => n.id!), readAsset: options.readAsset || propsRef.current.resources?.readImage })
+      // PNG/SVG export the same clean display projection already validated
+      // above. The authoritative model and its stored fields remain untouched.
+      return await exportCanvasFile({ scene }, { ...options, signal: controller.signal, elementIds: owner.editor.list.map(n => n.id!), readAsset: options.readAsset || propsRef.current.resources?.readImage })
     } finally { options.signal?.removeEventListener('abort', abort); uploadControllersRef.current.delete(controller) }
   }, [])
 
@@ -1785,6 +1926,12 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
     if (propsRef.current.mode === 'readonly') return
     flushContent()
     appRef.current?.editor.list.forEach(item => {
+      if (Object.prototype.hasOwnProperty.call(patch, 'hitChildren')) {
+        // An explicit same-value command still expresses content intent.
+        groupViewFlagsRef.current.delete(item)
+        groupFlagPhasesRef.current.delete(item)
+        snapshotCacheRef.current = undefined
+      }
       item.set(patch as never)
 
     })
@@ -1924,7 +2071,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
     resolveAnchor: anchor => propsRef.current.model?.resolveAnchor(anchor) || { valid: false, partial: true, elementIds: [] },
     getValue,
     setValue: setValueFromApi,
-    getSelection: () => (appRef.current?.editor.list || []).map(item => toPersistedCanvasScene(item.toJSON() as SceneNode)),
+    getSelection: () => (appRef.current?.editor.list || []).map(elementJSON),
     select: (ids) => {
       const current = appRef.current
       if (!current) return
@@ -1941,6 +2088,9 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
       current.tree.add(renderScene(element))
       const created = current.tree.children[current.tree.children.length - 1]
       normalizeSelectableItems([created])
+      // Assign this insertion at its own content boundary, rather than waiting
+      // for a later unrelated pointer-up to scan and rewrite the whole scene.
+      reconcileFrameMembership([created], true)
       refreshConnectors(current)
       void hydrateResources([created])
       current.editor.select(created)
@@ -1989,7 +2139,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
     }
     editorHandleRef.current = handle
     return handle
-  }, [addImageSource, insertAttachmentFile, insertImageFile, exportFile, find, flushContent, getValue, groupSelection, hydrateResources, redo, removeSelection, replace, replaceAll, reveal, revealElements, setValueFromApi, undo, ungroupSelection, updateSelection])
+  }, [addImageSource, insertAttachmentFile, insertImageFile, exportFile, find, flushContent, getValue, elementJSON, groupSelection, hydrateResources, reconcileFrameMembership, redo, removeSelection, replace, replaceAll, reveal, revealElements, setValueFromApi, undo, ungroupSelection, updateSelection])
 
   useImperativeHandle(ref, () => editorHandleRef.current!, [])
 
@@ -1998,7 +2148,7 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
     propsRef.current.onReady?.(editorHandleRef.current)
   }, [app])
 
-  const selectionJSON = selected.map(item => toPersistedCanvasScene(item.toJSON() as SceneNode))
+  const selectionJSON = selected.map(elementJSON)
   const creationTarget = selected.length === 1 && (isConnector(selected[0]) || kind(selected[0]) === 'note') ? selected[0] : undefined
   const rememberCreationStyle = () => {
     if (!app || !creationTarget || isReadOnly || !props.onCreationPreferencesChange) return

@@ -6,7 +6,7 @@ import { taskCheckboxGeometry } from '../editor/runtime/thinking/richLists'
 import { richContainer } from '../editor/runtime/thinking/richBounds'
 import { syncPhoneFrame } from '../editor/runtime/thinking/phoneFrame'
 import type { CanvasResource } from '../sdk/types'
-import { connectorGeometry, type AnchorPoint } from '../editor/runtime/thinking/scene'
+import { connectorGeometry, normalizeDiagramView, type AnchorPoint } from '../editor/runtime/thinking/scene'
 import { parseCanvasFile } from './import'
 import { cancellable, checkAbort, dataUrl, decodeImage, limits, progress, safeFilename } from './common'
 import { CanvasIOError, type CanvasExportOptions, type CanvasExportResult, type CanvasExportSource, type CanvasIOWarning } from './types'
@@ -107,6 +107,7 @@ export async function exportCanvasFile(source: CanvasExportSource, options: Canv
   const group = new Group({ children: scene.children as IUIJSONData[] })
   try {
     const normalize = (items: IUI[]) => items.forEach(item => {
+      normalizeDiagramView(item)
       if (item instanceof Text) enhanceRichText(item)
       if (item instanceof Frame && item.data?.containerType === 'phone') syncPhoneFrame(item)
       if (item.children) normalize(item.children)

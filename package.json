@@ -1,6 +1,6 @@
 {
   "name": "@smartdoca/canvas",
-  "version": "0.5.10",
+  "version": "0.5.11",
   "description": "A focused, local-first vector canvas editor built with React and LeaferJS",
   "license": "MIT",
   "keywords": [
