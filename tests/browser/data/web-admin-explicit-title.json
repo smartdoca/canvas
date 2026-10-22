@@ -1,0 +1,784 @@
+{
+  "version": 1,
+  "scene": {
+    "tag": "Leafer",
+    "children": [
+      {
+        "tag": "Frame",
+        "name": "frame",
+        "x": 60,
+        "y": 60,
+        "width": 390,
+        "height": 844,
+        "fill": "#ffffff",
+        "stroke": "#b8bec9",
+        "strokeWidth": 1,
+        "cornerRadius": 46,
+        "overflow": "hide",
+        "editable": true,
+        "lockRatio": true,
+        "data": {
+          "kind": "container",
+          "containerType": "phone",
+          "title": "合成设置",
+          "gap": 24,
+          "padding": 28
+        },
+        "id": "phone-settings",
+        "children": [
+          {
+            "tag": "Text",
+            "name": "frame-title",
+            "x": 26,
+            "y": 62,
+            "width": 338,
+            "height": 24,
+            "fontFamily": "Arial, \"PingFang SC\", \"Microsoft YaHei\", sans-serif",
+            "fontSize": 14,
+            "fill": "#646a73",
+            "verticalAlign": "middle",
+            "editable": true,
+            "data": {
+              "containerPart": "title"
+            },
+            "id": "b2f3afaf-2fad-44a5-92bd-446dc1921fdc",
+            "text": "合成设置"
+          },
+          {
+            "tag": "Rect",
+            "x": 24,
+            "y": 168,
+            "width": 342,
+            "height": 96,
+            "cornerRadius": 14,
+            "fill": "#f5f7fa",
+            "stroke": "#dee0e3",
+            "name": "rect",
+            "id": "card-notify"
+          },
+          {
+            "tag": "Ellipse",
+            "x": 44,
+            "y": 196,
+            "width": 40,
+            "height": 40,
+            "fill": "#e3edff",
+            "name": "ellipse",
+            "id": "card-notify-icon"
+          },
+          {
+            "tag": "Text",
+            "x": 100,
+            "y": 188,
+            "width": 200,
+            "height": 30,
+            "fontSize": 18,
+            "fontWeight": 700,
+            "fill": "#1f2329",
+            "name": "text",
+            "id": "card-notify-label",
+            "text": "通知"
+          },
+          {
+            "tag": "Text",
+            "x": 100,
+            "y": 222,
+            "width": 200,
+            "height": 22,
+            "fontSize": 13,
+            "fill": "#646a73",
+            "name": "text",
+            "id": "card-notify-sub",
+            "text": "接收推送与提醒"
+          },
+          {
+            "tag": "Rect",
+            "x": 24,
+            "y": 288,
+            "width": 342,
+            "height": 96,
+            "cornerRadius": 14,
+            "fill": "#f5f7fa",
+            "stroke": "#dee0e3",
+            "name": "rect",
+            "id": "card-privacy"
+          },
+          {
+            "tag": "Ellipse",
+            "x": 44,
+            "y": 316,
+            "width": 40,
+            "height": 40,
+            "fill": "#e6f4ea",
+            "name": "ellipse",
+            "id": "card-privacy-icon"
+          },
+          {
+            "tag": "Text",
+            "x": 100,
+            "y": 308,
+            "width": 200,
+            "height": 30,
+            "fontSize": 18,
+            "fontWeight": 700,
+            "fill": "#1f2329",
+            "name": "text",
+            "id": "card-privacy-label",
+            "text": "隐私"
+          },
+          {
+            "tag": "Text",
+            "x": 100,
+            "y": 342,
+            "width": 200,
+            "height": 22,
+            "fontSize": 13,
+            "fill": "#646a73",
+            "name": "text",
+            "id": "card-privacy-sub",
+            "text": "权限与数据管理"
+          },
+          {
+            "tag": "Rect",
+            "x": 24,
+            "y": 720,
+            "width": 342,
+            "height": 52,
+            "cornerRadius": 26,
+            "fill": "#3370ff",
+            "name": "rect",
+            "id": "save-btn"
+          },
+          {
+            "tag": "Text",
+            "x": 24,
+            "y": 734,
+            "width": 342,
+            "height": 26,
+            "fontSize": 17,
+            "fontWeight": 700,
+            "textAlign": "center",
+            "fill": "#ffffff",
+            "name": "text",
+            "id": "save-btn-text",
+            "text": "保存"
+          }
+        ]
+      },
+      {
+        "tag": "Frame",
+        "name": "frame",
+        "x": 500,
+        "y": 60,
+        "width": 1280,
+        "height": 800,
+        "fill": "#ffffff",
+        "stroke": "#b8bec9",
+        "strokeWidth": 1,
+        "cornerRadius": 8,
+        "overflow": "hide",
+        "editable": true,
+        "lockRatio": true,
+        "data": {
+          "kind": "container",
+          "containerType": "web",
+          "title": "合成管理台",
+          "gap": 24,
+          "padding": 28
+        },
+        "id": "browser-admin",
+        "children": [
+          {
+            "tag": "Text",
+            "name": "frame-title",
+            "x": 900,
+            "y": 10,
+            "width": 360,
+            "height": 24,
+            "fontFamily": "Arial, \"PingFang SC\", \"Microsoft YaHei\", sans-serif",
+            "fontSize": 14,
+            "fill": "#374151",
+            "verticalAlign": "middle",
+            "editable": true,
+            "data": {
+              "containerPart": "title"
+            },
+            "textAlign": "right",
+            "id": "9c8b93dd-c2cd-4cb3-a2d3-7d364a448898",
+            "text": "合成管理台"
+          },
+          {
+            "tag": "Rect",
+            "x": 0,
+            "y": 40,
+            "width": 1280,
+            "height": 56,
+            "fill": "#f3f4f6",
+            "name": "rect",
+            "id": "br-chrome"
+          },
+          {
+            "tag": "Ellipse",
+            "x": 20,
+            "y": 62,
+            "width": 12,
+            "height": 12,
+            "fill": "#ff5f57",
+            "name": "ellipse",
+            "id": "br-dot1"
+          },
+          {
+            "tag": "Ellipse",
+            "x": 40,
+            "y": 62,
+            "width": 12,
+            "height": 12,
+            "fill": "#febc2e",
+            "name": "ellipse",
+            "id": "br-dot2"
+          },
+          {
+            "tag": "Ellipse",
+            "x": 60,
+            "y": 62,
+            "width": 12,
+            "height": 12,
+            "fill": "#28c840",
+            "name": "ellipse",
+            "id": "br-dot3"
+          },
+          {
+            "tag": "Rect",
+            "x": 120,
+            "y": 54,
+            "width": 700,
+            "height": 28,
+            "fill": "#ffffff",
+            "cornerRadius": 14,
+            "name": "rect",
+            "id": "br-url"
+          },
+          {
+            "tag": "Text",
+            "x": 140,
+            "y": 56,
+            "width": 660,
+            "height": 24,
+            "fontSize": 13,
+            "fill": "#6b7280",
+            "name": "text",
+            "id": "br-url-text",
+            "text": "admin.example.com/overview"
+          },
+          {
+            "tag": "Rect",
+            "x": 0,
+            "y": 96,
+            "width": 220,
+            "height": 704,
+            "fill": "#1f2937",
+            "name": "rect",
+            "id": "br-sidebar"
+          },
+          {
+            "tag": "Text",
+            "x": 24,
+            "y": 124,
+            "width": 180,
+            "height": 28,
+            "fontSize": 14,
+            "fill": "#9ca3af",
+            "name": "text",
+            "id": "br-side-title",
+            "text": "导航"
+          },
+          {
+            "tag": "Rect",
+            "x": 16,
+            "y": 164,
+            "width": 188,
+            "height": 44,
+            "fill": "#374151",
+            "cornerRadius": 8,
+            "name": "rect",
+            "id": "br-nav-overview"
+          },
+          {
+            "tag": "Text",
+            "x": 36,
+            "y": 174,
+            "width": 150,
+            "height": 26,
+            "fontSize": 16,
+            "fill": "#ffffff",
+            "name": "text",
+            "id": "br-nav-overview-t",
+            "text": "概览"
+          },
+          {
+            "tag": "Rect",
+            "x": 16,
+            "y": 220,
+            "width": 188,
+            "height": 44,
+            "fill": "transparent",
+            "cornerRadius": 8,
+            "name": "rect",
+            "id": "br-nav-orders"
+          },
+          {
+            "tag": "Text",
+            "x": 36,
+            "y": 230,
+            "width": 150,
+            "height": 26,
+            "fontSize": 16,
+            "fill": "#d1d5db",
+            "name": "text",
+            "id": "br-nav-orders-t",
+            "text": "订单"
+          },
+          {
+            "tag": "Rect",
+            "x": 220,
+            "y": 96,
+            "width": 1060,
+            "height": 704,
+            "fill": "#f9fafb",
+            "name": "rect",
+            "id": "br-main"
+          },
+          {
+            "tag": "Text",
+            "x": 252,
+            "y": 136,
+            "width": 400,
+            "height": 36,
+            "fontSize": 24,
+            "fill": "#111827",
+            "name": "text",
+            "id": "br-page-title",
+            "text": "数据概览"
+          },
+          {
+            "tag": "Rect",
+            "x": 252,
+            "y": 200,
+            "width": 320,
+            "height": 140,
+            "fill": "#ffffff",
+            "cornerRadius": 12,
+            "name": "rect",
+            "id": "br-card-orders"
+          },
+          {
+            "tag": "Text",
+            "x": 276,
+            "y": 224,
+            "width": 200,
+            "height": 24,
+            "fontSize": 15,
+            "fill": "#6b7280",
+            "name": "text",
+            "id": "br-card-orders-label",
+            "text": "订单"
+          },
+          {
+            "tag": "Text",
+            "x": 276,
+            "y": 256,
+            "width": 260,
+            "height": 56,
+            "fontSize": 40,
+            "fill": "#111827",
+            "name": "text",
+            "id": "br-card-orders-num",
+            "text": "128"
+          },
+          {
+            "tag": "Rect",
+            "x": 604,
+            "y": 200,
+            "width": 320,
+            "height": 140,
+            "fill": "#ffffff",
+            "cornerRadius": 12,
+            "name": "rect",
+            "id": "br-card-revenue"
+          },
+          {
+            "tag": "Text",
+            "x": 628,
+            "y": 224,
+            "width": 200,
+            "height": 24,
+            "fontSize": 15,
+            "fill": "#6b7280",
+            "name": "text",
+            "id": "br-card-revenue-label",
+            "text": "收入"
+          },
+          {
+            "tag": "Text",
+            "x": 628,
+            "y": 256,
+            "width": 260,
+            "height": 56,
+            "fontSize": 40,
+            "fill": "#111827",
+            "name": "text",
+            "id": "br-card-revenue-num",
+            "text": "2560"
+          },
+          {
+            "tag": "Rect",
+            "x": 252,
+            "y": 380,
+            "width": 160,
+            "height": 48,
+            "fill": "#3370ff",
+            "cornerRadius": 8,
+            "name": "rect",
+            "id": "br-export-btn"
+          },
+          {
+            "tag": "Text",
+            "x": 252,
+            "y": 392,
+            "width": 160,
+            "height": 26,
+            "fontSize": 16,
+            "fill": "#ffffff",
+            "textAlign": "center",
+            "name": "text",
+            "id": "br-export-text",
+            "text": "导出"
+          }
+        ]
+      },
+      {
+        "tag": "Group",
+        "name": "group",
+        "x": 60,
+        "y": 940,
+        "id": "db-erd-v1",
+        "children": [
+          {
+            "tag": "Path",
+            "name": "connector",
+            "path": "M220 165L420 165M412.01704569498645 169.15601257987333L420 165L412.01704569498645 160.84398742012667",
+            "stroke": "#646a73",
+            "strokeWidth": 1.5,
+            "editable": true,
+            "data": {
+              "kind": "connector",
+              "sourceId": "erd-users",
+              "targetId": "erd-orders",
+              "sourceAnchor": {
+                "x": 1,
+                "y": 0.5
+              },
+              "targetAnchor": {
+                "x": 0,
+                "y": 0.5
+              },
+              "from": {
+                "x": 220,
+                "y": 165
+              },
+              "to": {
+                "x": 420,
+                "y": 165
+              },
+              "mode": "elbow",
+              "startHead": "none",
+              "endHead": "arrow",
+              "labelId": "9ac21437-6f6e-40f9-9d39-7cd0eba7067d"
+            },
+            "id": "erd-e-users-orders"
+          },
+          {
+            "tag": "Path",
+            "name": "connector",
+            "path": "M880 165L680 165M687.9829543050135 160.84398742012667L680 165L687.9829543050135 169.15601257987333",
+            "stroke": "#646a73",
+            "strokeWidth": 1.5,
+            "editable": true,
+            "data": {
+              "kind": "connector",
+              "sourceId": "erd-books",
+              "targetId": "erd-orders",
+              "sourceAnchor": {
+                "x": 0,
+                "y": 0.5
+              },
+              "targetAnchor": {
+                "x": 1,
+                "y": 0.5
+              },
+              "from": {
+                "x": 880,
+                "y": 165
+              },
+              "to": {
+                "x": 680,
+                "y": 165
+              },
+              "mode": "elbow",
+              "startHead": "none",
+              "endHead": "arrow",
+              "labelId": "c871da78-b868-43e1-b76f-835babfc6b15"
+            },
+            "id": "erd-e-books-orders"
+          },
+          {
+            "tag": "Frame",
+            "name": "connector-label",
+            "x": 191.5,
+            "y": 7,
+            "width": 257,
+            "height": 28,
+            "fill": "#ffffff",
+            "hitChildren": false,
+            "editable": true,
+            "data": {
+              "kind": "connector-label",
+              "ownerId": "erd-e-users-orders",
+              "offset": {
+                "x": 0,
+                "y": -144
+              }
+            },
+            "id": "9ac21437-6f6e-40f9-9d39-7cd0eba7067d",
+            "children": [
+              {
+                "tag": "Text",
+                "name": "text",
+                "x": 5,
+                "y": 4,
+                "width": 247,
+                "height": 20,
+                "fontFamily": "Arial, \"PingFang SC\", \"Microsoft YaHei\", sans-serif",
+                "fontSize": 13,
+                "fill": "#1f2329",
+                "verticalAlign": "middle",
+                "editable": true,
+                "textAlign": "center",
+                "textWrap": "none",
+                "data": {
+                  "kind": "node-label"
+                },
+                "id": "ae185aa8-3227-4aed-9178-180b954e4bf3",
+                "text": "users.id → orders.user_id  1:N"
+              }
+            ]
+          },
+          {
+            "tag": "Frame",
+            "name": "connector-label",
+            "x": 651.5,
+            "y": 7,
+            "width": 257,
+            "height": 28,
+            "fill": "#ffffff",
+            "hitChildren": false,
+            "editable": true,
+            "data": {
+              "kind": "connector-label",
+              "ownerId": "erd-e-books-orders",
+              "offset": {
+                "x": 0,
+                "y": -144
+              }
+            },
+            "id": "c871da78-b868-43e1-b76f-835babfc6b15",
+            "children": [
+              {
+                "tag": "Text",
+                "name": "text",
+                "x": 5,
+                "y": 4,
+                "width": 247,
+                "height": 20,
+                "fontFamily": "Arial, \"PingFang SC\", \"Microsoft YaHei\", sans-serif",
+                "fontSize": 13,
+                "fill": "#1f2329",
+                "verticalAlign": "middle",
+                "editable": true,
+                "textAlign": "center",
+                "textWrap": "none",
+                "data": {
+                  "kind": "node-label"
+                },
+                "id": "4edd9088-0b6b-4f46-8a80-6438183f098c",
+                "text": "books.id → orders.book_id  1:N"
+              }
+            ]
+          },
+          {
+            "tag": "Frame",
+            "name": "diagram-node",
+            "x": 0,
+            "y": 90,
+            "width": 220,
+            "height": 150,
+            "fill": "transparent",
+            "editable": true,
+            "hitChildren": false,
+            "data": {
+              "kind": "diagram-node",
+              "shape": "rect"
+            },
+            "id": "erd-users",
+            "children": [
+              {
+                "tag": "Rect",
+                "name": "diagram-body",
+                "x": 0,
+                "y": 0,
+                "width": 220,
+                "height": 150,
+                "fill": "#eef4ff",
+                "stroke": "#3370ff",
+                "strokeWidth": 1.5,
+                "cornerRadius": 0,
+                "editable": false,
+                "data": {
+                  "kind": "diagram-body"
+                },
+                "id": "ab73dda5-d2f2-47db-abe1-aad5d2d2a4d2"
+              },
+              {
+                "tag": "Text",
+                "name": "text",
+                "x": 14,
+                "y": 12,
+                "width": 192,
+                "height": 126,
+                "fontFamily": "Arial, \"PingFang SC\", \"Microsoft YaHei\", sans-serif",
+                "fontSize": 16,
+                "fill": "#1f2329",
+                "verticalAlign": "middle",
+                "editable": true,
+                "textAlign": "center",
+                "data": {
+                  "kind": "node-label"
+                },
+                "id": "6d869e79-f86d-49d3-87bd-e2681b09d747",
+                "text": "users\n用户表\nid, name"
+              }
+            ]
+          },
+          {
+            "tag": "Frame",
+            "name": "diagram-node",
+            "x": 420,
+            "y": 70,
+            "width": 260,
+            "height": 190,
+            "fill": "transparent",
+            "editable": true,
+            "hitChildren": false,
+            "data": {
+              "kind": "diagram-node",
+              "shape": "rect"
+            },
+            "id": "erd-orders",
+            "children": [
+              {
+                "tag": "Rect",
+                "name": "diagram-body",
+                "x": 0,
+                "y": 0,
+                "width": 260,
+                "height": 190,
+                "fill": "#fff7e8",
+                "stroke": "#e8930c",
+                "strokeWidth": 1.5,
+                "cornerRadius": 0,
+                "editable": false,
+                "data": {
+                  "kind": "diagram-body"
+                },
+                "id": "11dc4f2c-83b0-4ddc-8158-6e613bc46438"
+              },
+              {
+                "tag": "Text",
+                "name": "text",
+                "x": 14,
+                "y": 12,
+                "width": 232,
+                "height": 166,
+                "fontFamily": "Arial, \"PingFang SC\", \"Microsoft YaHei\", sans-serif",
+                "fontSize": 16,
+                "fill": "#1f2329",
+                "verticalAlign": "middle",
+                "editable": true,
+                "textAlign": "center",
+                "data": {
+                  "kind": "node-label"
+                },
+                "id": "e76127c5-b00b-4817-8f51-18d1286e53f9",
+                "text": "orders\n订单表\nid, user_id, book_id"
+              }
+            ]
+          },
+          {
+            "tag": "Frame",
+            "name": "diagram-node",
+            "x": 880,
+            "y": 90,
+            "width": 220,
+            "height": 150,
+            "fill": "transparent",
+            "editable": true,
+            "hitChildren": false,
+            "data": {
+              "kind": "diagram-node",
+              "shape": "rect"
+            },
+            "id": "erd-books",
+            "children": [
+              {
+                "tag": "Rect",
+                "name": "diagram-body",
+                "x": 0,
+                "y": 0,
+                "width": 220,
+                "height": 150,
+                "fill": "#eafaf0",
+                "stroke": "#12b76a",
+                "strokeWidth": 1.5,
+                "cornerRadius": 0,
+                "editable": false,
+                "data": {
+                  "kind": "diagram-body"
+                },
+                "id": "61f1a1a6-d660-48f8-95cd-ccd273bd7539"
+              },
+              {
+                "tag": "Text",
+                "name": "text",
+                "x": 14,
+                "y": 12,
+                "width": 192,
+                "height": 126,
+                "fontFamily": "Arial, \"PingFang SC\", \"Microsoft YaHei\", sans-serif",
+                "fontSize": 16,
+                "fill": "#1f2329",
+                "verticalAlign": "middle",
+                "editable": true,
+                "textAlign": "center",
+                "data": {
+                  "kind": "node-label"
+                },
+                "id": "edb5612a-a8f3-4df3-b53e-69655d0f914a",
+                "text": "books\n图书表\nid, title"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.11 — 2026-10-22
+
+- Preserve explicitly positioned container titles within their existing right inset, including right-aligned titles in clipped Web frames.
+- Keep native group-open flags in the view while preserving exact authored `hitChildren` fields in model snapshots, exports, duplicate/clipboard content and public selection payloads; explicit commands and remote patches retain their normal ownership.
+- Reconsider container membership at genuine transform and creation boundaries; keep copied nested subtrees intact during tool switches, unrelated gestures and new drawing.
+- Fit animated view/alignment menus using their final size inside the embedded canvas and browser; scroll short menus and keep their final command reachable by keyboard after resize or host scrolling.
+- Keep existing diagram-wrapper geometry consistent in native and detached exports, and capture existing native table layout in the view baseline so focus/exit does not write defaults.
+- Keep native Phone hardware visible after model-only child changes; the live canvas and PNG/SVG exports retain the same bezel.
+- Keep titles and Phone hardware generated only for a model projection out of its content snapshot and diff baseline. Native edits, undo/redo and reopening no longer attempt to place missing model entries or reuse their IDs.
+- Preserve authoritative container children and any stored titles/hardware. Public APIs, model implementation, schema 1, original checkpoints and collaboration transport are unchanged; opening a container does not backfill drawing data.
+
 ## 0.5.10 — 2026-10-22
 
 - Keep the toolbar usable in short and embedded canvases with a scrollable tool list and a pinned selection button.

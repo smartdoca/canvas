@@ -30,6 +30,8 @@ export function Canvas() {
 
 一份文档会话只保留一个 `CanvasModel`。选区或只读变化时不要新建模型。
 
+仅为原生视图生成的容器标题和 Phone 硬件不会回填到权威模型；模型子内容更新与后续原生编辑继续保留可见容器外框。详见[容器投影说明](docs/CONTAINER_PROJECTION.md)。
+
 已有文档使用 `CanvasModel.restore(checkpoint)` 恢复宿主提供的权威 checkpoint。协同宿主只创建一次权威 epoch，并向各会话分发同一 checkpoint。详见[协同接入](docs/COLLABORATION.md)和 [0.5.0 更新记录](CHANGELOG.md)。
 
 ## 0.5.0 画布能力

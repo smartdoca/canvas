@@ -454,7 +454,7 @@
 [data-aidcanvas] .rich-custom-inline { display:inline-block; max-width:100%; box-sizing:border-box; vertical-align:bottom; white-space:nowrap; padding:1px 4px; border-radius:4px; background:#eaf1ff; color:#245bdb; box-decoration-break:clone }
 [data-aidcanvas] .rich-custom-inline.is-selected { outline:1px solid #3370ff }
 [data-aidcanvas] .rich-custom-inline > [contenteditable=false] { display:inline-block; max-width:100%; vertical-align:bottom; overflow:hidden; text-overflow:ellipsis }
-[data-aidcanvas] .rich-inline-suggestions { position:fixed; z-index:100; width:280px; max-height:260px; overflow:auto; border:1px solid #dee0e3; border-radius:8px; background:#fff; box-shadow:0 6px 24px #1f232926; padding:4px; font:14px/1.5 Arial,sans-serif }
+[data-aidcanvas] .rich-inline-suggestions { position:fixed; z-index:100; pointer-events:auto; width:280px; max-height:260px; overflow:auto; border:1px solid #dee0e3; border-radius:8px; background:#fff; box-shadow:0 6px 24px #1f232926; padding:4px; font:14px/1.5 Arial,sans-serif }
 [data-aidcanvas] .rich-inline-suggestions:empty { display:none }
 [data-aidcanvas] .rich-inline-suggestions button { display:block; width:100%; padding:8px 10px; border:0; border-radius:4px; text-align:left; color:#1f2329; background:transparent; cursor:pointer }
 [data-aidcanvas] .rich-inline-suggestions button[aria-selected=true] { background:#eaf1ff; color:#245bdb }

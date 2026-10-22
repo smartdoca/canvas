@@ -43,6 +43,9 @@ for (const type of ['note', 'card', 'table']) test(`${type}: empty row plus inse
   await edit(page, id)
   const file = await imageFile(page)
   await choose(page, 'image', file); await expect(input.locator('[data-resource-kind=image] img')).toBeVisible()
+  // The gutter follows the hovered row. The upload menu has disappeared, so
+  // move to the new typing paragraph before using its insertion button again.
+  await input.locator(':scope > [data-slate-node=element]').last().hover()
   await expect(plus).toBeVisible(); await choose(page, 'attachment', file)
   await expect(input.locator('[data-resource-kind=attachment]')).toContainText('idea.png')
   await page.evaluate(() => window.demo.handle.flush())

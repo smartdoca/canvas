@@ -95,7 +95,9 @@ export function syncContainerGeometry(frame: Frame) {
     }
     const title = frame.children.find(item => item.name === 'frame-title')
     if (type === 'phone') syncPhoneFrame(frame)
-    else title?.set({ width: Math.max(40, width - 40) })
+    // Keep the existing right inset while honoring the title's actual origin.
+    // Right-aligned authored titles otherwise extend beyond a clipped Frame.
+    else title?.set({ width: Math.max(40, width - Number(title.x) - 20) })
     for (const item of frame.children) {
       const role = item.data?.containerPart, i = Number(item.data?.index || 0), top = 50
       if (role === 'cell' || role === 'label') {

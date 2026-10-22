@@ -1,0 +1,68 @@
+import { test, expect } from './fixtures.mjs'
+
+const scene = page => page.evaluate(() => window.demo.model.getValue().scene)
+const find = (value, id) => value.id === id ? value : value.children?.map(child => find(child, id)).find(Boolean)
+
+test('mention suggestions accept a pointer click and note deletion undo preserves the inline without peer echo', async ({ page, context }, info) => {
+  const modules = []
+  page.on('request', request => modules.push(new URL(request.url()).pathname))
+  await page.setViewportSize({ width: 1440, height: 1000 })
+  await page.goto('/examples/doca/')
+  await page.waitForFunction(() => window.demo?.handle)
+  await page.evaluate(() => {
+    window.demo.model.remove(window.demo.model.getValue().scene.children.map(node => node.id))
+    window.demo.model.add({ id: 'pointer-note', tag: 'Frame', name: 'note', x: 350, y: 260, width: 360, height: 180, fill: '#fff2a8', editable: true, data: { kind: 'note' }, children: [{ id: 'pointer-label', tag: 'Text', name: 'text', text: '', x: 16, y: 16, width: 328, height: 148, fontSize: 20, fill: '#1f2329', editable: true }] })
+  })
+  const peer = await context.newPage()
+  await peer.goto(await page.evaluate(() => window.demo.link))
+  await peer.waitForFunction(() => window.demo?.handle)
+  await expect.poll(() => scene(peer)).toEqual(await scene(page))
+  const localBefore = await page.evaluate(() => window.demo.allUpdates.length)
+  expect(await peer.evaluate(() => window.demo.allUpdates.length)).toBe(0)
+
+  const bounds = await page.evaluate(() => window.demo.handle.revealElements(['pointer-label'], { maxZoom: 1 }).bounds)
+  const host = await page.locator('.canvas-host').boundingBox()
+  await page.mouse.dblclick(host.x + bounds.x + bounds.width / 2, host.y + bounds.y + bounds.height / 2)
+  const editable = page.locator('[data-slate-editor]')
+  await expect(editable).toBeFocused()
+  await page.keyboard.insertText('@Canvas')
+  const candidate = page.getByRole('option', { name: 'Canvas QA', exact: true })
+  await expect(candidate).toBeVisible()
+  await expect(candidate).toHaveCSS('pointer-events', 'auto')
+  expect(await candidate.evaluate(button => {
+    const rect = button.getBoundingClientRect()
+    return button.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2))
+  })).toBe(true)
+  // A normal pointer click must reach the candidate through the noninteractive mount.
+  await candidate.click()
+  await expect(page.locator('[data-rich-inline]')).toHaveText('@Canvas QA')
+  await expect(page.getByRole('listbox', { name: 'Mention', exact: true })).toHaveCount(0)
+  await page.keyboard.press('Escape')
+  await expect(editable).toHaveCount(0)
+  await page.evaluate(() => window.demo.handle.flush())
+  const withInline = await scene(page)
+  const savedLabel = find(withInline, 'pointer-label')
+  expect(savedLabel.data.richText.value[0].children.some(child => child.inline?.type === 'example:person')).toBe(true)
+  await expect.poll(() => scene(peer)).toEqual(withInline)
+  await page.screenshot({ path: info.outputPath('mention-selected-with-pointer.png') })
+
+  await page.locator('.canvas-app').focus()
+  await page.keyboard.press('Delete')
+  await expect.poll(async () => find(await scene(page), 'pointer-note')).toBeUndefined()
+  await expect.poll(() => scene(peer)).toEqual(await scene(page))
+  await page.keyboard.press('ControlOrMeta+z')
+  await expect.poll(async () => find(await scene(page), 'pointer-label')).toEqual(savedLabel)
+  await expect.poll(() => scene(peer)).toEqual(await scene(page))
+  expect(await peer.evaluate(() => window.demo.allUpdates.length)).toBe(0)
+  const committed = await page.evaluate(() => window.demo.allUpdates.length)
+  expect(committed).toBeGreaterThan(localBefore)
+  await page.evaluate(() => window.demo.handle.flush())
+  await peer.evaluate(() => window.demo.handle.flush())
+  expect(await page.evaluate(() => window.demo.allUpdates.length)).toBe(committed)
+  expect(await peer.evaluate(() => window.demo.allUpdates.length)).toBe(0)
+  if (process.env.CANVAS_PACKAGE_CONSUMER) {
+    expect(modules.some(path => path.startsWith('/assets/') && path.endsWith('.js'))).toBe(true)
+    expect(modules.some(path => path.startsWith('/src/') || path.startsWith('/__qa/'))).toBe(false)
+  }
+  await peer.close()
+})

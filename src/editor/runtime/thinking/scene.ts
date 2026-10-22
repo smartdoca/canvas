@@ -17,6 +17,24 @@ export const branchFills = ['#eaf1ff', '#e5f6ee', '#fff4d9', '#f2eafb', '#ffeceb
 const id = createElementId
 const font = 'Arial, "PingFang SC", "Microsoft YaHei", sans-serif'
 export const kind = (item?: IUI | null) => String(item?.data?.kind || '')
+/** Existing diagram display rules, shared with detached PNG/SVG export. */
+export function normalizeDiagramView(item: IUI, source: IUI | Record<string, unknown> = item) {
+  // Name-only wrappers use the current resize lifecycle in this view only.
+  // Explicit containers and authored titles retain their existing treatment.
+  const body = item.children?.find(child => kind(child) === 'diagram-body' || child.name === 'diagram-body')
+  const sourceData = source.data as Record<string, unknown> | undefined, sourceKind = String(sourceData?.kind || '')
+  const diagram = sourceKind === 'diagram-node' || !sourceKind && (source.name === 'diagram-node' || source.name === 'frame' && !sourceData?.containerType)
+  if (body && diagram) {
+    const legacy = sourceKind !== 'diagram-node' || source.name !== 'diagram-node', missingBodyKind = kind(body) !== 'diagram-body'
+    if (legacy) {
+      const shape = item.data?.shape || (!body.path ? body.tag === 'Ellipse' ? 'ellipse' : body.tag === 'Rect' ? body.cornerRadius ? 'rounded' : 'rect' : undefined : undefined)
+      item.set({ name: 'diagram-node', fill: 'transparent', stroke: 'transparent', data: { ...item.data, kind: 'diagram-node', ...(shape ? { shape } : {}) } })
+      item.children!.filter(child => child instanceof Text && child.name === 'frame-title' && !child.data?.containerPart && child.text === 'Frame').forEach(child => child.remove())
+    }
+    if (missingBodyKind) body.data = { ...body.data, kind: 'diagram-body' }
+    if (legacy || missingBodyKind) syncDiagramGeometry(item)
+  }
+}
 export const isConnector = (item?: IUI | null) => ['connector', 'template-edge'].includes(kind(item))
 export const connectorPagePoint = (app: App, line: IUI, point: AnchorPoint): AnchorPoint => line.parent ? app.tree.getInnerPoint(line.parent.getWorldPoint(point)) : point
 export const connectorLocalPoint = (app: App, line: IUI, point: AnchorPoint): AnchorPoint => line.parent ? line.parent.getInnerPoint(app.tree.getWorldPoint(point)) : point
