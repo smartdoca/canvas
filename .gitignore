@@ -24,6 +24,7 @@ vite.lib.config.*.timestamp-*
 
 # Generated test output only; keep tests, fixtures and example scripts tracked
 /test-results/
+/artifacts/
 /playwright-report/
 /playwright/.cache/
 /blob-report/
