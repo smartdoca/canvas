@@ -201,3 +201,39 @@ test('deleting a mind parent removes its descendants but preserves siblings and 
   expect(after.find(item => item.id === ids.line).data.sourceId).toBeFalsy()
   await page.evaluate(() => window.demo.handle.undo()); expect(await scene(page)).toEqual(before)
 })
+
+test('new native tables participate in full containment before reload', async ({ page }, info) => {
+  await open(page)
+  await page.getByRole('button', { name: '表格', exact: true }).click()
+  await page.getByRole('button', { name: '3 × 3', exact: true }).click()
+  const host = await page.locator('.canvas-host').boundingBox()
+  await page.mouse.click(host.x + 650, host.y + 350)
+  await expect.poll(async () => (await scene(page)).filter(item => item.data?.kind === 'table').length).toBe(1)
+  await page.getByRole('button', { name: '选择 (V / 1)', exact: true }).click()
+  await page.waitForTimeout(500)
+  const before = await scene(page), table = before.find(item => item.data?.kind === 'table')
+  const screen = (x, y) => page.evaluate(async ({ x, y }) => {
+    const { Leafer } = await import('/node_modules/.vite/deps/leafer-ui.js')
+    const app = Leafer.list.list.find(item => item.isApp)
+    const p = app.tree.getClientPointByWorld(app.tree.getWorldPoint({ x, y }))
+    return { x: p.x, y: p.y }
+  }, { x, y })
+  const drag = async (from, to) => {
+    const a = await screen(...from), b = await screen(...to)
+    await page.mouse.move(a.x, a.y); await page.mouse.down()
+    await page.mouse.move(b.x, b.y, { steps: 15 }); await page.mouse.up()
+  }
+  await page.mouse.click(...Object.values(await screen(table.x - 90, table.y - 70)))
+  await drag([table.x - 30, table.y - 30], [table.x + 280, table.y + 170])
+  expect(await selected(page)).toEqual([])
+  for (const reverse of [false, true]) {
+    await page.mouse.click(...Object.values(await screen(table.x - 90, table.y - 70)))
+    await page.waitForTimeout(400)
+    const a = [table.x - 30, table.y - 30], b = [table.x + 450, table.y + 170]
+    await drag(reverse ? b : a, reverse ? a : b)
+    expect(await selected(page)).toEqual([table.id])
+  }
+  await page.evaluate(() => window.demo.handle.flush())
+  expect(await scene(page)).toEqual(before)
+  await page.screenshot({ path: info.outputPath('new-table-marquee.png') })
+})

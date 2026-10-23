@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.15 — 2026-10-23
+
+- Include newly drawn native tables in fully enclosing marquee selections before reopening the document. Cell pointer handling remains independent from selection of the whole table.
+- Preserve partial-containment behavior, scene data, public exports, schema 1 and collaboration transport.
+
 ## 0.5.14 — 2026-10-23
 
 - Return focus to the current canvas after explicit Select, Hand and final drawing-tool choices, so keyboard undo/redo works after leaving a table cell through tool buttons.

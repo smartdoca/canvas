@@ -11,7 +11,10 @@ function containedItems(items: IUI[], bounds: IBounds): IUI[] {
     if (!bounds.hit(box)) return []
     // A partially enclosed group must not pull its other members into the
     // selection. Descend into open groups and choose only contained elements.
-    if ((templateRoute || item.editable && item.hitSelf) && bounds.includes(box)) return [item]
+    // Table cells own pointer hits, so a newly drawn table has hitSelf=false.
+    // Its semantic group still participates as one fully enclosed object.
+    const table = item.data?.kind === 'table'
+    if ((templateRoute || item.editable && (item.hitSelf || table)) && bounds.includes(box)) return [item]
     if (item.children && item.hitChildren) return containedItems(item.children, bounds)
     return []
   })
