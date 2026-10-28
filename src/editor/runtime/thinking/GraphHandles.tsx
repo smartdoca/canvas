@@ -90,6 +90,7 @@ export function GraphHandles({ app, activeKey, selection, onComplete, onMindActi
     const move = (event: globalThis.PointerEvent) => {
       const current = draftRef.current
       if (!current) {
+        if (!host.contains(event.target as globalThis.Node) && !root.current?.contains(event.target as globalThis.Node)) setHovered(undefined)
         const line = !app.editor.innerEditing && host.contains(event.target as globalThis.Node) ? hitLine(event)?.line : undefined
         setHoveredLine(previous => previous === line ? previous : line); host.style.cursor = line ? !line.data?.sourceId && !line.data?.targetId ? 'move' : 'pointer' : ''
         return
@@ -218,17 +219,17 @@ export function GraphHandles({ app, activeKey, selection, onComplete, onMindActi
       if (draftRef.current || picker) { event.preventDefault(); event.stopImmediatePropagation(); update(); setPicker(undefined) }
     }
     const selected = () => { if (picker && !app.editor.list.includes(picker.line)) setPicker(undefined); paint() }
-    const editing = () => { update(); setPicker(undefined); setHoveredLine(undefined); paint() }
+    const editing = () => { update(); setPicker(undefined); setHovered(undefined); setHoveredLine(undefined); paint() }
     // Property events can precede transform/layout invalidation. Refresh once
     // layout settles so resized ports never stay at their previous positions.
     const ids = [app.on_(MoveEvent.MOVE, paint), app.on_(ZoomEvent.ZOOM, paint), app.tree.on_(PropertyEvent.CHANGE, paint), app.tree.on_(LayoutEvent.AFTER, paintLayout), app.editor.on_(EditorEvent.SELECT, selected), app.editor.on_(InnerEditorEvent.CLOSE, paint), app.editor.on_(InnerEditorEvent.OPEN, editing),
       app.on_(PointerEvent.MOVE, (event: PointerEvent) => {
         if (draftRef.current || app.editor.innerEditing) return
-        const node = ancestor(event.target as IUI, 'table-cell') ? undefined : connectableNode(event.target as IUI)
+        const node = connectableNode(event.target as IUI)
         setHovered(previous => previous === node ? previous : node)
       }),
     ]
-    const cancel = () => update()
+    const cancel = () => { update(); setHovered(undefined) }
     document.addEventListener('dblclick', double, true); document.addEventListener('pointercancel', cancel, true); window.addEventListener('blur', cancel)
     document.addEventListener('pointermove', move, true); document.addEventListener('pointerup', up, true); document.addEventListener('pointerdown', down, true); window.addEventListener('keydown', key, true)
     return () => { if (layoutFrame !== undefined) cancelAnimationFrame(layoutFrame); host.style.cursor = ''; document.removeEventListener('dblclick', double, true); document.removeEventListener('pointercancel', cancel, true); window.removeEventListener('blur', cancel); app.off_(ids); document.removeEventListener('pointermove', move, true); document.removeEventListener('pointerup', up, true); document.removeEventListener('pointerdown', down, true); window.removeEventListener('keydown', key, true) }
@@ -241,7 +242,8 @@ export function GraphHandles({ app, activeKey, selection, onComplete, onMindActi
   const cellSelection = selection.some(item => ancestor(item, 'table-cell'))
   const candidate = !cellSelection && selection.length === 1 ? connectableNode(selection[0]) : undefined
   const selected = attached(candidate) ? candidate : undefined
-  const nodes = [...new Set([selected, cellSelection ? undefined : hovered].filter(attached))]
+  const hoveredNode = cellSelection && kind(hovered) !== 'table' ? undefined : hovered
+  const nodes = [...new Set([selected, hoveredNode].filter(attached))]
   const line = isConnector(selection[0]) && attached(selection[0]) ? selection[0] : undefined
   const displayLine = line || (attached(hoveredLine) ? hoveredLine : undefined)
   const draft = draftState && (!draftState.node || attached(draftState.node)) && (!draftState.line || attached(draftState.line)) ? draftState : undefined
@@ -265,7 +267,7 @@ export function GraphHandles({ app, activeKey, selection, onComplete, onMindActi
   const handles = handleGeometry ? [{ type: 'source' as const, point: lineDraft?.from || line!.data!.from }, { type: 'target' as const, point: lineDraft?.to || line!.data!.to }, ...(line!.data!.mode !== 'straight' && (line!.data!.mode === 'curve' || handleGeometry.points.length === 2) ? [{ type: 'bend' as const, point: handleGeometry.middle }] : [])] : []
   const targetBox = attached(draft?.target) ? draft.target.getBounds('box', 'page') : undefined
   const boxStart = targetBox && stagePoint(targetBox), boxEnd = targetBox && stagePoint({ x: targetBox.x + targetBox.width, y: targetBox.y + targetBox.height })
-  return <div ref={root} className="graph-interaction-overlay">
+  return <div ref={root} className={`graph-interaction-overlay${nodes.some(node => kind(node) === 'table') ? ' has-table-ports' : ''}`}>
     {displayLine && !draft && (() => { const edge = displayLine, geometry = connectorGeometry(edge.data!.from, edge.data!.to, edge.data), a = stagePoint(connectorPagePoint(app, edge, { x: 0, y: 0 })), b = stagePoint(connectorPagePoint(app, edge, { x: 1, y: 1 })); return <svg className={`graph-route-highlight${line ? ' is-selected' : ''}`}><path d={geometry.routePath} transform={`translate(${a.x} ${a.y}) scale(${b.x - a.x} ${b.y - a.y})`} /></svg> })()}
     {boxStart && boxEnd && <div className="graph-drop-target" style={{ left: boxStart.x - 4, top: boxStart.y - 4, width: boxEnd.x - boxStart.x + 8, height: boxEnd.y - boxStart.y + 8 }}><span>{t('connector.snapTarget')}</span></div>}
     {preview && draft?.type !== 'translate' && <svg className="graph-gesture-preview"><path d={preview.path} transform={(() => { const convert = (point: AnchorPoint) => stagePoint(draft?.line ? connectorPagePoint(app, draft.line, point) : point), a = convert({ x: 0, y: 0 }), b = convert({ x: 1, y: 1 }); return `translate(${a.x} ${a.y}) scale(${b.x - a.x} ${b.y - a.y})` })()} /></svg>}

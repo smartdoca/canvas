@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.16 — 2026-10-28
+
+- Show table connection points while hovering outside cell editing, and keep them visible after selecting the whole table with its upper-left hand. Hide them during cell editing and clear temporary points after leaving or cancelling.
+- Keep table axis controls and menus reachable beside the connection points. Preserve existing endpoint anchors, cell content, undo/redo and collaboration behavior without changing public APIs or persisted schema 1.
+
 ## 0.5.15 — 2026-10-23
 
 - Include newly drawn native tables in fully enclosing marquee selections before reopening the document. Cell pointer handling remains independent from selection of the whole table.
