@@ -2189,8 +2189,9 @@ const CanvasContent = forwardRef<CanvasEditorRef, CanvasEditorProps>(function Ca
 
   const displayedSaveState = props.saveStatus === 'clean' ? 'saved' : props.saveStatus || saveState
 
-  return <CanvasI18nProvider locale={props.locale} messages={messages}>
-  <div data-aidcanvas="" lang={resolveLocale(props.locale) === 'en' ? 'en' : 'zh-CN'} tabIndex={0} onFocus={() => setFocused(true)} onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget)) setFocused(false) }} onPointerDown={e => { if (!(e.target as HTMLElement).closest('button,input,textarea,[contenteditable]')) e.currentTarget.focus() }} onDoubleClickCapture={e => { if (isReadOnly) e.stopPropagation() }} className={`canvas-app thinking-canvas${shapesOpen ? ' is-shapes-open' : ''}${outlineOpen ? ' is-drawer-open' : ''}${isReadOnly ? ' is-readonly' : ''}${props.className ? ` ${props.className}` : ''}`} style={{ ...props.theme, ...props.style, ...(backgroundColor ? { '--aidcanvas-background': backgroundColor } : {}) }}>
+  const locale = resolveLocale(props.locale)
+  return <CanvasI18nProvider locale={locale} messages={messages}>
+  <div data-aidcanvas="" lang={locale === 'zh' ? 'zh-CN' : locale} tabIndex={0} onFocus={() => setFocused(true)} onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget)) setFocused(false) }} onPointerDown={e => { if (!(e.target as HTMLElement).closest('button,input,textarea,[contenteditable]')) e.currentTarget.focus() }} onDoubleClickCapture={e => { if (isReadOnly) e.stopPropagation() }} className={`canvas-app thinking-canvas${shapesOpen ? ' is-shapes-open' : ''}${outlineOpen ? ' is-drawer-open' : ''}${isReadOnly ? ' is-readonly' : ''}${props.className ? ` ${props.className}` : ''}`} style={{ ...props.theme, ...props.style, ...(backgroundColor ? { '--aidcanvas-background': backgroundColor } : {}) }}>
     {toast && <div className="toast">{toast}</div>}
     {props.showHeader !== false && <header className="app-header">
       <div className="header-actions board-header-panel">

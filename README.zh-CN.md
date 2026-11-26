@@ -64,7 +64,7 @@ export function Canvas() {
 | `richTextExtensions` | `CanvasRichTextExtension[]` | 富文本自定义原子块或 `inline: true` 行内原子节点，序列化 JSON 与可读 label。 |
 | `saveStatus` | `CanvasSaveStatus` | 宿主保存状态。传入后，编辑器显示这个值。 |
 | `onSaveRequest` | function | 包请求宿主保存时调用。 |
-| `locale` | `string` | `zh` 或 `en`。省略为中文。未知代码使用英文。 |
+| `locale` | `string` | `zh`, `en`, `zh-Hant`, `ja`, `fr`, `ko`, `es`, `ru`。缺省使用简体中文，未知代码使用英文。 |
 | `messages` | `Record<string, string>` | 替换单个文案键。 |
 | `showHeader`、`showToolbar`、`showZoomControls` | `boolean` | 内建界面。 |
 | `selectionActions`、`hostActions` | `CanvasSelectionAction[]` | 选区操作，以及没有选区时仍可用的操作。 |

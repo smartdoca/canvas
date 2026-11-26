@@ -58,7 +58,7 @@ For an existing document, use `CanvasModel.restore(checkpoint)` with the authori
 | `onResourcePreview` | `(CanvasResource) => void` | Host-owned preview for rich and canvas media; receives stable metadata. |
 | `saveStatus` | `CanvasSaveStatus` | Host save state. When set, it is what the editor displays. |
 | `onSaveRequest` | function | Called when the package asks the host to save. |
-| `locale` | `string` | `zh` or `en`. Omitted means Chinese. Unknown codes use English. |
+| `locale` | `string` | `zh`, `en`, `zh-Hant`, `ja`, `fr`, `ko`, `es`, `ru`. Omitted uses Simplified Chinese. Unknown codes use English. |
 | `messages` | `Record<string, string>` | Replaces individual message keys. |
 | `showHeader`, `showToolbar`, `showZoomControls` | `boolean` | Built-in chrome. |
 | `selectionActions`, `hostActions` | `CanvasSelectionAction[]` | Selection actions, and actions that stay available without a selection. |

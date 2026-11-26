@@ -59,8 +59,10 @@ class CanvasSlateEditor extends TextEditor {
   private compositionGeneration = 0
   private loadedText = ''
   private hasLocalEdit = false
-  private locale: 'en' | 'zh' = 'zh'
-  private t = (key: MessageKey) => slateLabel(this.editor.app, key) ?? translate(this.locale, key)
+  private t = (key: MessageKey) => {
+    const lang = (this.editor.app.view as HTMLElement).closest<HTMLElement>('[data-aidcanvas]')?.lang
+    return slateLabel(this.editor.app, key) ?? translate(lang === 'zh-CN' ? 'zh' : lang, key)
+  }
   private outside?: (event: globalThis.PointerEvent) => void
   private scroll?: () => void
   private tools?: HTMLElement
@@ -141,7 +143,6 @@ class CanvasSlateEditor extends TextEditor {
     this.loadedText = String(text.text || ''); this.hasLocalEdit = false
     this._keyEvent = app.config.keyEvent !== false; app.config.keyEvent = false
     this.inBody = false; this.isHTMLText = false; text.textEditing = true
-    this.locale = (app.view as HTMLElement).closest('[data-aidcanvas]')?.getAttribute('lang') === 'en' ? 'en' : 'zh'
     const mount = this.mount = document.createElement('div'); mount.className = 'canvas-slate-mount'
     mount.dataset.textScope = ancestor(text, 'table-cell') ? 'cell' : 'element'
     ;(app.view as HTMLElement).append(mount)
