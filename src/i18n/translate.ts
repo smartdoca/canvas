@@ -1,18 +1,20 @@
 import { en, type MessageKey } from './en'
 import { zh } from './zh'
 
-const catalogs = { en, zh }
+import { additionalCatalogs } from './locales'
+
+const catalogs = { en, zh, ...additionalCatalogs }
+type EditorLocale = keyof typeof catalogs
 
 export type TranslateParams = Record<string, string | number | undefined>
 
 /** Missing locale stays Chinese. Any unrecognized code uses English. */
-export function resolveLocale(locale?: string): 'zh' | 'en' {
-  if (locale === 'en') return 'en'
-  if (!locale || locale === 'zh') return 'zh'
-  return 'en'
+export function resolveLocale(locale?: string): EditorLocale {
+  if (!locale) return 'zh'
+  return Object.hasOwn(catalogs, locale) ? locale as EditorLocale : 'en'
 }
 
-function lookup(locale: 'zh' | 'en', key: string, messages?: Record<string, string>): string | undefined {
+function lookup(locale: EditorLocale, key: string, messages?: Record<string, string>): string | undefined {
   if (messages && Object.prototype.hasOwnProperty.call(messages, key)) return messages[key]
   const catalog = catalogs[locale]
   if (Object.prototype.hasOwnProperty.call(catalog, key)) return catalog[key as MessageKey]
